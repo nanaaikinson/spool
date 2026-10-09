@@ -1,0 +1,6 @@
+# Optional override for a reverse proxy running directly on the Docker host.
+# Do not add this override on Dokploy or Coolify; their proxy uses expose.
+services:
+  app:
+    ports:
+      - "127.0.0.1:${SPOOL_HOST_PORT:-8080}:8080"

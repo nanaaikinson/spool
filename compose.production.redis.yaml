@@ -1,0 +1,53 @@
+# Your existing Asynq Redis, with PostgreSQL managed by this Compose project.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 30s
+    expose:
+      - "8080"
+    networks:
+      - default
+    environment:
+      SPOOL_ADDR: 0.0.0.0:8080
+      SPOOL_ENV: ${SPOOL_ENV:-production}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL to your existing Asynq Redis URI}
+      DATABASE_URL: postgres://spool:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD}@postgres:5432/spool?sslmode=disable
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-}
+      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER:-admin}
+      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:?Set SPOOL_ADMIN_PASSWORD}
+      SPOOL_SESSION_KEY: ${SPOOL_SESSION_KEY:?Set a signing key of at least 32 characters}
+      SPOOL_VIEWER_USER: ${SPOOL_VIEWER_USER:-}
+      SPOOL_VIEWER_PASSWORD: ${SPOOL_VIEWER_PASSWORD:-}
+      SPOOL_READ_ONLY: ${SPOOL_READ_ONLY:-false}
+      SPOOL_SECURE_COOKIE: ${SPOOL_SECURE_COOKIE:-true}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    networks:
+      - default
+    environment:
+      POSTGRES_USER: spool
+      POSTGRES_DB: spool
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spool -d spool"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres-data:
+
+networks:
+  default:

@@ -1,0 +1,28 @@
+# Your existing Asynq Redis and your own PostgreSQL database.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    stop_grace_period: 30s
+    expose:
+      - "8080"
+    networks:
+      - default
+    environment:
+      SPOOL_ADDR: 0.0.0.0:8080
+      SPOOL_ENV: ${SPOOL_ENV:-production}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL to your existing Asynq Redis URI}
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your PostgreSQL URI}
+      PROMETHEUS_URL: ${PROMETHEUS_URL:-}
+      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER:-admin}
+      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:?Set SPOOL_ADMIN_PASSWORD}
+      SPOOL_SESSION_KEY: ${SPOOL_SESSION_KEY:?Set a signing key of at least 32 characters}
+      SPOOL_VIEWER_USER: ${SPOOL_VIEWER_USER:-}
+      SPOOL_VIEWER_PASSWORD: ${SPOOL_VIEWER_PASSWORD:-}
+      SPOOL_READ_ONLY: ${SPOOL_READ_ONLY:-false}
+      SPOOL_SECURE_COOKIE: ${SPOOL_SECURE_COOKIE:-true}
+
+networks:
+  default:
