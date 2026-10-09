@@ -378,6 +378,27 @@ func (a *API) dispatch(id string, w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.json(w, v)
+	case "listErrorGroups":
+		limit := 500
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			n, e := strconv.Atoi(raw)
+			if e != nil || n < 50 || n > 1000 {
+				a.fail(w, r, 422, "VALIDATION_ERROR", "Sample size must be between 50 and 1000.", nil)
+				return
+			}
+			limit = n
+		}
+		queue := r.URL.Query().Get("queue")
+		if len(queue) > 200 {
+			a.fail(w, r, 422, "VALIDATION_ERROR", "Queue name is too long.", nil)
+			return
+		}
+		v, e := a.Source.ErrorGroups(ctx, queue, limit)
+		if e != nil {
+			a.failure(w, r, e)
+			return
+		}
+		a.json(w, v)
 	case "listServers":
 		v, e := a.Source.Servers(ctx)
 		if e != nil {

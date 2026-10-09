@@ -25,7 +25,9 @@ import (
 
 type fakeSource struct {
 	asynqadapter.Source
-	writes int
+	writes      int
+	groupQueue  string
+	groupSample int
 }
 
 func (f *fakeSource) QueueAction(context.Context, string, string) error {
@@ -40,6 +42,11 @@ func (f *fakeSource) TaskAction(context.Context, string, string, string) error {
 
 func (f *fakeSource) Queues(context.Context) ([]domain.Queue, error) {
 	return []domain.Queue{}, nil
+}
+
+func (f *fakeSource) ErrorGroups(_ context.Context, queue string, sample int) (domain.ErrorGroupList, error) {
+	f.groupQueue, f.groupSample = queue, sample
+	return domain.ErrorGroupList{Data: []domain.ErrorGroup{}}, nil
 }
 
 func testAPI(source asynqadapter.Source) *API {
@@ -176,6 +183,17 @@ func TestContractAndFilters(t *testing.T) {
 		if w.Code != 422 {
 			t.Fatalf("filter %s: %d %s", query, w.Code, w.Body.String())
 		}
+	}
+	for _, query := range []string{"limit=49", "limit=1001", "limit=many", "queue=" + strings.Repeat("q", 201)} {
+		w := call(h, "GET", "/api/v1/failures/groups?"+query, "", nil)
+		if w.Code != 422 {
+			t.Fatalf("groups %s: %d %s", query, w.Code, w.Body.String())
+		}
+	}
+	groups := &fakeSource{}
+	w := call(testAPI(groups).Handler(http.NotFoundHandler()), "GET", "/api/v1/failures/groups?queue=critical", "", nil)
+	if w.Code != 200 || groups.groupQueue != "critical" || groups.groupSample != 500 {
+		t.Fatalf("groups defaults: %d %s %+v", w.Code, w.Body.String(), groups)
 	}
 	if !identifier.MatchString("email:high") {
 		t.Fatal("colon queue rejected")

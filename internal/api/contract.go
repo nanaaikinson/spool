@@ -163,6 +163,19 @@ func Endpoints() []Endpoint {
 		},
 		{
 			"GET",
+			"/failures/groups",
+			"listErrorGroups",
+			"Group the newest retained failures by task type and error",
+			domain.ErrorGroupList{},
+			nil,
+			[]Parameter{
+				q("queue", "Optional queue scope"),
+				n("limit", "Failures to sample, newest first, split across queues and states", 50, 1000),
+			},
+			false,
+		},
+		{
+			"GET",
 			"/servers",
 			"listServers",
 			"Live servers and active workers",

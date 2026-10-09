@@ -13,3 +13,15 @@ export const duration = (seconds: number) =>
       : seconds < 3600
         ? `${number(seconds / 60)}m`
         : `${number(seconds / 3600)}h`;
+export const bytes = (value: number) => {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let n = value;
+  let i = 0;
+  while (n >= 1024 && i < units.length - 1) {
+    n /= 1024;
+    i++;
+  }
+  return `${number(n)} ${units[i]}`;
+};
+export const plural = (n: number, unit: string) =>
+  `${number(n)} ${unit}${n === 1 ? "" : "s"}`;

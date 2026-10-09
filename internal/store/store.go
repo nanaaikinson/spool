@@ -36,6 +36,15 @@ type viewModel struct {
 	CreatedAt time.Time
 }
 
+type scheduleEntryModel struct {
+	bun.BaseModel `bun:"table:schedule_entries"`
+	EntryID       string    `bun:"entry_id,pk"`
+	Spec          string    `bun:"spec"`
+	TaskType      string    `bun:"task_type"`
+	FirstSeen     time.Time `bun:"first_seen"`
+	LastSeen      time.Time `bun:"last_seen"`
+}
+
 type Store struct {
 	DB     *bun.DB
 	audits cdb.Repository[*auditModel]
@@ -58,8 +67,12 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		if _, e := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(74290311)"); e != nil {
 			return e
 		}
-		_, e := tx.ExecContext(ctx, migrations.Initial)
-		return e
+		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries} {
+			if _, e := tx.ExecContext(ctx, m); e != nil {
+				return e
+			}
+		}
+		return nil
 	})
 	if e != nil {
 		db.Close()
@@ -176,4 +189,95 @@ func (s *Store) DeleteView(ctx context.Context, actor, id string) error {
 	}
 	_, e := s.DB.NewDelete().Model((*viewModel)(nil)).Where("id = ? AND actor = ?", id, actor).Exec(ctx)
 	return e
+}
+
+// RecordScheduleEntries upserts live periodic entries, refreshing last_seen.
+func (s *Store) RecordScheduleEntries(ctx context.Context, entries []domain.Scheduler) error {
+	if s == nil {
+		return ErrUnavailable
+	}
+	if len(entries) == 0 {
+		return nil
+	}
+	now := time.Now()
+	rows := make([]scheduleEntryModel, 0, len(entries))
+	for _, e := range entries {
+		rows = append(rows, scheduleEntryModel{EntryID: e.ID, Spec: e.Spec, TaskType: e.Type, FirstSeen: now, LastSeen: now})
+	}
+	_, e := s.DB.NewInsert().
+		Model(&rows).
+		On("CONFLICT (entry_id) DO UPDATE").
+		Set("spec = EXCLUDED.spec, task_type = EXCLUDED.task_type, last_seen = EXCLUDED.last_seen").
+		Exec(ctx)
+	return e
+}
+
+type scheduleLinkModel struct {
+	bun.BaseModel `bun:"table:schedule_links"`
+	TaskID        string    `bun:"task_id,pk"`
+	EntryID       string    `bun:"entry_id,pk"`
+	EnqueuedAt    time.Time `bun:"enqueued_at"`
+}
+
+// RecordScheduleLinks stores task-to-entry links; already known links are kept.
+func (s *Store) RecordScheduleLinks(ctx context.Context, links []domain.ScheduleLink) error {
+	if s == nil {
+		return ErrUnavailable
+	}
+	if len(links) == 0 {
+		return nil
+	}
+	rows := make([]scheduleLinkModel, 0, len(links))
+	for _, l := range links {
+		rows = append(rows, scheduleLinkModel{TaskID: l.TaskID, EntryID: l.EntryID, EnqueuedAt: l.EnqueuedAt})
+	}
+	_, e := s.DB.NewInsert().Model(&rows).On("CONFLICT DO NOTHING").Exec(ctx)
+	return e
+}
+
+// ScheduleLinks returns the periodic entry behind each of the given tasks. A
+// custom task ID reused across entries resolves to the latest enqueue.
+func (s *Store) ScheduleLinks(ctx context.Context, taskIDs []string) (map[string]domain.ScheduleRef, error) {
+	if s == nil {
+		return nil, ErrUnavailable
+	}
+	var rows []struct {
+		TaskID  string `bun:"task_id"`
+		EntryID string `bun:"entry_id"`
+		Spec    string `bun:"spec"`
+	}
+	e := s.DB.NewSelect().
+		TableExpr("schedule_links AS l").
+		Join("JOIN schedule_entries AS e ON e.entry_id = l.entry_id").
+		ColumnExpr("l.task_id, l.entry_id, e.spec").
+		Where("l.task_id IN (?)", bun.In(taskIDs)).
+		OrderExpr("l.enqueued_at").
+		Scan(ctx, &rows)
+	if e != nil {
+		return nil, e
+	}
+	out := make(map[string]domain.ScheduleRef, len(rows))
+	for _, r := range rows {
+		out[r.TaskID] = domain.ScheduleRef{EntryID: r.EntryID, Spec: r.Spec}
+	}
+	return out, nil
+}
+
+// PruneSchedules drops links enqueued before the cutoff and entries that have
+// not been seen since then and no longer link to any task.
+func (s *Store) PruneSchedules(ctx context.Context, before time.Time) error {
+	if s == nil {
+		return ErrUnavailable
+	}
+	return s.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		if _, e := tx.NewDelete().Model((*scheduleLinkModel)(nil)).Where("enqueued_at < ?", before).Exec(ctx); e != nil {
+			return e
+		}
+		_, e := tx.NewDelete().
+			Model((*scheduleEntryModel)(nil)).
+			Where("last_seen < ?", before).
+			Where("NOT EXISTS (SELECT 1 FROM schedule_links AS l WHERE l.entry_id = ?TableAlias.entry_id)").
+			Exec(ctx)
+		return e
+	})
 }

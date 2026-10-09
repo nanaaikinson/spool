@@ -45,6 +45,9 @@ const SettingsPage = lazy(() =>
     default: module.SettingsPage,
   })),
 );
+const LivePage = lazy(() =>
+  import("../features/live").then((module) => ({ default: module.LivePage })),
+);
 const SchedulersPage = lazy(() =>
   import("../features/operations").then((module) => ({
     default: module.SchedulersPage,
@@ -113,6 +116,11 @@ const settings = createRoute({
   path: "/settings",
   component: SettingsPage,
 });
+const live = createRoute({
+  getParentRoute: () => root,
+  path: "/live",
+  component: LivePage,
+});
 const schedulers = createRoute({
   getParentRoute: () => root,
   path: "/schedulers",
@@ -131,6 +139,7 @@ export const router = createRouter({
     metrics,
     settings,
     schedulers,
+    live,
   ]),
   defaultPreload: "intent",
 });

@@ -218,6 +218,100 @@
         ],
         "type": "object"
       },
+      "ErrorGroup": {
+        "additionalProperties": false,
+        "properties": {
+          "archived": {
+            "type": "integer"
+          },
+          "count": {
+            "type": "integer"
+          },
+          "error": {
+            "type": "string"
+          },
+          "first_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_seen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "queues": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retry": {
+            "type": "integer"
+          },
+          "sample": {
+            "$ref": "#/components/schemas/TaskTarget"
+          },
+          "signature": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "signature",
+          "type",
+          "pattern",
+          "error",
+          "count",
+          "retry",
+          "archived",
+          "queues",
+          "first_seen",
+          "last_seen",
+          "sample"
+        ],
+        "type": "object"
+      },
+      "ErrorGroupList": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ErrorGroup"
+            },
+            "type": "array"
+          },
+          "sampled": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "data",
+          "sampled",
+          "total"
+        ],
+        "type": "object"
+      },
       "FieldError": {
         "additionalProperties": false,
         "properties": {
@@ -531,6 +625,22 @@
         ],
         "type": "object"
       },
+      "ScheduleRef": {
+        "additionalProperties": false,
+        "properties": {
+          "entry_id": {
+            "type": "string"
+          },
+          "spec": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "entry_id",
+          "spec"
+        ],
+        "type": "object"
+      },
       "Scheduler": {
         "additionalProperties": false,
         "properties": {
@@ -801,6 +911,16 @@
           "retried": {
             "type": "integer"
           },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "enum": [
               "pending",
@@ -832,6 +952,7 @@
           "next_process_at",
           "completed_at",
           "orphaned",
+          "schedule",
           "payload",
           "result",
           "headers",
@@ -916,6 +1037,16 @@
           "retried": {
             "type": "integer"
           },
+          "schedule": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScheduleRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "enum": [
               "pending",
@@ -943,7 +1074,8 @@
           "last_failed_at",
           "next_process_at",
           "completed_at",
-          "orphaned"
+          "orphaned",
+          "schedule"
         ],
         "type": "object"
       },
@@ -1283,6 +1415,139 @@
         "summary": "Server-sent query invalidations",
         "tags": [
           "events"
+        ]
+      }
+    },
+    "/api/v1/failures/groups": {
+      "get": {
+        "operationId": "listErrorGroups",
+        "parameters": [
+          {
+            "description": "Optional queue scope",
+            "in": "query",
+            "name": "queue",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Failures to sample, newest first, split across queues and states",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 1000,
+              "minimum": 50,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorGroupList"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Group the newest retained failures by task type and error",
+        "tags": [
+          "failures"
         ]
       }
     },

@@ -40,17 +40,24 @@ const (
 var States = []string{"pending", "active", "scheduled", "retry", "archived", "completed", "aggregating"}
 
 type TaskSummary struct {
-	ID            string     `json:"id"`
-	Queue         string     `json:"queue"`
-	Type          string     `json:"type"`
-	State         TaskState  `json:"state"`
-	Retried       int        `json:"retried"`
-	MaxRetry      int        `json:"max_retry"`
-	LastError     string     `json:"last_error"`
-	LastFailedAt  *time.Time `json:"last_failed_at"`
-	NextProcessAt *time.Time `json:"next_process_at"`
-	CompletedAt   *time.Time `json:"completed_at"`
-	Orphaned      bool       `json:"orphaned"`
+	ID            string       `json:"id"`
+	Queue         string       `json:"queue"`
+	Type          string       `json:"type"`
+	State         TaskState    `json:"state"`
+	Retried       int          `json:"retried"`
+	MaxRetry      int          `json:"max_retry"`
+	LastError     string       `json:"last_error"`
+	LastFailedAt  *time.Time   `json:"last_failed_at"`
+	NextProcessAt *time.Time   `json:"next_process_at"`
+	CompletedAt   *time.Time   `json:"completed_at"`
+	Orphaned      bool         `json:"orphaned"`
+	Schedule      *ScheduleRef `json:"schedule"`
+}
+
+// ScheduleRef links a task to the periodic entry that enqueued it.
+type ScheduleRef struct {
+	EntryID string `json:"entry_id"`
+	Spec    string `json:"spec"`
 }
 
 type Payload struct {
@@ -260,4 +267,32 @@ type LoginRequest struct {
 
 type OK struct {
 	OK bool `json:"ok"`
+}
+
+// ErrorGroup collects sampled failures that share a task type and normalized error.
+type ErrorGroup struct {
+	Signature string     `json:"signature"`
+	Type      string     `json:"type"`
+	Pattern   string     `json:"pattern"`
+	Error     string     `json:"error"`
+	Count     int        `json:"count"`
+	Retry     int        `json:"retry"`
+	Archived  int        `json:"archived"`
+	Queues    []string   `json:"queues"`
+	FirstSeen *time.Time `json:"first_seen"`
+	LastSeen  *time.Time `json:"last_seen"`
+	Sample    TaskTarget `json:"sample"`
+}
+
+type ErrorGroupList struct {
+	Data    []ErrorGroup `json:"data"`
+	Sampled int          `json:"sampled"`
+	Total   int          `json:"total"`
+}
+
+// ScheduleLink records that a periodic entry enqueued a task.
+type ScheduleLink struct {
+	TaskID     string
+	EntryID    string
+	EnqueuedAt time.Time
 }

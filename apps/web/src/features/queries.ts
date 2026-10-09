@@ -4,6 +4,7 @@ import {
   getQueueQueryKey,
   getTaskQueryKey,
   listAuditQueryKey,
+  listErrorGroupsQueryKey,
   listQueuesQueryKey,
   listSchedulersQueryKey,
   listServersQueryKey,
@@ -34,6 +35,7 @@ const keys = [
   listSchedulersQueryKey(),
   listTasksQueryKey(),
   listAuditQueryKey(),
+  listErrorGroupsQueryKey(),
 ];
 export function invalidateOperational() {
   return queryClient.invalidateQueries({

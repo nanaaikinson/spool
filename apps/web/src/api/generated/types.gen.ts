@@ -58,6 +58,26 @@ export type ErrorDetails = {
     fields: Array<FieldError>;
 };
 
+export type ErrorGroup = {
+    archived: number;
+    count: number;
+    error: string;
+    first_seen: string | null;
+    last_seen: string | null;
+    pattern: string;
+    queues: Array<string>;
+    retry: number;
+    sample: TaskTarget;
+    signature: string;
+    type: string;
+};
+
+export type ErrorGroupList = {
+    data: Array<ErrorGroup>;
+    sampled: number;
+    total: number;
+};
+
 export type FieldError = {
     field: string;
     reasons: Array<string>;
@@ -143,6 +163,11 @@ export type SavedView = {
     path: string;
 };
 
+export type ScheduleRef = {
+    entry_id: string;
+    spec: string;
+};
+
 export type Scheduler = {
     id: string;
     next: string;
@@ -206,6 +231,7 @@ export type Task = {
     result: Payload;
     retention_seconds: number;
     retried: number;
+    schedule: ScheduleRef | null;
     state: 'pending' | 'active' | 'scheduled' | 'retry' | 'archived' | 'completed' | 'aggregating';
     timeout_seconds: number;
     type: string;
@@ -226,6 +252,7 @@ export type TaskSummary = {
     orphaned: boolean;
     queue: string;
     retried: number;
+    schedule: ScheduleRef | null;
     state: 'pending' | 'active' | 'scheduled' | 'retry' | 'archived' | 'completed' | 'aggregating';
     type: string;
 };
@@ -365,6 +392,72 @@ export type EventsResponses = {
 };
 
 export type EventsResponse = EventsResponses[keyof EventsResponses];
+
+export type ListErrorGroupsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Optional queue scope
+         */
+        queue?: string;
+        /**
+         * Failures to sample, newest first, split across queues and states
+         */
+        limit?: number;
+    };
+    url: '/api/v1/failures/groups';
+};
+
+export type ListErrorGroupsErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ListErrorGroupsError = ListErrorGroupsErrors[keyof ListErrorGroupsErrors];
+
+export type ListErrorGroupsResponses = {
+    /**
+     * Successful response
+     */
+    200: ErrorGroupList;
+};
+
+export type ListErrorGroupsResponse = ListErrorGroupsResponses[keyof ListErrorGroupsResponses];
 
 export type MetricsHealthData = {
     body?: never;

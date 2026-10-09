@@ -43,7 +43,6 @@ import {
 import {
   ArrowDown,
   ArrowUp,
-  RefreshCw,
   Pause,
   Play,
   Layers,
@@ -58,7 +57,7 @@ import {
   getOverviewOptions,
   getQueueOptions,
   listQueuesOptions,
-  listTasksOptions,
+  listServersOptions,
   pauseQueueMutation,
   resumeQueueMutation,
 } from "../api/generated/@tanstack/react-query.gen";
@@ -74,8 +73,16 @@ import { Button } from "../components/ui/button";
 import { OperationDialog } from "../components/operation-dialog";
 import { AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { SnapshotBar, SummaryCard } from "../components/summary-card";
-import { number, duration, date } from "../lib/utils";
-import { HistoricalChart, TimeRange } from "./charts";
+import { bytes, number, duration, plural } from "../lib/utils";
+import {
+  HistoricalChart,
+  Sparkline,
+  TimeRange,
+  useQueueTrends,
+} from "./charts";
+import { RefreshButton } from "../components/info-tip";
+import { NeedsAttention } from "./attention";
+import { ErrorGroupsCard } from "./error-groups";
 import { invalidateOperational } from "./queries";
 import { useSession } from "./session";
 import { TasksPage } from "./tasks";
@@ -94,14 +101,20 @@ const states = [
   "completed",
   "aggregating",
 ] as const;
-export function Distribution({ queue }: { queue: Queue }) {
+export function Distribution({
+  queue,
+  large = false,
+}: {
+  queue: Queue;
+  large?: boolean;
+}) {
   const total = states.reduce((n, s) => n + queue[s], 0);
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <div
           tabIndex={0}
-          className="distribution"
+          className={large ? "distribution large" : "distribution"}
           aria-label={states.map((s) => `${queue[s]} ${s}`).join(", ")}
         >
           {states.map(
@@ -122,65 +135,85 @@ export function Distribution({ queue }: { queue: Queue }) {
     </Tooltip>
   );
 }
-const columns = helper.columns([
-  helper.accessor("name", {
-    header: "Queue",
-    cell: ({ row }) => (
-      <Link
-        className="table-link mono"
-        to="/queues/$queue"
-        params={{ queue: row.original.name }}
-      >
-        {row.original.name}
-      </Link>
-    ),
-  }),
-  helper.accessor((q) => (q.paused ? "paused" : "running"), {
-    id: "state",
-    header: "State",
-    cell: ({ row }) => (
-      <Badge state={row.original.paused ? "paused" : "running"} />
-    ),
-  }),
-  ...(["pending", "active", "scheduled", "retry", "archived"] as const).map(
-    (s) =>
-      helper.accessor(s, {
-        header: s[0].toUpperCase() + s.slice(1),
-        cell: ({ row }) => (
+function columns(trends: Map<string, number[]>) {
+  return helper.columns([
+    helper.accessor("name", {
+      header: "Queue",
+      cell: ({ row }) => (
+        <div className="queue-cell">
           <Link
-            to="/tasks"
-            search={{ queue: row.original.name, state: s }}
-            className={row.original[s] > 0 ? "table-link" : ""}
+            className="table-link mono"
+            to="/queues/$queue"
+            params={{ queue: row.original.name }}
           >
-            {number(row.original[s])}
+            {row.original.name}
           </Link>
-        ),
-      }),
-  ),
-  helper.accessor("processed", {
-    header: "Processed today",
-    cell: ({ row }) => number(row.original.processed),
-  }),
-  helper.accessor("failed", {
-    header: "Failed today",
-    cell: ({ row }) => (
-      <span className={row.original.failed ? "danger" : ""}>
-        {number(row.original.failed)}
-      </span>
+          <Distribution queue={row.original} />
+        </div>
+      ),
+    }),
+    helper.accessor((q) => (q.paused ? "paused" : "running"), {
+      id: "state",
+      header: "State",
+      cell: ({ row }) => (
+        <Badge state={row.original.paused ? "paused" : "running"} />
+      ),
+    }),
+    ...(["pending", "active", "scheduled", "retry", "archived"] as const).map(
+      (s) =>
+        helper.accessor(s, {
+          header: s[0].toUpperCase() + s.slice(1),
+          cell: ({ row }) => (
+            <Link
+              to="/tasks"
+              search={{ queue: row.original.name, state: s }}
+              className={row.original[s] > 0 ? "table-link" : "muted"}
+            >
+              {number(row.original[s])}
+            </Link>
+          ),
+        }),
     ),
-  }),
-  helper.accessor("latency_seconds", {
-    header: "Latency",
-    cell: ({ row }) => (
-      <span className="mono">{duration(row.original.latency_seconds)}</span>
-    ),
-  }),
-  helper.display({
-    id: "distribution",
-    header: "Task distribution",
-    cell: ({ row }) => <Distribution queue={row.original} />,
-  }),
-]);
+    helper.accessor("processed", {
+      header: "Today",
+      cell: ({ row }) => {
+        const { processed, failed } = row.original;
+        return (
+          <div className="today-cell">
+            <span>{number(processed)}</span>
+            {processed > 0 && (
+              <span className={failed ? "danger small" : "muted small"}>
+                {number((failed / processed) * 100)}% failed
+              </span>
+            )}
+          </div>
+        );
+      },
+    }),
+    helper.accessor("latency_seconds", {
+      header: "Latency",
+      cell: ({ row }) => (
+        <span className="mono">{duration(row.original.latency_seconds)}</span>
+      ),
+    }),
+    helper.accessor("memory_bytes", {
+      header: "Memory",
+      cell: ({ row }) => (
+        <span className="mono muted">{bytes(row.original.memory_bytes)}</span>
+      ),
+    }),
+    helper.display({
+      id: "trend",
+      header: "Last hour",
+      cell: ({ row }) => (
+        <Sparkline
+          values={trends.get(row.original.name)}
+          label={`Processing rate for ${row.original.name} over the last hour`}
+        />
+      ),
+    }),
+  ]);
+}
 export function QueueTable({ data }: { data: Queue[] }) {
   const search = useSearch({ from: "__root__" });
   const navigate = useNavigate();
@@ -201,9 +234,11 @@ export function QueueTable({ data }: { data: Queue[] }) {
     () => [{ id: search.sort, desc: search.desc }],
     [search.sort, search.desc],
   );
+  const trends = useQueueTrends("processed");
+  const tableColumns = useMemo(() => columns(trends), [trends]);
   const table = useTable({
     features,
-    columns,
+    columns: tableColumns,
     data: filtered,
     state: { sorting },
     onSortingChange: (updater) => {
@@ -290,6 +325,8 @@ export function QueueTable({ data }: { data: Queue[] }) {
               navigate({
                 to: ".",
                 search: (old) => ({ ...old, q: e.target.value }),
+                // One history entry per search, not per keystroke.
+                replace: true,
               })
             }
           />
@@ -358,61 +395,55 @@ export function QueueTable({ data }: { data: Queue[] }) {
 }
 function Stats({
   queues,
-  workers,
+  activeWorkers,
+  concurrency,
   servers,
 }: {
   queues: Queue[];
-  workers?: number;
-  servers?: number;
+  activeWorkers: number;
+  concurrency: number;
+  servers: number;
 }) {
   const sum = (
-    key: "pending" | "active" | "retry" | "archived" | "processed" | "failed",
+    key:
+      | "pending"
+      | "scheduled"
+      | "active"
+      | "retry"
+      | "archived"
+      | "processed"
+      | "failed",
   ) => queues.reduce((n, q) => n + q[key], 0);
   const processed = sum("processed");
   const failed = sum("failed");
   const succeeded = Math.max(0, processed - failed);
-  const paused = queues.filter((q) => q.paused).length;
-  const attention = queues.filter(
-    (q) => !q.paused && (q.retry > 0 || q.archived > 0),
-  ).length;
-  const clear = queues.length - paused - attention;
+  const oldest = queues.reduce<Queue | undefined>(
+    (worst, q) =>
+      !worst || q.latency_seconds > worst.latency_seconds ? q : worst,
+    undefined,
+  );
   return (
     <div className="summary-grid">
       <SummaryCard
         icon={<Layers size={18} />}
-        label="Running queues"
-        note={`${number(paused)} paused`}
+        label="Backlog"
+        note={
+          oldest && oldest.latency_seconds > 0
+            ? `Oldest waiting ${duration(oldest.latency_seconds)} in ${oldest.name}`
+            : "Nothing waiting"
+        }
         value={
           <>
-            {number(queues.length - paused)}{" "}
-            <small>of {number(queues.length)}</small>
+            {number(sum("pending"))} <small>waiting</small>
           </>
         }
       >
-        <div className="queue-ticks" aria-hidden="true">
-          {queues.slice(0, 40).map((q) => (
-            <i
-              key={q.name}
-              style={{
-                background: `var(--${q.paused ? "purple" : q.retry > 0 || q.archived > 0 ? "red" : "green"})`,
-              }}
-            />
-          ))}
-        </div>
-        <div className="snapshot-legend">
-          <span>
-            <i style={{ background: "var(--green)" }} />
-            {number(clear)} clear
-          </span>
-          <span>
-            <i style={{ background: "var(--red)" }} />
-            {number(attention)} with failures
-          </span>
-          <span>
-            <i style={{ background: "var(--purple)" }} />
-            {number(paused)} paused
-          </span>
-        </div>
+        <SnapshotBar
+          segments={[
+            { label: "Pending", value: sum("pending"), color: "primary" },
+            { label: "Scheduled", value: sum("scheduled"), color: "purple" },
+          ]}
+        />
       </SummaryCard>
       <SummaryCard
         icon={<Activity size={18} />}
@@ -443,11 +474,7 @@ function Stats({
       <SummaryCard
         icon={<Cpu size={18} />}
         label="Processing now"
-        note={
-          servers === undefined
-            ? "Current task snapshot"
-            : `${number(workers ?? 0)} active workers · ${number(servers)} servers`
-        }
+        note={`${number(activeWorkers)} of ${number(concurrency)} worker slots busy · ${plural(servers, "server")}`}
         value={
           <>
             {number(sum("active"))} <small>active tasks</small>
@@ -456,8 +483,12 @@ function Stats({
       >
         <SnapshotBar
           segments={[
-            { label: "Pending", value: sum("pending"), color: "muted" },
-            { label: "Active", value: sum("active"), color: "green" },
+            { label: "Busy", value: activeWorkers, color: "green" },
+            {
+              label: "Idle",
+              value: Math.max(0, concurrency - activeWorkers),
+              color: "muted",
+            },
           ]}
         />
       </SummaryCard>
@@ -466,14 +497,11 @@ function Stats({
 }
 export function OverviewPage() {
   const query = useQuery(getOverviewOptions());
-  const failures = useQuery(
-    listTasksOptions({ query: { state: "failed", limit: 5 } }),
-  );
   return (
     <>
       <div className="page-heading">
         <div>
-          <h1>Overview</h1>
+          <h1>Dashboard</h1>
           <p>
             Current queue state, processing health, and the signals that need
             attention.
@@ -481,10 +509,10 @@ export function OverviewPage() {
         </div>
         <div className="heading-actions">
           <TimeRange />
-          <Button variant="secondary" onClick={() => invalidateOperational()}>
-            <RefreshCw size={14} />
-            Refresh
-          </Button>
+          <RefreshButton
+            onClick={() => invalidateOperational()}
+            pending={query.isFetching}
+          />
         </div>
       </div>
       {query.isPending ? (
@@ -497,9 +525,14 @@ export function OverviewPage() {
             <Stale error={query.error} />
             <Stats
               queues={query.data.queues}
-              workers={query.data.active_workers}
+              activeWorkers={query.data.active_workers}
+              concurrency={query.data.concurrency}
               servers={query.data.servers}
             />
+            <div className="two-columns dashboard-columns">
+              <NeedsAttention />
+              <ErrorGroupsCard limit={5} />
+            </div>
             <div className="two-columns">
               <HistoricalChart
                 metric="processed"
@@ -507,80 +540,6 @@ export function OverviewPage() {
               />
               <HistoricalChart metric="failed" title="Failure rate" />
             </div>
-            <Card className="section">
-              <CardHeader className="section-heading">
-                <CardTitle>
-                  <h2>Queues</h2>
-                </CardTitle>
-                <span className="muted small">
-                  Snapshot · {date(query.data.observed_at)}
-                </span>
-              </CardHeader>
-              <QueueTable data={query.data.queues} />
-            </Card>
-            <Card className="section">
-              <CardHeader className="section-heading">
-                <CardTitle>
-                  <h2>Retained failures</h2>
-                </CardTitle>
-                <Link to="/failures" className="table-link small">
-                  Inspect failures
-                </Link>
-              </CardHeader>
-              {failures.isPending ? (
-                <Loading rows={2} />
-              ) : failures.error ? (
-                <CardContent className="section-body">
-                  <DataError
-                    error={failures.error}
-                    retry={() => failures.refetch()}
-                  />
-                </CardContent>
-              ) : !failures.data?.data.length ? (
-                <Empty title="No failures in this page">
-                  Open the failure explorer to inspect all queues and retained
-                  failures.
-                </Empty>
-              ) : (
-                <div className="table-wrap">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Task type</TableHead>
-                        <TableHead>Queue</TableHead>
-                        <TableHead>State</TableHead>
-                        <TableHead>Last error</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {failures.data.data.map((t) => (
-                        <TableRow key={`${t.queue}/${t.id}`}>
-                          <TableCell>
-                            <Link
-                              className="mono table-link"
-                              to="/tasks/$queue/$id"
-                              params={{ queue: t.queue, id: t.id }}
-                            >
-                              {t.type}
-                            </Link>
-                          </TableCell>
-                          <TableCell className="mono">{t.queue}</TableCell>
-                          <TableCell>
-                            <Badge state={t.state} />
-                          </TableCell>
-                          <TableCell
-                            className="danger"
-                            style={{ maxWidth: 520, whiteSpace: "normal" }}
-                          >
-                            {t.last_error}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              )}
-            </Card>
           </>
         )
       )}
@@ -596,14 +555,10 @@ export function QueuesPage() {
           <h1>Queues</h1>
           <p>Backlog, processing state, and latency across your environment.</p>
         </div>
-        <Button
-          variant="secondary"
+        <RefreshButton
           onClick={() => query.refetch()}
-          disabled={query.isFetching}
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </Button>
+          pending={query.isFetching}
+        />
       </div>
       {query.isPending ? (
         <Loading />
@@ -613,17 +568,7 @@ export function QueuesPage() {
         query.data && (
           <>
             <Stale error={query.error} />
-            <Stats queues={query.data.data} />
             <Card className="section">
-              <CardHeader className="section-heading">
-                <div>
-                  <h2>Queue inventory</h2>
-                  <p className="muted small">
-                    {number(query.data.data.length)} queues in this environment
-                  </p>
-                </div>
-                <UiBadge className="badge">Live snapshot</UiBadge>
-              </CardHeader>
               <QueueTable data={query.data.data} />
             </Card>
           </>
@@ -661,13 +606,11 @@ export function QueuePage() {
     <>
       <div className="page-heading">
         <div>
-          <Link to="/queues" className="muted small">
-            Queues
-          </Link>
-          <h1 className="mono" style={{ marginTop: 8 }}>
-            {queue}
-          </h1>
-          <p>Current state and retained tasks for this queue.</p>
+          <div className="title-row">
+            <h1 className="mono">{queue}</h1>
+            {query.data && <Badge state={paused ? "paused" : "running"} />}
+          </div>
+          <p>Backlog, throughput and the servers processing this queue.</p>
         </div>
         <div className="heading-actions">
           <TimeRange />
@@ -689,7 +632,36 @@ export function QueuePage() {
         query.data && (
           <>
             <Stale error={query.error} />
-            <Stats queues={[query.data]} />
+            <QueueFigures queue={query.data} />
+            <div className="two-columns">
+              <ProcessedBy queue={queue} />
+              <Card className="section">
+                <CardHeader className="section-heading">
+                  <CardTitle>
+                    <h2>Task distribution</h2>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="section-body">
+                  <Distribution queue={query.data} large />
+                  <div className="distribution-legend">
+                    {states.map((state) => (
+                      <Link
+                        to="/tasks"
+                        search={{ queue, state }}
+                        key={state}
+                        className="distribution-item"
+                      >
+                        <i className={state} />
+                        <span>{state}</span>
+                        <strong className="mono">
+                          {number(query.data![state])}
+                        </strong>
+                      </Link>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
             <div className="two-columns">
               <HistoricalChart
                 metric="depth"
@@ -702,25 +674,6 @@ export function QueuePage() {
                 queue={queue}
               />
             </div>
-            <Card className="section">
-              <CardHeader className="section-heading">
-                <CardTitle>
-                  <h2>Task distribution</h2>
-                </CardTitle>
-                <Badge state={paused ? "paused" : "running"} />
-              </CardHeader>
-              <div className="section-body toolbar">
-                {states.map((state) => (
-                  <Link to="/tasks" search={{ queue, state }} key={state}>
-                    <Badge state={state} />{" "}
-                    <span className="mono">{number(query.data![state])}</span>
-                  </Link>
-                ))}
-                <span className="muted small">
-                  Approx. memory {number(query.data.memory_bytes / 1024)} KiB
-                </span>
-              </div>
-            </Card>
             <TasksPage scopedQueue={queue} embedded />
           </>
         )
@@ -767,5 +720,113 @@ export function QueuePage() {
         </DialogFooter>
       </OperationDialog>
     </>
+  );
+}
+function QueueFigures({ queue }: { queue: Queue }) {
+  const rate = queue.processed ? (queue.failed / queue.processed) * 100 : 0;
+  return (
+    <div className="live-stats queue-figures">
+      <div className="live-stat">
+        <span>Waiting</span>
+        <strong>{number(queue.pending)}</strong>
+        <small>{number(queue.scheduled)} scheduled for later</small>
+      </div>
+      <div className="live-stat">
+        <span>Oldest wait</span>
+        <strong>{duration(queue.latency_seconds)}</strong>
+        <small>Age of the oldest pending task</small>
+      </div>
+      <div className="live-stat">
+        <span>Processed today</span>
+        <strong>{number(queue.processed)}</strong>
+        <small>{number(queue.active)} running now</small>
+      </div>
+      <div className="live-stat">
+        <span>Failed today</span>
+        <strong className={queue.failed ? "danger" : undefined}>
+          {number(queue.failed)}
+        </strong>
+        <small>
+          {queue.processed ? `${number(rate)}% of attempts` : "No attempts yet"}
+        </small>
+      </div>
+      <div className="live-stat">
+        <span>Retained failures</span>
+        <strong>{number(queue.retry + queue.archived)}</strong>
+        <small>
+          {number(queue.retry)} retrying · {number(queue.archived)} archived
+        </small>
+      </div>
+      <div className="live-stat">
+        <span>Memory</span>
+        <strong>{bytes(queue.memory_bytes)}</strong>
+        <small>Approximate Redis usage</small>
+      </div>
+    </div>
+  );
+}
+function ProcessedBy({ queue }: { queue: string }) {
+  const servers = useQuery(listServersOptions());
+  const consumers = (servers.data?.data ?? []).filter((s) => queue in s.queues);
+  return (
+    <Card className="section">
+      <CardHeader className="section-heading">
+        <div>
+          <CardTitle>
+            <h2>Processed by</h2>
+          </CardTitle>
+          <p className="muted small">Servers that pull from this queue</p>
+        </div>
+        <Link to="/workers" className="table-link small">
+          All servers
+        </Link>
+      </CardHeader>
+      {servers.isPending ? (
+        <Loading rows={2} />
+      ) : servers.error && !servers.data ? (
+        <CardContent className="section-body">
+          <DataError error={servers.error} retry={() => servers.refetch()} />
+        </CardContent>
+      ) : !consumers.length ? (
+        <CardContent className="section-body">
+          <Alert variant="destructive">
+            <CircleX />
+            <AlertDescription>
+              {servers.data?.data.length
+                ? "No running server lists this queue in its configuration. Tasks here wait until one does."
+                : "No Asynq servers are running for this connection."}
+            </AlertDescription>
+          </Alert>
+        </CardContent>
+      ) : (
+        <ul className="consumer-list">
+          {consumers.map((s) => {
+            const weights = Object.values(s.queues).reduce((a, b) => a + b, 0);
+            const busy = s.workers.filter((w) => w.queue === queue).length;
+            return (
+              <li key={s.id}>
+                <div>
+                  <strong className="mono">{s.host}</strong>
+                  <span className="muted small"> · PID {s.pid}</span>
+                  <div className="muted small">
+                    {s.strict_priority
+                      ? `Strict priority ${s.queues[queue]}`
+                      : `Weight ${s.queues[queue]} of ${weights} · ~${number((s.queues[queue] / Math.max(weights, 1)) * 100)}% of slots`}
+                  </div>
+                </div>
+                <div className="consumer-busy">
+                  <span className="small">
+                    {plural(busy, "task")} running here
+                  </span>
+                  <span className="muted small">
+                    {s.workers.length}/{s.concurrency} slots busy overall
+                  </span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }

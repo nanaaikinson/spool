@@ -15,16 +15,19 @@ import {
 } from "@/components/ui/chart";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useId, useMemo, useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   metricsHealthOptions,
+  queryMetricOptions,
   queryMetricRangeOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import type { QueryMetricRangeData } from "../api/generated/types.gen";
 import { DataError, Empty, Loading } from "../components/data-state";
-import { number } from "../lib/utils";
+import { duration, number } from "../lib/utils";
+/** Matches the usual Prometheus scrape interval; faster polling only repeats samples. */
+export const LIVE_REFRESH_MS = 15_000;
 const spans = {
   "15m": 900,
   "1h": 3600,
@@ -81,14 +84,19 @@ export function TimeRange() {
     </div>
   );
 }
+type Metric = NonNullable<QueryMetricRangeData["query"]>["metric"];
 export function HistoricalChart({
   metric,
   title,
+  description,
   queue,
+  live = false,
 }: {
-  metric: NonNullable<QueryMetricRangeData["query"]>["metric"];
+  metric: Metric;
   title: string;
+  description?: string;
   queue?: string;
+  live?: boolean;
 }) {
   const search = useSearch({ from: "__root__" });
   const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
@@ -97,13 +105,14 @@ export function HistoricalChart({
     const refresh = () => {
       if (!document.hidden) setNow(Date.now());
     };
-    const ticker = setInterval(refresh, 60_000);
+    if (live) refresh();
+    const ticker = setInterval(refresh, live ? LIVE_REFRESH_MS : 60_000);
     document.addEventListener("visibilitychange", refresh);
     return () => {
       clearInterval(ticker);
       document.removeEventListener("visibilitychange", refresh);
     };
-  }, []);
+  }, [live]);
   const interval = spans[search.range];
   const window = useMemo(() => {
     const end = new Date(now);
@@ -117,6 +126,8 @@ export function HistoricalChart({
     ...queryMetricRangeOptions({ query: { metric, queue, ...window } }),
     enabled: health.data?.available === true,
     staleTime: 30_000,
+    // Keep the previous window on screen while the next one loads.
+    placeholderData: keepPreviousData,
   });
   const chartData = useMemo(() => {
     const rows = new Map<string, Record<string, string | number>>();
@@ -134,10 +145,14 @@ export function HistoricalChart({
   return (
     <Card className="section">
       <CardHeader className="section-heading">
-        <CardTitle>
-          <h2>{title}</h2>
-        </CardTitle>
-        <span className="muted small">
+        <div>
+          <CardTitle>
+            <h2>{title}</h2>
+          </CardTitle>
+          {description && <p className="muted small">{description}</p>}
+        </div>
+        <span className="muted small chart-source">
+          {live && <span className="live-dot" data-live="true" />}
           Prometheus · {query.data?.unit ?? "history"}
         </span>
       </CardHeader>
@@ -241,5 +256,135 @@ export function HistoricalChart({
         </>
       )}
     </Card>
+  );
+}
+
+const readings: {
+  metric: Metric;
+  label: string;
+  combine: "sum" | "max";
+  format: (value: number) => string;
+}[] = [
+  { metric: "depth", label: "Queue depth", combine: "sum", format: number },
+  {
+    metric: "latency",
+    label: "Worst latency",
+    combine: "max",
+    format: (v) => duration(v),
+  },
+  {
+    metric: "processed",
+    label: "Throughput",
+    combine: "sum",
+    format: (v) => `${number(v)}/s`,
+  },
+  {
+    metric: "failed",
+    label: "Failure rate",
+    combine: "sum",
+    format: (v) => `${number(v)}/s`,
+  },
+  { metric: "retry", label: "Awaiting retry", combine: "sum", format: number },
+  { metric: "archived", label: "Archived", combine: "sum", format: number },
+];
+function Reading({
+  metric,
+  label,
+  combine,
+  format,
+  live,
+}: (typeof readings)[number] & { live: boolean }) {
+  const query = useQuery({
+    ...queryMetricOptions({ query: { metric } }),
+    refetchInterval: live ? LIVE_REFRESH_MS : false,
+    placeholderData: keepPreviousData,
+  });
+  const values = (query.data?.data ?? []).flatMap((s) =>
+    s.points.length ? [s.points[s.points.length - 1].value] : [],
+  );
+  const value = values.length
+    ? combine === "max"
+      ? Math.max(...values)
+      : values.reduce((a, b) => a + b, 0)
+    : undefined;
+  return (
+    <div className="live-stat">
+      <span>{label}</span>
+      <strong>{value === undefined ? "—" : format(value)}</strong>
+      <small>
+        {query.error
+          ? "Unavailable"
+          : `${combine === "max" ? "Highest of" : "Across"} ${values.length} ${values.length === 1 ? "queue" : "queues"}`}
+      </small>
+    </div>
+  );
+}
+/** Current value of each charted signal, from Prometheus instant queries. */
+export function LiveReadings({ live }: { live: boolean }) {
+  const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
+  if (!health.data?.available) return null;
+  return (
+    <div className="live-stats metric-readings">
+      {readings.map((r) => (
+        <Reading key={r.metric} {...r} live={live} />
+      ))}
+    </div>
+  );
+}
+/** Per-queue samples of one metric over the last hour, keyed by queue name. */
+export function useQueueTrends(metric: Metric) {
+  const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
+  const [end, setEnd] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setEnd(Date.now()), 60_000);
+    return () => clearInterval(timer);
+  }, []);
+  const query = useQuery({
+    ...queryMetricRangeOptions({
+      query: {
+        metric,
+        start: new Date(end - 3600_000).toISOString(),
+        end: new Date(end).toISOString(),
+        step: 60,
+      },
+    }),
+    enabled: health.data?.available === true,
+    staleTime: 60_000,
+    placeholderData: keepPreviousData,
+  });
+  return useMemo(
+    () =>
+      new Map(
+        (query.data?.data ?? []).map((s) => [
+          s.queue,
+          s.points.map((p) => p.value),
+        ]),
+      ),
+    [query.data],
+  );
+}
+export function Sparkline({
+  values,
+  label,
+}: {
+  values?: number[];
+  label: string;
+}) {
+  if (!values || values.length < 2) return <span className="muted">—</span>;
+  const max = Math.max(...values, Number.EPSILON);
+  const points = values
+    .map((v, i) => `${(i / (values.length - 1)) * 80},${22 - (v / max) * 20}`)
+    .join(" ");
+  return (
+    <svg
+      className="sparkline"
+      viewBox="0 0 80 24"
+      width="80"
+      height="24"
+      role="img"
+      aria-label={label}
+    >
+      <polyline points={points} />
+    </svg>
   );
 }

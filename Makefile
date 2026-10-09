@@ -1,9 +1,11 @@
 .PHONY: dev dev-all demo web build test lint openapi api-client api-check infra down
 GO ?= go
 PNPM ?= pnpm
+AIR ?= air
 
 dev:
-	$(GO) run ./cmd/server
+# 	$(GO) run ./cmd/server
+	$(AIR)
 run-dev:
 	$(MAKE) --no-print-directory -j2 dev web
 demo:

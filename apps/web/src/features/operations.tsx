@@ -7,13 +7,12 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DialogFooter } from "@/components/ui/dialog";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { RefreshCw, Sun, Moon, Trash2 } from "lucide-react";
+import { Radio, Trash2 } from "lucide-react";
 import {
   listServersOptions,
   listSchedulersOptions,
@@ -33,32 +32,40 @@ import {
   Loading,
   Stale,
 } from "../components/data-state";
-import { date, number } from "../lib/utils";
-import { useTheme } from "../app/theme";
-import { HistoricalChart, TimeRange } from "./charts";
+import { number } from "../lib/utils";
+import { clock, useClock } from "../lib/time";
+import { InfoTip, RefreshButton } from "../components/info-tip";
+import { Time } from "../components/time";
+import { HistoricalChart, LiveReadings, TimeRange } from "./charts";
 import { useSession } from "./session";
+import { PeriodicTable } from "./schedules";
 import { queryClient } from "./queries";
 import { errorMessage } from "../api/client";
 export function WorkersPage() {
   const query = useQuery(listServersOptions());
+  const now = useClock();
   return (
     <>
       <div className="page-heading">
         <div>
-          <h1>Workers & servers</h1>
+          <h1 className="title-row">
+            Servers
+            <InfoTip label="About servers">
+              Asynq servers register a heartbeat while they run; stopped servers
+              drop out of this list. Priorities are per server: each one splits
+              its worker slots across queues by weight, or drains them in order
+              under strict priority.
+            </InfoTip>
+          </h1>
           <p>
-            Live Asynq servers, configured capacity, and tasks currently
-            processing.
+            Running Asynq servers, how busy their worker slots are, and which
+            queues each one pulls from.
           </p>
         </div>
-        <Button
-          variant="secondary"
-          disabled={query.isFetching}
+        <RefreshButton
           onClick={() => query.refetch()}
-        >
-          <RefreshCw size={14} />
-          Refresh
-        </Button>
+          pending={query.isFetching}
+        />
       </div>
       {query.isPending ? (
         <Loading />
@@ -70,109 +77,105 @@ export function WorkersPage() {
             <Stale error={query.error} />
             {!query.data.data.length ? (
               <Card className="section">
-                <Empty title="No live servers registered">
-                  Start an Asynq server for this Redis connection. Inspector
-                  returns currently registered servers; dead-server history is
-                  not retained here.
+                <Empty title="No servers running">
+                  Start an Asynq server for this Redis connection. Only servers
+                  with a current heartbeat are listed.
                 </Empty>
               </Card>
             ) : (
-              query.data.data.map((server) => (
-                <Card className="section" key={server.id}>
-                  <CardHeader className="section-heading">
-                    <div>
-                      <h2 className="mono">
-                        {server.host}{" "}
-                        <span className="muted small">PID {server.pid}</span>
-                      </h2>
-                      <p className="mono muted small">{server.id}</p>
-                    </div>
-                    <Badge state={server.status} />
-                  </CardHeader>
-                  <CardContent className="section-body">
-                    <div className="toolbar">
-                      <span>
-                        {server.workers.length} active / {server.concurrency}{" "}
-                        concurrency
-                      </span>
-                      <span className="muted small">
-                        Started {date(server.started)}
-                      </span>
-                      <span className="muted small">
-                        {server.strict_priority
-                          ? "Strict priority"
-                          : "Weighted priority"}
-                      </span>
-                    </div>
-                    <div className="toolbar" style={{ marginTop: 10 }}>
-                      {Object.entries(server.queues).map(([queue, weight]) => (
-                        <Link
-                          key={queue}
-                          to="/queues/$queue"
-                          params={{ queue }}
-                        >
-                          <span className="badge mono">
-                            {queue} · weight {weight}
-                          </span>
+              <div className="server-grid">
+                {query.data.data.map((server) => {
+                  const busy = server.workers.length;
+                  const types = Object.entries(
+                    server.workers.reduce<Record<string, number>>(
+                      (counts, w) => ({
+                        ...counts,
+                        [w.task_type]: (counts[w.task_type] ?? 0) + 1,
+                      }),
+                      {},
+                    ),
+                  ).sort((a, b) => b[1] - a[1]);
+                  const weights = Object.values(server.queues).reduce(
+                    (a, b) => a + b,
+                    0,
+                  );
+                  return (
+                    <Card className="section server-card" key={server.id}>
+                      <CardHeader className="section-heading">
+                        <div>
+                          <h2 className="mono">
+                            {server.host}{" "}
+                            <span className="muted small">
+                              PID {server.pid}
+                            </span>
+                          </h2>
+                          <p className="muted small">
+                            Up {clock(now - Date.parse(server.started))} ·{" "}
+                            {server.strict_priority
+                              ? "Strict priority"
+                              : "Weighted priority"}
+                          </p>
+                        </div>
+                        <Badge state={server.status} />
+                      </CardHeader>
+                      <CardContent className="section-body server-body">
+                        <div>
+                          <div className="server-slots-label">
+                            <span>Worker slots</span>
+                            <strong className="tabular">
+                              {busy} / {server.concurrency} busy
+                            </strong>
+                          </div>
+                          <div className="deadline-meter server-slots">
+                            <span
+                              data-tone={
+                                busy >= server.concurrency ? "amber" : "green"
+                              }
+                              style={{
+                                width: `${(busy / Math.max(server.concurrency, 1)) * 100}%`,
+                              }}
+                            />
+                          </div>
+                          {types.length > 0 && (
+                            <p className="muted small server-running">
+                              Running{" "}
+                              {types
+                                .map(([type, n]) => `${n}× ${type}`)
+                                .join(", ")}
+                            </p>
+                          )}
+                        </div>
+                        <div className="server-queues">
+                          {Object.entries(server.queues)
+                            .sort((a, b) => b[1] - a[1])
+                            .map(([queue, weight]) => (
+                              <Link
+                                key={queue}
+                                to="/queues/$queue"
+                                params={{ queue }}
+                                className="server-queue"
+                              >
+                                <span className="mono">{queue}</span>
+                                <span className="muted small">
+                                  {server.strict_priority
+                                    ? `priority ${weight}`
+                                    : `weight ${weight} · ${number((weight / Math.max(weights, 1)) * 100)}%`}
+                                </span>
+                              </Link>
+                            ))}
+                        </div>
+                      </CardContent>
+                      <div className="server-footer">
+                        <span className="mono muted small">{server.id}</span>
+                        <Link to="/live" className="table-link small">
+                          Live activity
                         </Link>
-                      ))}
-                    </div>
-                  </CardContent>
-                  {!server.workers.length ? (
-                    <Empty title="No tasks currently processing">
-                      This server has no active worker tasks in the current
-                      snapshot.
-                    </Empty>
-                  ) : (
-                    <div className="table-wrap">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Task</TableHead>
-                            <TableHead>Queue</TableHead>
-                            <TableHead>Started processing</TableHead>
-                            <TableHead>Deadline</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {server.workers.map((worker) => (
-                            <TableRow key={`${worker.queue}/${worker.task_id}`}>
-                              <TableCell>
-                                <Link
-                                  className="mono table-link"
-                                  to="/tasks/$queue/$id"
-                                  params={{
-                                    queue: worker.queue,
-                                    id: worker.task_id,
-                                  }}
-                                >
-                                  {worker.task_type}
-                                </Link>
-                                <div className="mono muted small">
-                                  {worker.task_id}
-                                </div>
-                              </TableCell>
-                              <TableCell className="mono">
-                                {worker.queue}
-                              </TableCell>
-                              <TableCell>{date(worker.started)}</TableCell>
-                              <TableCell>{date(worker.deadline)}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  )}
-                </Card>
-              ))
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
             )}
-            <Alert role="note" className="notice">
-              <AlertDescription>
-                Priorities are server-specific. Asynq does not expose public
-                heartbeat timestamps through Inspector, so this view does not
-                infer stale or dead workers.
-              </AlertDescription>
-            </Alert>
           </>
         )
       )}
@@ -186,12 +189,15 @@ export function SchedulersPage() {
       <div className="page-heading">
         <div>
           <h1>Periodic schedules</h1>
-          <p>Entries registered by live Asynq schedulers.</p>
+          <p>
+            Cron entries registered by live Asynq schedulers. Each run enqueues
+            a new task at the time shown.
+          </p>
         </div>
-        <Button variant="secondary" onClick={() => query.refetch()}>
-          <RefreshCw size={14} />
-          Refresh
-        </Button>
+        <RefreshButton
+          onClick={() => query.refetch()}
+          pending={query.isFetching}
+        />
       </div>
       <Card className="section">
         {query.isPending ? (
@@ -206,30 +212,7 @@ export function SchedulersPage() {
             scheduled tasks are available in the Scheduled view.
           </Empty>
         ) : (
-          <div className="table-wrap">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Entry ID</TableHead>
-                  <TableHead>Task type</TableHead>
-                  <TableHead>Schedule</TableHead>
-                  <TableHead>Next enqueue</TableHead>
-                  <TableHead>Previous enqueue</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {query.data.data.map((s) => (
-                  <TableRow key={s.id}>
-                    <TableCell className="mono">{s.id}</TableCell>
-                    <TableCell className="mono">{s.type}</TableCell>
-                    <TableCell className="mono">{s.spec}</TableCell>
-                    <TableCell>{date(s.next)}</TableCell>
-                    <TableCell>{date(s.previous)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          <PeriodicTable data={query.data.data} />
         )}
       </Card>
       <Button variant="secondary" asChild>
@@ -238,41 +221,111 @@ export function SchedulersPage() {
     </>
   );
 }
+const charts = [
+  {
+    metric: "depth",
+    title: "Queue depth",
+    description:
+      "Tasks held in each queue. A line that keeps climbing means work arrives faster than workers finish it.",
+  },
+  {
+    metric: "latency",
+    title: "Queue latency",
+    description:
+      "How long the oldest pending task has waited. Spikes mean tasks sit idle before a worker picks them up.",
+  },
+  {
+    metric: "processed",
+    title: "Processing throughput",
+    description:
+      "Attempts finished per second, successful or not. A sudden drop often means stuck or missing workers.",
+  },
+  {
+    metric: "failed",
+    title: "Failure rate",
+    description:
+      "Failed attempts per second. Compare with throughput to see what share of work is failing.",
+  },
+  {
+    metric: "retry",
+    title: "Tasks awaiting retry",
+    description:
+      "Failed tasks scheduled for another attempt. Growth here usually tracks a struggling dependency.",
+  },
+  {
+    metric: "archived",
+    title: "Archived tasks",
+    description:
+      "Tasks that used up their retries. These will not run again unless someone retries them.",
+  },
+] as const;
 export function MetricsPage() {
   const health = useQuery(metricsHealthOptions());
+  const search = useSearch({ from: "__root__" });
+  const navigate = useNavigate();
+  const live = search.live;
   return (
     <>
       <div className="page-heading">
         <div>
-          <h1>Metrics</h1>
-          <p>Historical signals from the native Asynq Prometheus collector.</p>
+          <h1 className="title-row">
+            Metrics
+            <InfoTip label="Reading these metrics">
+              Throughput counts both successful and failed attempts. Queue depth
+              includes retained completed tasks. Asynq&apos;s &ldquo;tasks
+              enqueued&rdquo; series are current counts per state, not running
+              totals. Live mode refreshes every 15 seconds and keeps the window
+              ending at now.
+            </InfoTip>
+          </h1>
+          <p>
+            Trends for every queue over time, read from the Prometheus collector
+            built into Asynq. The other pages show what is true right now; this
+            page shows how you got here, so you can tell a brief spike from a
+            backlog that has been growing for hours, check whether latency is
+            creeping past your targets, and confirm a fix actually brought
+            failures down.
+          </p>
         </div>
-        <TimeRange />
+        <div className="heading-actions">
+          <Button
+            variant={live ? "default" : "secondary"}
+            aria-pressed={live}
+            onClick={() =>
+              navigate({
+                to: ".",
+                search: (old) => ({
+                  ...old,
+                  live: !old.live,
+                  // Live mode is about the last few minutes.
+                  range: old.live ? old.range : "15m",
+                }),
+              })
+            }
+          >
+            {live ? (
+              <span className="live-dot" data-live="true" />
+            ) : (
+              <Radio size={14} />
+            )}
+            {live ? "Live · every 15s" : "Go live"}
+          </Button>
+          <TimeRange />
+        </div>
       </div>
       {health.error && (
         <DataError error={health.error} retry={() => health.refetch()} />
       )}
-      <div className="two-columns">
-        <HistoricalChart metric="depth" title="Queue depth" />
-        <HistoricalChart metric="latency" title="Queue latency" />
-        <HistoricalChart metric="processed" title="Processing throughput" />
-        <HistoricalChart metric="failed" title="Failure rate" />
-        <HistoricalChart metric="retry" title="Tasks awaiting retry" />
-        <HistoricalChart metric="archived" title="Archived tasks" />
+      <LiveReadings live={live} />
+      <div className="two-columns metric-charts">
+        {charts.map((c) => (
+          <HistoricalChart key={c.metric} {...c} live={live} />
+        ))}
       </div>
-      <Alert role="note" className="notice">
-        <AlertDescription>
-          Processed rate counts both successful and failed attempts. Queue depth
-          includes retained completed tasks. Native “tasks enqueued” series are
-          state gauges, not cumulative enqueue counters. Application HTTP
-          metrics use the spool_ prefix.
-        </AlertDescription>
-      </Alert>
     </>
   );
 }
 export function SettingsPage() {
-  const { theme, toggle } = useTheme();
   const session = useSession();
   const audit = useQuery(listAuditOptions());
   const views = useQuery(listViewsOptions());
@@ -292,69 +345,48 @@ export function SettingsPage() {
         <div>
           <h1>Settings & audit</h1>
           <p>
-            Display preferences, saved operational views, and administrative
-            actions.
+            Your environment and access, saved task views, and the log of
+            administrative actions.
           </p>
         </div>
       </div>
-      <div className="two-columns">
-        <Card className="section">
-          <CardHeader className="section-heading">
-            <CardTitle>
-              <h2>Appearance</h2>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="section-body">
-            <div
-              className="toolbar"
-              style={{ justifyContent: "space-between" }}
-            >
-              <div>
-                <p>{theme === "dark" ? "Dark" : "Light"} mode</p>
-                <p className="muted small">
-                  Dark is the first-visit default. Your choice is saved on this
-                  browser.
-                </p>
-              </div>
-              <Button variant="secondary" onClick={toggle}>
-                {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-                Switch to {theme === "dark" ? "light" : "dark"}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="section">
-          <CardHeader className="section-heading">
-            <CardTitle>
-              <h2>Environment</h2>
-            </CardTitle>
-            <Badge
-              state={session.data?.role === "admin" ? "active" : "paused"}
-            />
-          </CardHeader>
-          <CardContent className="section-body">
-            <dl className="metadata">
-              <dt>Name</dt>
-              <dd>{session.data?.environment}</dd>
-              <dt>Account</dt>
-              <dd>{session.data?.actor}</dd>
-              <dt>Access</dt>
-              <dd>
-                {session.data?.role === "admin" ? "Operations" : "Read only"}
-              </dd>
-              <dt>Authentication</dt>
-              <dd>
-                {session.data?.auth_required ? "Enabled" : "Local development"}
-              </dd>
-            </dl>
-            <Alert role="note" className="notice">
-              <AlertDescription>
-                Connections and credentials are configured exclusively on the
-                server.
-              </AlertDescription>
-            </Alert>
-          </CardContent>
-        </Card>
+      <div className="live-stats env-stats">
+        <div className="live-stat">
+          <span>Environment</span>
+          <strong>{session.data?.environment ?? "—"}</strong>
+          <small>Spool v{session.data?.version ?? "—"}</small>
+        </div>
+        <div className="live-stat">
+          <span>Signed in as</span>
+          <strong>{session.data?.actor || "—"}</strong>
+          <small>
+            {session.data?.auth_required
+              ? "Password sign-in"
+              : "Local development, no sign-in"}
+          </small>
+        </div>
+        <div className="live-stat">
+          <span>Access</span>
+          <strong>
+            {session.data?.role === "admin" ? "Operations" : "Read only"}
+          </strong>
+          <small>
+            {session.data?.role === "admin"
+              ? "Can pause queues and act on tasks"
+              : "Can inspect, cannot change"}
+          </small>
+        </div>
+        <div className="live-stat">
+          <span className="title-row">
+            Configuration
+            <InfoTip label="About configuration">
+              Redis, Prometheus, credentials and the session key are set by
+              environment variables on the server. Nothing here can change them.
+            </InfoTip>
+          </span>
+          <strong>Server-side</strong>
+          <small>Set through environment variables</small>
+        </div>
       </div>
       <Card className="section">
         <CardHeader className="section-heading">
@@ -395,7 +427,9 @@ export function SettingsPage() {
                       </a>
                     </TableCell>
                     <TableCell className="mono muted small">{v.path}</TableCell>
-                    <TableCell>{date(v.created_at)}</TableCell>
+                    <TableCell>
+                      <Time value={v.created_at} />
+                    </TableCell>
                     <TableCell>
                       <Button
                         variant="ghost"
@@ -417,12 +451,19 @@ export function SettingsPage() {
       <Card className="section">
         <CardHeader className="section-heading">
           <CardTitle>
-            <h2>Administrative audit</h2>
+            <h2 className="title-row">
+              Administrative audit
+              <InfoTip label="About the audit log">
+                Every queue and task action is recorded before it runs. Pending
+                means the outcome is unknown, for example if the process stopped
+                before it finished. The newest 100 entries are shown.
+              </InfoTip>
+            </h2>
           </CardTitle>
-          <Button variant="ghost" size="sm" onClick={() => audit.refetch()}>
-            <RefreshCw size={14} />
-            Refresh
-          </Button>
+          <RefreshButton
+            onClick={() => audit.refetch()}
+            pending={audit.isFetching}
+          />
         </CardHeader>
         {audit.isPending ? (
           <Loading rows={3} />
@@ -450,7 +491,9 @@ export function SettingsPage() {
               <TableBody>
                 {audit.data.data.map((a) => (
                   <TableRow key={a.id}>
-                    <TableCell>{date(a.created_at)}</TableCell>
+                    <TableCell>
+                      <Time value={a.created_at} />
+                    </TableCell>
                     <TableCell>{a.actor}</TableCell>
                     <TableCell>{a.action}</TableCell>
                     <TableCell className="mono">{a.queue}</TableCell>
@@ -466,13 +509,6 @@ export function SettingsPage() {
             </Table>
           </div>
         )}
-        <Alert role="note" className="filter-info">
-          <AlertDescription>
-            Showing up to {number(audit.data?.data.length ?? 0)} recent intents.
-            Pending means outcome unknown, including a process crash before
-            finalization.
-          </AlertDescription>
-        </Alert>
       </Card>
       <OperationDialog
         open={!!deleteID}

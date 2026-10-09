@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/nanaaikinson/spool/internal/domain"
+	"github.com/uptrace/bun"
 )
 
 func TestAuditAndSavedViews(t *testing.T) {
@@ -44,5 +45,61 @@ func TestAuditAndSavedViews(t *testing.T) {
 	mine, e := s.Views(ctx, actor)
 	if e != nil || len(mine) != 1 {
 		t.Fatal("own view missing")
+	}
+}
+
+func TestScheduleLinks(t *testing.T) {
+	dsn := os.Getenv("SPOOL_TEST_DATABASE")
+	if dsn == "" {
+		t.Skip("set SPOOL_TEST_DATABASE for PostgreSQL integration")
+	}
+	s, e := Open(context.Background(), dsn)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.DB.Close()
+	ctx := context.Background()
+	suffix := time.Now().Format("150405.000000000")
+	entry, old := "test-entry-"+suffix, "test-old-entry-"+suffix
+	defer s.DB.NewDelete().Model((*scheduleEntryModel)(nil)).Where("entry_id IN (?)", bun.In([]string{entry, old})).Exec(ctx)
+	if e := s.RecordScheduleEntries(ctx, []domain.Scheduler{{ID: entry, Spec: "@every 1m", Type: "report:generate"}}); e != nil {
+		t.Fatal(e)
+	}
+	// A later sighting updates the spec in place rather than adding a row.
+	if e := s.RecordScheduleEntries(ctx, []domain.Scheduler{{ID: entry, Spec: "0 * * * *", Type: "report:generate"}}); e != nil {
+		t.Fatal(e)
+	}
+	now := time.Now()
+	links := []domain.ScheduleLink{{TaskID: "task-a-" + suffix, EntryID: entry, EnqueuedAt: now}}
+	if e := s.RecordScheduleLinks(ctx, links); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.RecordScheduleLinks(ctx, links); e != nil {
+		t.Fatal("duplicate link rejected", e)
+	}
+	refs, e := s.ScheduleLinks(ctx, []string{"task-a-" + suffix, "task-missing-" + suffix})
+	if e != nil {
+		t.Fatal(e)
+	}
+	if len(refs) != 1 || refs["task-a-"+suffix] != (domain.ScheduleRef{EntryID: entry, Spec: "0 * * * *"}) {
+		t.Fatalf("links = %+v", refs)
+	}
+	// Pruning drops stale links, then entries left without links.
+	if _, e := s.DB.NewInsert().Model(&scheduleEntryModel{EntryID: old, Spec: "@daily", TaskType: "x", FirstSeen: now.Add(-48 * time.Hour), LastSeen: now.Add(-48 * time.Hour)}).Exec(ctx); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.RecordScheduleLinks(ctx, []domain.ScheduleLink{{TaskID: "task-old-" + suffix, EntryID: old, EnqueuedAt: now.Add(-48 * time.Hour)}}); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.PruneSchedules(ctx, now.Add(-24*time.Hour)); e != nil {
+		t.Fatal(e)
+	}
+	left, e := s.DB.NewSelect().Model((*scheduleEntryModel)(nil)).Where("entry_id IN (?)", bun.In([]string{entry, old})).Count(ctx)
+	if e != nil || left != 1 {
+		t.Fatalf("entries after prune = %d, %v", left, e)
+	}
+	refs, e = s.ScheduleLinks(ctx, []string{"task-a-" + suffix, "task-old-" + suffix})
+	if e != nil || len(refs) != 1 {
+		t.Fatalf("links after prune = %+v, %v", refs, e)
 	}
 }

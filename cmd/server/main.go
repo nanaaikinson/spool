@@ -48,6 +48,7 @@ func run(log *slog.Logger) error {
 	}
 	if db != nil {
 		defer db.DB.Close()
+		source.Entries = db
 	}
 	broker := events.New()
 	go broker.Run(ctx)

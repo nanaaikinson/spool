@@ -1,11 +1,3 @@
-import {
-  Breadcrumb,
-  BreadcrumbList,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbPage,
-  BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import {
@@ -67,7 +59,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import {
   Copy,
-  RefreshCw,
   ChevronRight,
   Save,
   SlidersHorizontal,
@@ -108,9 +99,14 @@ import {
   Stale,
 } from "../components/data-state";
 import { date, duration, number } from "../lib/utils";
-import { errorMessage } from "../api/client";
+import { errorCode, errorMessage } from "../api/client";
 import { invalidateOperational, queryClient } from "./queries";
 import { useSession } from "./session";
+import { LIVE_TASK_STATES, TaskStatus, useTaskWorker } from "./task-status";
+import { CronChip, PeriodicTable, TaskSchedule } from "./schedules";
+import { ErrorGroupsCard } from "./error-groups";
+import { InfoTip, RefreshButton } from "../components/info-tip";
+import { Time } from "../components/time";
 const features = tableFeatures({});
 const helper = createColumnHelper<typeof features, TaskSummary>();
 const states = [
@@ -122,6 +118,17 @@ const states = [
   "completed",
   "aggregating",
 ] as const;
+/**
+ * Attempts made so far. Asynq counts failed attempts in `retried`, except the
+ * final one before archiving; add the run in progress, completed or exhausted.
+ */
+export const attempts = (t: TaskSummary) =>
+  t.retried +
+  (t.state === "active" ||
+  t.state === "completed" ||
+  (t.state === "archived" && t.last_error)
+    ? 1
+    : 0);
 const filterSchema = z
   .object({
     queue: z.string().max(200),
@@ -176,6 +183,8 @@ export function TasksPage({
     defaultValues: { name: "" },
   });
   const state = preset ?? search.state;
+  // Scheduled tasks get a dedicated Schedule column; other views tag cron tasks inline.
+  const showSchedule = state === "scheduled";
   const queue = scopedQueue ?? search.queue;
   const query = useQuery(
     listTasksOptions({
@@ -318,6 +327,9 @@ export function TasksPage({
               <div className="mono muted small" style={{ marginTop: 4 }}>
                 {row.original.id}
               </div>
+              {!showSchedule && row.original.schedule && (
+                <CronChip schedule={row.original.schedule} />
+              )}
             </div>
           ),
         }),
@@ -345,28 +357,36 @@ export function TasksPage({
           ),
         }),
         helper.accessor("retried", {
-          header: "Retries",
+          header: "Attempts",
           cell: ({ row }) => (
             <span className="mono">
-              {row.original.retried} / {row.original.max_retry}
+              {attempts(row.original)} / {row.original.max_retry + 1}
             </span>
           ),
         }),
+        ...(showSchedule
+          ? [
+              helper.display({
+                id: "schedule",
+                header: "Schedule",
+                cell: ({ row }) => <TaskSchedule task={row.original} />,
+              }),
+            ]
+          : []),
         helper.display({
           id: "time",
-          header:
-            preset === "scheduled"
-              ? "Next process"
-              : "Last failure / next process",
+          header: showSchedule ? "Next process" : "Last failure / next process",
           cell: ({ row }) => (
             <span className="small muted">
-              {date(
-                (preset === "scheduled"
-                  ? row.original.next_process_at
-                  : row.original.last_failed_at) ??
+              <Time
+                value={
+                  (showSchedule
+                    ? row.original.next_process_at
+                    : row.original.last_failed_at) ??
                   row.original.next_process_at ??
-                  row.original.completed_at,
-              )}
+                  row.original.completed_at
+                }
+              />
             </span>
           ),
         }),
@@ -382,7 +402,7 @@ export function TasksPage({
           ),
         }),
       ]),
-    [query.data, selection, preset],
+    [query.data, selection, showSchedule],
   );
   const empty: TaskSummary[] = useMemo(() => [], []);
   const table = useTable({
@@ -393,10 +413,10 @@ export function TasksPage({
   });
   const title =
     preset === "failed"
-      ? "Failures"
+      ? "Failed tasks"
       : preset === "scheduled"
         ? "Scheduled tasks"
-        : "Tasks";
+        : "All tasks";
   const content = (
     <Tabs
       className="gap-0"
@@ -508,9 +528,8 @@ export function TasksPage({
                 "scheduled",
                 "retry",
                 "archived",
-                ...(state === "completed" ||
-                state === "aggregating" ||
-                state === "failed"
+                "completed",
+                ...(state === "aggregating" || state === "failed"
                   ? [state]
                   : []),
               ] as const
@@ -721,12 +740,6 @@ export function TasksPage({
             </CollapsibleContent>
           </form>
         </Collapsible>
-        <Alert role="note" className="filter-info">
-          <AlertDescription>
-            Type, retry, and failure-time filters apply to the current page of
-            up to 50 tasks.
-          </AlertDescription>
-        </Alert>
         {selected.length > 0 && (
           <div className="filters">
             <span className="small">{selected.length} selected</span>
@@ -872,14 +885,10 @@ export function TasksPage({
               <Save size={14} />
               Save view
             </Button>
-            <Button
-              variant="secondary"
+            <RefreshButton
               onClick={() => query.refetch()}
-              disabled={query.isFetching}
-            >
-              <RefreshCw size={14} />
-              Refresh
-            </Button>
+              pending={query.isFetching}
+            />
           </div>
         </div>
       )}
@@ -1003,6 +1012,9 @@ export function TasksPage({
           </SummaryCard>
         </div>
       )}
+      {!embedded && preset === "failed" && (
+        <ErrorGroupsCard limit={5} queue={queue} />
+      )}
       <Card className="section">
         <CardHeader className="section-heading">
           <div>
@@ -1015,9 +1027,15 @@ export function TasksPage({
                     ? "Retained failures"
                     : "Task explorer"}
             </h2>
-            <p className="muted small">
+            <p className="muted small title-row">
               {number(query.data?.pagination.total ?? 0)} tasks before page
               filters
+              <InfoTip label="How filters work">
+                Spool reads one page of up to 50 tasks at a time instead of
+                scanning Redis. Queue and state narrow what is read; type,
+                attempt and failure-time filters apply to the page already
+                loaded.
+              </InfoTip>
             </p>
           </div>
           {embedded ? (
@@ -1028,12 +1046,26 @@ export function TasksPage({
             >
               Open explorer
             </Link>
-          ) : (
-            <UiBadge className="badge">Live snapshot</UiBadge>
-          )}
+          ) : null}
         </CardHeader>
         {content}
       </Card>
+      {!embedded && preset === "scheduled" && !!schedules.data?.data.length && (
+        <Card className="section">
+          <CardHeader className="section-heading">
+            <div>
+              <h2>Periodic schedules</h2>
+              <p className="muted small">
+                Cron entries enqueue a fresh task on every run
+              </p>
+            </div>
+            <Link to="/schedulers" className="table-link small">
+              View all
+            </Link>
+          </CardHeader>
+          <PeriodicTable data={schedules.data.data} />
+        </Card>
+      )}
       <OperationDialog
         open={!!bulk}
         onOpenChange={(open) =>
@@ -1189,7 +1221,21 @@ const cloneSchema = z.object({
 export function TaskPage() {
   const fieldsID = useId();
   const { queue, id } = useParams({ from: "/tasks/$queue/$id" });
-  const query = useQuery(getTaskOptions({ path: { queue, id } }));
+  const query = useQuery({
+    ...getTaskOptions({ path: { queue, id } }),
+    // Follow states that change on their own; stop once the task is gone.
+    refetchInterval: (q) =>
+      q.state.data &&
+      LIVE_TASK_STATES.has(q.state.data.state) &&
+      errorCode(q.state.error) !== "NOT_FOUND"
+        ? 3_000
+        : false,
+  });
+  const gone = !!query.data && errorCode(query.error) === "NOT_FOUND";
+  const worker = useTaskWorker(
+    query.data,
+    query.data?.state === "active" && !gone,
+  );
   const session = useSession();
   const navigate = useNavigate();
   const [action, setAction] = useState<string | null>(null);
@@ -1267,6 +1313,7 @@ export function TaskPage() {
   const task = query.data;
   if (!task) return null;
   const events = [
+    { title: "Started on worker", time: worker?.started },
     { title: "Last failure", time: task.last_failed_at },
     { title: "Next processing time", time: task.next_process_at },
     { title: "Completed", time: task.completed_at },
@@ -1277,22 +1324,10 @@ export function TaskPage() {
     <>
       <div className="page-heading">
         <div>
-          <Breadcrumb>
-            <BreadcrumbList>
-              <BreadcrumbItem>
-                <BreadcrumbLink asChild>
-                  <Link to="/tasks" search={{ queue }}>
-                    Tasks
-                  </Link>
-                </BreadcrumbLink>
-              </BreadcrumbItem>
-              <BreadcrumbSeparator />
-              <BreadcrumbItem>
-                <BreadcrumbPage>{queue}</BreadcrumbPage>
-              </BreadcrumbItem>
-            </BreadcrumbList>
-          </Breadcrumb>
-          <h1 className="mono task-heading" style={{ marginTop: 8 }}>
+          <Link to="/queues/$queue" params={{ queue }} className="eyebrow mono">
+            {queue}
+          </Link>
+          <h1 className="mono task-heading" style={{ marginTop: 4 }}>
             {task.type}
           </h1>
           <div className="toolbar" style={{ marginTop: 10 }}>
@@ -1335,15 +1370,8 @@ export function TaskPage() {
           ))}
         </div>
       </div>
-      <Stale error={query.error} />
-      {task.orphaned && (
-        <Alert variant="destructive" className="mb-5">
-          <AlertDescription>
-            This active task is orphaned. Asynq will recover it when a server
-            processes the queue.
-          </AlertDescription>
-        </Alert>
-      )}
+      {!gone && <Stale error={query.error} />}
+      <TaskStatus task={task} gone={gone} />
       <div className="two-columns">
         <div>
           {task.last_error && (
@@ -1383,9 +1411,17 @@ export function TaskPage() {
                     {queue}
                   </Link>
                 </dd>
-                <dt>Retries</dt>
+                <dt>Schedule</dt>
+                <dd>
+                  {task.schedule || task.state === "scheduled" ? (
+                    <TaskSchedule task={task} />
+                  ) : (
+                    <span className="muted">Enqueued directly</span>
+                  )}
+                </dd>
+                <dt>Attempts</dt>
                 <dd className="mono">
-                  {task.retried} / {task.max_retry}
+                  {attempts(task)} of {task.max_retry + 1}
                 </dd>
                 <dt>Timeout</dt>
                 <dd>
@@ -1394,7 +1430,13 @@ export function TaskPage() {
                     : "Not specified"}
                 </dd>
                 <dt>Deadline</dt>
-                <dd>{date(task.deadline)}</dd>
+                <dd>
+                  {task.deadline || worker?.deadline ? (
+                    date(task.deadline ?? worker?.deadline)
+                  ) : (
+                    <span className="muted">None set</span>
+                  )}
+                </dd>
                 <dt>Retention</dt>
                 <dd>{duration(task.retention_seconds)}</dd>
                 <dt>Group</dt>
@@ -1405,7 +1447,14 @@ export function TaskPage() {
           <Card className="section">
             <CardHeader className="section-heading">
               <CardTitle>
-                <h2>Observed timestamps</h2>
+                <h2 className="title-row">
+                  Timestamps
+                  <InfoTip label="About timestamps">
+                    Asynq keeps only selected timestamps and the last error. A
+                    full attempt history and the enqueue time need
+                    instrumentation in your workers.
+                  </InfoTip>
+                </h2>
               </CardTitle>
             </CardHeader>
             <CardContent className="section-body">
@@ -1425,13 +1474,6 @@ export function TaskPage() {
                   No lifecycle timestamps retained for this state.
                 </p>
               )}
-              <Alert role="note" className="notice">
-                <AlertDescription>
-                  Asynq retains selected timestamps and the last error. A full
-                  attempt timeline and enqueue time require worker
-                  instrumentation.
-                </AlertDescription>
-              </Alert>
             </CardContent>
           </Card>
           {Object.keys(task.headers).length > 0 && (

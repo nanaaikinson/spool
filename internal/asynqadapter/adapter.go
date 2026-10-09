@@ -28,6 +28,7 @@ type Source interface {
 	Tasks(context.Context, domain.TaskFilter) (domain.TaskList, error)
 	Task(context.Context, string, string) (domain.Task, error)
 	Servers(context.Context) ([]domain.Server, error)
+	ErrorGroups(context.Context, string, int) (domain.ErrorGroupList, error)
 	Schedulers(context.Context) ([]domain.Scheduler, error)
 	QueueAction(context.Context, string, string) error
 	TaskAction(context.Context, string, string, string) error
@@ -38,10 +39,13 @@ type Source interface {
 type Adapter struct {
 	inspector *asynq.Inspector
 	client    *asynq.Client
+	schedules scheduleCache
+	// Entries, when set, persists periodic entries; see ScheduleStore.
+	Entries ScheduleStore
 }
 
 func New(opt asynq.RedisConnOpt) *Adapter {
-	return &Adapter{asynq.NewInspector(opt), asynq.NewClient(opt)}
+	return &Adapter{inspector: asynq.NewInspector(opt), client: asynq.NewClient(opt)}
 }
 
 func (a *Adapter) Close() error {
@@ -197,7 +201,11 @@ func (a *Adapter) Task(ctx context.Context, q, id string) (domain.Task, error) {
 	if e != nil {
 		return domain.Task{}, mapError(e)
 	}
-	return task(t), nil
+	out := task(t)
+	summaries := []domain.TaskSummary{out.TaskSummary}
+	a.annotate(ctx, summaries)
+	out.Schedule = summaries[0].Schedule
+	return out, nil
 }
 
 type cursor struct {
@@ -323,6 +331,7 @@ func (a *Adapter) Tasks(ctx context.Context, f domain.TaskFilter) (domain.TaskLi
 		out.Pagination.NextCursor = base64.RawURLEncoding.EncodeToString(raw)
 		out.Pagination.HasMore = true
 	}
+	a.annotate(ctx, out.Data)
 	return out, nil
 }
 

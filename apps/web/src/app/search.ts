@@ -25,4 +25,5 @@ export const searchSchema = z.object({
   sort: z.string().catch("name"),
   desc: z.coerce.boolean().catch(false),
   range: z.enum(["15m", "1h", "6h", "24h", "7d"]).catch("1h"),
+  live: z.boolean().catch(false),
 });
