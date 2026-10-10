@@ -288,6 +288,7 @@ func Endpoints() []Endpoint {
 			false,
 			(*API).metricsHealth,
 		},
+		{"GET", "/status", "getDeploymentStatus", "Deployment connection diagnostics", domain.DeploymentStatus{}, nil, nil, false, (*API).deploymentStatus},
 		{
 			"GET",
 			"/metrics/query",

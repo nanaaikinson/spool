@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServers, listTasks, listViews, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
-import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
+import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServers, listTasks, listViews, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
+import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -393,6 +393,24 @@ export const loginMutation = (options?: Partial<Options<LoginData>>): UseMutatio
     };
     return mutationOptions;
 };
+
+export const getDeploymentStatusQueryKey = (options?: Options<GetDeploymentStatusData>) => createQueryKey('getDeploymentStatus', options);
+
+/**
+ * Deployment connection diagnostics
+ */
+export const getDeploymentStatusOptions = (options?: Options<GetDeploymentStatusData>) => queryOptions<GetDeploymentStatusResponse, GetDeploymentStatusError, GetDeploymentStatusResponse, ReturnType<typeof getDeploymentStatusQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDeploymentStatus({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDeploymentStatusQueryKey(options)
+});
 
 export const listTasksQueryKey = (options?: Options<ListTasksData>) => createQueryKey('listTasks', options);
 

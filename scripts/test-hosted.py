@@ -49,7 +49,9 @@ class HostedTests(unittest.TestCase):
             services = model["services"]
             app = services["app"]["environment"]
             self.assertEqual(app["REDIS_URL"].replace("$$", "$"), self.uri.read_text().strip())
-            self.assertEqual(app["SPOOL_ENV"], "hosted-" + customer)
+            self.assertEqual(app["SPOOL_ENV"], "production")
+            self.assertEqual(app["SPOOL_INSTANCE_NAME"], customer)
+            self.assertEqual(app["SPOOL_DEPLOYMENT_MODE"], "hosted")
             self.assertEqual(app["SPOOL_SECURE_COOKIE"], "true")
             self.assertEqual(app["SPOOL_METRICS_TOKEN"], services["prometheus"]["environment"]["SPOOL_METRICS_TOKEN"])
             for key in ("POSTGRES_PASSWORD", "SPOOL_ADMIN_PASSWORD", "SPOOL_SESSION_KEY", "SPOOL_METRICS_TOKEN"):
@@ -84,6 +86,16 @@ class HostedTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertNotIn(uri, result.stdout + result.stderr)
         self.assertFalse((self.directory / "acme").exists())
+
+    def test_public_metadata(self):
+        result = self.prepare(extra=("--instance-name", "Acme operations", "--environment", "staging", "--support-url", "https://support.example.com/spool"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        app = self.model("acme")["services"]["app"]["environment"]
+        self.assertEqual(app["SPOOL_INSTANCE_NAME"], "Acme operations")
+        self.assertEqual(app["SPOOL_ENV"], "staging")
+        self.assertEqual(app["SPOOL_SUPPORT_URL"], "https://support.example.com/spool")
+        for number, link in enumerate(("javascript:alert(1)", "http://support.example.com", "https://user:secret@support.example.com", "https://[")):
+            self.assertNotEqual(self.prepare("invalid-" + str(number), extra=("--support-url", link)).returncode, 0)
 
     def test_private_network_requires_explicit_choice(self):
         self.uri.write_text("redis://private-redis:6379/0")

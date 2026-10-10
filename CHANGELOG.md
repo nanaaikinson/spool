@@ -6,6 +6,9 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
+- Live connection diagnostics in Settings, verified metrics scrape and warm-up states, and guidance for empty Asynq environments.
+- Runtime instance identity and hosted/self-hosted support guidance across sign-in, navigation, Settings and action dialogs.
+
 - Dedicated hosted Compose deployment for Dokploy/Coolify, per-customer credential preparation, and an operator guide.
 - Optional `SPOOL_METRICS_TOKEN` bearer authentication on `/metrics`; the hosted stack requires it and configures its private Prometheus scraper.
 - Guided self-hosted installation with generated credentials, bundled PostgreSQL and Prometheus, optional external services, and startup readiness checks.

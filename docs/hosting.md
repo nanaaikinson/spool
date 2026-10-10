@@ -28,10 +28,12 @@ You need an operational Dokploy or Coolify server, DNS and HTTPS access, registr
 
    ```sh
    # Set this to your tested registry image containing the hosted support.
-   python3 scripts/prepare-hosted.py acme --image "$SPOOL_RELEASE_IMAGE"
+   python3 scripts/prepare-hosted.py acme --image "$SPOOL_RELEASE_IMAGE" \
+     --instance-name "Acme operations" --environment production \
+     --support-url https://support.example.com/spool
    ```
 
-   The prompt hides the Redis URI. For noninteractive preparation, use `--redis-url-file /path/to/private/redis-uri`; keep that input file owner-only. For approved plaintext private networking, add `--private-redis`. That flag records your choice at preparation time; it does not establish a VPN or a private route.
+   The name and support link are public metadata, including on the sign-in screen. The environment defaults to `production`; the name defaults to the customer slug. The template sets `SPOOL_DEPLOYMENT_MODE=hosted`, and the UI displays the instance name and environment in navigation and action dialogs. The prompt hides the Redis URI. For noninteractive preparation, use `--redis-url-file /path/to/private/redis-uri`; keep that input file owner-only. For approved plaintext private networking, add `--private-redis`. That flag records your choice at preparation time; it does not establish a VPN or a private route.
 4. Transfer the values from `deployments/acme/.env.hosted` into the resource's runtime environment. Compose dotenv values are single-quoted to preserve literal credential characters. In a platform key/value editor, enter the values without the enclosing quotes; a dotenv editor can accept the file's contents. Verify literal `$` characters survive the platform parser, or percent-encode them in Redis URI credentials.
 
 The command generates independent random admin, database, session and metrics secrets. It validates the actual Compose template without starting containers or contacting Redis, writes a mode-600 file inside a mode-700 customer directory, and refuses to replace an existing configuration. Reuse that file for redeployment; editing passwords alone cannot reset an existing PostgreSQL role. Generated customer files are ignored by Git and excluded from Docker builds. The file remains plaintext and needs restricted storage and backups. Never source it as shell code or include it in support reports.
@@ -60,6 +62,7 @@ The template pulls an image, uses named volumes, and generates Prometheus config
 
 ## Verify before handing over access
 
+- Open Settings and verify the three connection checks. Its Prometheus check must show collecting, not just reachable. Test the support link and friendly instance identity.
 - Confirm all three services are healthy. `/ready` checks Redis and PostgreSQL; it does not check Prometheus. With the image's readiness probe, a disconnected customer Redis keeps the app unhealthy.
 - Open the HTTPS hostname and sign in. Confirm the intended environment and queues appear, secure session cookies work, and live events stream through the proxy. An empty queue list can mean the wrong Redis database; confirm with the customer.
 - Request the public `/metrics` path without credentials and require **401**. Also check it using a wrong token. A **200** means the wrong/older image or missing runtime configuration; stop onboarding until corrected. Only the dedicated bearer token grants scrape access, and it never grants console API access.

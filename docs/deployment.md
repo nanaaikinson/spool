@@ -90,6 +90,26 @@ Add `-f compose.production.prometheus.yaml` to either production deployment to b
 
 Manual base files do not include Prometheus unless you add its override or set an external `PROMETHEUS_URL`. Supply runtime values through `.env.production` or your platform's environment dashboard; do not use the installer's file on a hosting platform without adapting its absolute paths and host-port choices.
 
+## Instance identity, support and diagnostics
+
+Runtime settings apply to the same built UI; no frontend rebuild is needed per deployment:
+
+| Setting | Behavior |
+| --- | --- |
+| `SPOOL_INSTANCE_NAME` | Friendly public name, at most 80 characters; defaults to `SPOOL_ENV` |
+| `SPOOL_ENV` | Environment label, such as production or staging |
+| `SPOOL_DEPLOYMENT_MODE` | `self-hosted` (default) or `hosted`; selects account recovery/support guidance |
+| `SPOOL_SUPPORT_URL` | Optional public HTTPS or mailto support link; embedded URL credentials are rejected |
+| `SPOOL_METRICS_JOB` | Prometheus scrape job checked by diagnostics; defaults to `spool` |
+
+The name, environment, deployment mode and support link appear before sign-in. Use only public information in these fields. Secrets, connection URLs and target labels are never returned by the diagnostics API.
+
+Settings shows live connection checks for Redis, PostgreSQL and Prometheus, with manual refresh and 30-second polling. Authenticated `GET /api/v1/status` returns each check independently, including failures, with an HTTP response deadline of five seconds. It is a console diagnostic endpoint; `/ready` remains the deployment readiness probe.
+
+Metrics diagnostics validate the Prometheus response and check active targets matching the configured job. They distinguish missing targets, pending collection, failed scrapes and unavailable target inspection. The UI reports first-sample collection only after a healthy scrape and fewer than two successful samples in the last two minutes. Rate charts require multiple samples; missing data in an older range is not reconstructed. If the target API is unavailable, scrape health remains unverified even when queries work. External Prometheus must still be scoped to the intended Asynq environment: changing the diagnostic job does not scope chart queries.
+
+An empty queue list may be valid for a new environment. Dashboard and Queues guide users to verify the Redis database rather than labelling every empty deployment as a connection failure.
+
 ## Connection values
 
 Use the same Redis host, port, **database index**, and credentials as your existing Asynq application. Spool currently uses Asynq v0.26.0; verify compatibility if your workers use a different release or a custom fork. Spool connects through Inspector; it does not replace your workers or require their source code.

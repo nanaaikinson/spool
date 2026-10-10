@@ -50,6 +50,7 @@ import { InfoTip, RefreshButton } from "../components/info-tip";
 import { Time } from "../components/time";
 import { HistoricalChart, LiveReadings, TimeRange } from "./charts";
 import { useSession } from "./session";
+import { ConnectionDiagnostics, DeploymentHelp } from "./deployment";
 import { PeriodicTable } from "./schedules";
 import { queryClient } from "./queries";
 import { errorMessage } from "../api/client";
@@ -368,9 +369,11 @@ export function SettingsPage() {
       />
       <div className={statGrid()}>
         <StatTile
-          label="Environment"
-          value={session.data?.environment ?? "—"}
-          detail={`Spool ${session.data ? versionLabel(session.data.version) : "—"}`}
+          label="Instance"
+          value={
+            session.data?.instance_name || session.data?.environment || "—"
+          }
+          detail={`${session.data?.environment ?? "—"} · Spool ${session.data ? versionLabel(session.data.version) : "—"}`}
         />
         <StatTile
           label="Signed in as"
@@ -399,16 +402,20 @@ export function SettingsPage() {
             <span className="flex flex-wrap items-center gap-2">
               Configuration
               <InfoTip label="About configuration">
-                Redis, Prometheus, credentials and the session key are set by
-                environment variables on the server. Nothing here can change
-                them.
+                Connections and accounts are managed by this instance’s
+                operator. Connection credentials stay on the server.
               </InfoTip>
             </span>
           }
-          value="Server-side"
-          detail="Set through environment variables"
+          value={
+            session.data?.deployment_mode === "hosted"
+              ? "Hosted"
+              : "Self-hosted"
+          }
+          detail={<DeploymentHelp session={session.data} />}
         />
       </div>
+      <ConnectionDiagnostics />
       <Section>
         <SectionHeader
           title="Saved views"
@@ -420,7 +427,8 @@ export function SettingsPage() {
         />
         {noDatabase ? (
           <Empty title="Saved views need a database">
-            Set DATABASE_URL to save filtered task lists.
+            Ask the operator to configure persistent storage to save filtered
+            task lists.
           </Empty>
         ) : views.isPending ? (
           <Loading rows={2} />
@@ -494,7 +502,8 @@ export function SettingsPage() {
         />
         {noDatabase ? (
           <Empty title="The audit log needs a database">
-            Set DATABASE_URL to record queue and task actions.
+            Ask the operator to configure persistent storage to record queue and
+            task actions.
           </Empty>
         ) : audit.isPending ? (
           <Loading rows={3} />

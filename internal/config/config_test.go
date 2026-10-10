@@ -190,3 +190,34 @@ func TestMetricsTokenValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDeploymentMetadata(t *testing.T) {
+	t.Setenv("SPOOL_ENV", "staging")
+	t.Setenv("SPOOL_INSTANCE_NAME", "")
+	t.Setenv("SPOOL_DEPLOYMENT_MODE", "self-hosted")
+	t.Setenv("SPOOL_SUPPORT_URL", "")
+	c, err := Load()
+	if err != nil || c.InstanceName != "staging" || c.DeploymentMode != "self-hosted" {
+		t.Fatalf("metadata defaults: %v", err)
+	}
+	t.Setenv("SPOOL_INSTANCE_NAME", "Acme operations")
+	t.Setenv("SPOOL_DEPLOYMENT_MODE", "hosted")
+	for _, link := range []string{"https://support.example.com/help", "mailto:support@example.com"} {
+		t.Setenv("SPOOL_SUPPORT_URL", link)
+		c, err = Load()
+		if err != nil || c.InstanceName != "Acme operations" || c.SupportURL != link {
+			t.Fatalf("valid metadata rejected: %v", err)
+		}
+	}
+	for _, link := range []string{"javascript:alert(1)", "http://support.example.com", "https://user:secret@support.example.com", "//support.example.com", "mailto:"} {
+		t.Setenv("SPOOL_SUPPORT_URL", link)
+		if _, err = Load(); err == nil {
+			t.Fatal("unsafe support link accepted")
+		}
+	}
+	t.Setenv("SPOOL_SUPPORT_URL", "")
+	t.Setenv("SPOOL_DEPLOYMENT_MODE", "other")
+	if _, err = Load(); err == nil {
+		t.Fatal("unknown deployment mode accepted")
+	}
+}

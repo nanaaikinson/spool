@@ -71,10 +71,12 @@ func run(log *slog.Logger) error {
 		[]string{"method", "route", "status"},
 	)
 	registry.MustRegister(requests)
+	provider := metrics.New(c.PrometheusURL)
+	provider.Job = c.MetricsJob
 	app := &api.API{
 		Config:   c,
 		Source:   source,
-		Metrics:  metrics.New(c.PrometheusURL),
+		Metrics:  provider,
 		Store:    db,
 		Events:   broker,
 		Log:      log,

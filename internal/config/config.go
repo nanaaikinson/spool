@@ -20,6 +20,10 @@ type Config struct {
 	DatabaseURL    string
 	PrometheusURL  string
 	Environment    string
+	InstanceName   string
+	DeploymentMode string
+	SupportURL     string
+	MetricsJob     string
 	StaticDir      string
 	AdminUser      string
 	AdminPassword  string
@@ -50,6 +54,10 @@ func Load() (Config, error) {
 		DatabaseURL:    env.Get("DATABASE_URL"),
 		PrometheusURL:  env.Get("PROMETHEUS_URL"),
 		Environment:    env.Get("SPOOL_ENV", "development"),
+		InstanceName:   env.Get("SPOOL_INSTANCE_NAME"),
+		DeploymentMode: env.Get("SPOOL_DEPLOYMENT_MODE", "self-hosted"),
+		SupportURL:     env.Get("SPOOL_SUPPORT_URL"),
+		MetricsJob:     env.Get("SPOOL_METRICS_JOB", "spool"),
 		StaticDir:      env.Get("SPOOL_STATIC_DIR", "apps/web/dist"),
 		AdminUser:      env.Get("SPOOL_ADMIN_USER"),
 		AdminPassword:  env.Get("SPOOL_ADMIN_PASSWORD"),
@@ -67,6 +75,24 @@ func Load() (Config, error) {
 	}).Validate(&c)
 	if len(issues) > 0 {
 		return c, fmt.Errorf("invalid configuration: SPOOL_ADDR, SPOOL_ENV, and REDIS_URL must be set, and SPOOL_ENV must be at most 80 characters")
+	}
+	if c.InstanceName == "" {
+		c.InstanceName = c.Environment
+	}
+	if len(c.InstanceName) > 80 || strings.ContainsAny(c.InstanceName, "\r\n") {
+		return c, fmt.Errorf("SPOOL_INSTANCE_NAME must be at most 80 characters without line breaks")
+	}
+	if c.DeploymentMode != "self-hosted" && c.DeploymentMode != "hosted" {
+		return c, fmt.Errorf("SPOOL_DEPLOYMENT_MODE must be self-hosted or hosted")
+	}
+	if c.MetricsJob == "" || len(c.MetricsJob) > 80 {
+		return c, fmt.Errorf("SPOOL_METRICS_JOB must be between 1 and 80 characters")
+	}
+	if c.SupportURL != "" {
+		u, err := url.Parse(c.SupportURL)
+		if err != nil || u.User != nil || strings.ContainsAny(c.SupportURL, "\r\n") || !((u.Scheme == "https" && u.Hostname() != "") || (u.Scheme == "mailto" && strings.Contains(u.Opaque, "@"))) {
+			return c, fmt.Errorf("SPOOL_SUPPORT_URL must be an HTTPS or mailto link without embedded credentials")
+		}
 	}
 	if (c.AdminUser == "") != (c.AdminPassword == "") || (c.ViewerUser == "") != (c.ViewerPassword == "") {
 		return c, fmt.Errorf("set both the username and password for each account (SPOOL_ADMIN_USER/SPOOL_ADMIN_PASSWORD, SPOOL_VIEWER_USER/SPOOL_VIEWER_PASSWORD)")

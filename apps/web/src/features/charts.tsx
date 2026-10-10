@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/chart";
 import { useId, useMemo, useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useNavigate, useSearch } from "@tanstack/react-router";
+import { Link, useNavigate, useSearch } from "@tanstack/react-router";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   metricsHealthOptions,
@@ -108,7 +108,11 @@ export function HistoricalChart({
   live?: boolean;
 }) {
   const search = useSearch({ from: "__root__" });
-  const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
+  const health = useQuery({
+    ...metricsHealthOptions(),
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+  });
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const refresh = () => {
@@ -187,9 +191,26 @@ export function HistoricalChart({
           <DataError error={query.error} retry={() => query.refetch()} />
         </SectionBody>
       ) : !chartData.length ? (
-        <Empty title="No samples in this range">
-          Check that Prometheus is scraping Spool’s /metrics endpoint, or choose
-          a longer time range.
+        <Empty
+          title={
+            health.data?.warming_up
+              ? "Collecting your first samples"
+              : health.data?.scrape_status === "pending"
+                ? "Waiting for the first scrape"
+                : "No samples in this range"
+          }
+        >
+          {health.data?.warming_up
+            ? "Prometheus is scraping successfully. Rate charts need at least two successful scrapes; this view refreshes automatically."
+            : health.data?.scrape_status === "up"
+              ? "Collection is working. This queue or time range may have no samples yet. Try a longer range; earlier history is not reconstructed."
+              : health.data?.message}
+          <Link
+            to="/settings"
+            className="mt-2 block underline underline-offset-4"
+          >
+            Check connection status
+          </Link>
         </Empty>
       ) : (
         <>
@@ -329,7 +350,11 @@ function Reading({
 }
 /** Current value of each charted signal, from Prometheus instant queries. */
 export function LiveReadings({ live }: { live: boolean }) {
-  const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
+  const health = useQuery({
+    ...metricsHealthOptions(),
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+  });
   if (!health.data?.available) return null;
   return (
     <div className={statGrid({ columns: 6 })}>
@@ -341,7 +366,11 @@ export function LiveReadings({ live }: { live: boolean }) {
 }
 /** Per-queue samples of one metric over the last hour, keyed by queue name. */
 export function useQueueTrends(metric: Metric) {
-  const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
+  const health = useQuery({
+    ...metricsHealthOptions(),
+    staleTime: 15_000,
+    refetchInterval: 15_000,
+  });
   const [end, setEnd] = useState(() => Date.now());
   useEffect(() => {
     const timer = setInterval(() => setEnd(Date.now()), 60_000);

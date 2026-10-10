@@ -195,6 +195,55 @@
         ],
         "type": "object"
       },
+      "ConnectionHealth": {
+        "additionalProperties": false,
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "available",
+          "message"
+        ],
+        "type": "object"
+      },
+      "DeploymentStatus": {
+        "additionalProperties": false,
+        "properties": {
+          "checked_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "database": {
+            "$ref": "#/components/schemas/ConnectionHealth"
+          },
+          "metrics": {
+            "$ref": "#/components/schemas/MetricHealth"
+          },
+          "queue_count": {
+            "type": "integer"
+          },
+          "redis": {
+            "$ref": "#/components/schemas/ConnectionHealth"
+          }
+        },
+        "required": [
+          "redis",
+          "database",
+          "metrics",
+          "queue_count",
+          "checked_at"
+        ],
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "properties": {
@@ -370,12 +419,20 @@
           },
           "message": {
             "type": "string"
+          },
+          "scrape_status": {
+            "type": "string"
+          },
+          "warming_up": {
+            "type": "boolean"
           }
         },
         "required": [
           "configured",
           "available",
-          "message"
+          "message",
+          "scrape_status",
+          "warming_up"
         ],
         "type": "object"
       },
@@ -802,7 +859,13 @@
           "authenticated": {
             "type": "boolean"
           },
+          "deployment_mode": {
+            "type": "string"
+          },
           "environment": {
+            "type": "string"
+          },
+          "instance_name": {
             "type": "string"
           },
           "read_only": {
@@ -819,6 +882,9 @@
             ],
             "type": "string"
           },
+          "support_url": {
+            "type": "string"
+          },
           "version": {
             "type": "string"
           }
@@ -829,6 +895,9 @@
           "actor",
           "role",
           "environment",
+          "instance_name",
+          "deployment_mode",
+          "support_url",
           "version",
           "read_only",
           "read_only_reason"
@@ -3242,6 +3311,118 @@
         "summary": "Sign in",
         "tags": [
           "session"
+        ]
+      }
+    },
+    "/api/v1/status": {
+      "get": {
+        "operationId": "getDeploymentStatus",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentStatus"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Deployment connection diagnostics",
+        "tags": [
+          "status"
         ]
       }
     },

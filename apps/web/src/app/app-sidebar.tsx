@@ -34,6 +34,7 @@ import { activeNav, altLabel, compactNumber, nav, navGroups } from "./nav";
 import { envTone, versionLabel } from "../lib/utils";
 import { cn } from "@/lib/utils";
 
+import { InstanceIdentity } from "../features/deployment";
 const navLink =
   "h-9 gap-2.5 text-muted-foreground data-active:bg-surface data-active:shadow-[0_0_0_1px_var(--border),0_1px_2px_rgba(0,0,0,0.06)]";
 const navBadge =
@@ -241,7 +242,7 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
                 envDot[envTone(session.data.environment)],
               )}
             />
-            {session.data.environment}
+            <InstanceIdentity session={session.data} />
             <span aria-hidden="true">·</span>
             {versionLabel(session.data.version)}
           </p>

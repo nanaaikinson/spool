@@ -16,7 +16,10 @@ services:
       options: {max-size: "10m", max-file: "3"}
     environment:
       SPOOL_ADDR: 0.0.0.0:8080
-      SPOOL_ENV: hosted-${SPOOL_CUSTOMER:?Set a unique customer slug}
+      SPOOL_ENV: ${SPOOL_ENV:-production}
+      SPOOL_INSTANCE_NAME: ${SPOOL_INSTANCE_NAME:-${SPOOL_CUSTOMER:?Set a unique customer slug}}
+      SPOOL_DEPLOYMENT_MODE: hosted
+      SPOOL_SUPPORT_URL: ${SPOOL_SUPPORT_URL:-}
       REDIS_URL: ${REDIS_URL:?Set the customer's Asynq Redis URI}
       DATABASE_URL: postgres://spool:${POSTGRES_PASSWORD:?Set a URL-safe database password}@postgres:5432/spool?sslmode=disable
       PROMETHEUS_URL: http://prometheus:9090

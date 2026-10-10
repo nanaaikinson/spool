@@ -43,6 +43,8 @@ Use [compose.hosted.yaml](compose.hosted.yaml) as a separate Dokploy or Coolify 
 
 Prepare each customer's runtime credentials with `python3 scripts/prepare-hosted.py CUSTOMER --image "$SPOOL_RELEASE_IMAGE"`, where the image is a tested full release tag or digest containing the hosted support. The command prompts for Redis privately and writes `deployments/CUSTOMER/.env.hosted` with owner-only permissions. Supply its values in the platform before deploying. The [hosted operator guide](docs/hosting.md) covers both platforms, onboarding, verification, backups and upgrades. This is an operator-managed dedicated offering; signup, billing and automatic provisioning are not included.
 
+Settings now shows Redis, database and metrics collection checks. Set `SPOOL_INSTANCE_NAME` and `SPOOL_SUPPORT_URL` at runtime to identify the instance and provide a public support contact; these appear before sign-in. The hosted preparation command also accepts `--instance-name`, `--environment` and `--support-url`. See [runtime metadata](docs/deployment.md#instance-identity-support-and-diagnostics).
+
 ## Try the published image
 
 Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. The quickest way to try it is the published image with a Redis URL and an account (Spool always requires sign-in when it listens beyond localhost, as it does in a container):

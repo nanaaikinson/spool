@@ -165,9 +165,25 @@ type MetricResult struct {
 }
 
 type MetricHealth struct {
+	Configured   bool   `json:"configured"`
+	Available    bool   `json:"available"`
+	Message      string `json:"message"`
+	ScrapeStatus string `json:"scrape_status"`
+	WarmingUp    bool   `json:"warming_up"`
+}
+
+type ConnectionHealth struct {
 	Configured bool   `json:"configured"`
 	Available  bool   `json:"available"`
 	Message    string `json:"message"`
+}
+
+type DeploymentStatus struct {
+	Redis      ConnectionHealth `json:"redis"`
+	Database   ConnectionHealth `json:"database"`
+	Metrics    MetricHealth     `json:"metrics"`
+	QueueCount int              `json:"queue_count"`
+	CheckedAt  time.Time        `json:"checked_at"`
 }
 
 type FieldError struct {
@@ -255,12 +271,15 @@ type ViewList struct {
 }
 
 type Session struct {
-	Authenticated bool   `json:"authenticated"`
-	AuthRequired  bool   `json:"auth_required"`
-	Actor         string `json:"actor"`
-	Role          string `json:"role"`
-	Environment   string `json:"environment"`
-	Version       string `json:"version"`
+	Authenticated  bool   `json:"authenticated"`
+	AuthRequired   bool   `json:"auth_required"`
+	Actor          string `json:"actor"`
+	Role           string `json:"role"`
+	Environment    string `json:"environment"`
+	InstanceName   string `json:"instance_name"`
+	DeploymentMode string `json:"deployment_mode"`
+	SupportURL     string `json:"support_url"`
+	Version        string `json:"version"`
 	// ReadOnly is true when no changes are allowed for anyone, with the reason
 	// in ReadOnlyReason: "configured" or "no_database".
 	ReadOnly       bool   `json:"read_only"`

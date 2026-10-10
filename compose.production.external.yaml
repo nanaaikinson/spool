@@ -13,6 +13,10 @@ services:
     environment:
       SPOOL_ADDR: 0.0.0.0:8080
       SPOOL_ENV: ${SPOOL_ENV:-production}
+      SPOOL_INSTANCE_NAME: ${SPOOL_INSTANCE_NAME:-}
+      SPOOL_DEPLOYMENT_MODE: self-hosted
+      SPOOL_SUPPORT_URL: ${SPOOL_SUPPORT_URL:-}
+      SPOOL_METRICS_JOB: ${SPOOL_METRICS_JOB:-spool}
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL to your existing Asynq Redis URI}
       DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to your PostgreSQL URI}
       PROMETHEUS_URL: ${PROMETHEUS_URL:-}

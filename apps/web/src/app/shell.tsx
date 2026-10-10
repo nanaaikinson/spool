@@ -133,9 +133,9 @@ function ShellContent() {
             role="status"
           >
             <strong className="font-semibold">Read-only.</strong> No database is
-            configured, so changes are off. Set{" "}
-            <code className="text-2xs/normal">DATABASE_URL</code> to pause
-            queues, act on tasks, save views and keep an audit log.
+            configured, so changes are off. Ask the operator to configure
+            persistent storage to enable task actions, saved views and the audit
+            log.
           </div>
         )}
         <div

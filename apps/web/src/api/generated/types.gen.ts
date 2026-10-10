@@ -51,6 +51,20 @@ export type CloneRequest = {
     type: string;
 };
 
+export type ConnectionHealth = {
+    available: boolean;
+    configured: boolean;
+    message: string;
+};
+
+export type DeploymentStatus = {
+    checked_at: string;
+    database: ConnectionHealth;
+    metrics: MetricHealth;
+    queue_count: number;
+    redis: ConnectionHealth;
+};
+
 export type Error = {
     code: string;
     details: ErrorDetails;
@@ -95,6 +109,8 @@ export type MetricHealth = {
     available: boolean;
     configured: boolean;
     message: string;
+    scrape_status: string;
+    warming_up: boolean;
 };
 
 export type MetricResult = {
@@ -210,10 +226,13 @@ export type Session = {
     actor: string;
     auth_required: boolean;
     authenticated: boolean;
+    deployment_mode: string;
     environment: string;
+    instance_name: string;
     read_only: boolean;
     read_only_reason: string;
     role: 'admin' | 'viewer' | '';
+    support_url: string;
     version: string;
 };
 
@@ -1261,6 +1280,63 @@ export type LoginResponses = {
 };
 
 export type LoginResponse = LoginResponses[keyof LoginResponses];
+
+export type GetDeploymentStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/status';
+};
+
+export type GetDeploymentStatusErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type GetDeploymentStatusError = GetDeploymentStatusErrors[keyof GetDeploymentStatusErrors];
+
+export type GetDeploymentStatusResponses = {
+    /**
+     * Successful response
+     */
+    200: DeploymentStatus;
+};
+
+export type GetDeploymentStatusResponse = GetDeploymentStatusResponses[keyof GetDeploymentStatusResponses];
 
 export type ListTasksData = {
     body?: never;

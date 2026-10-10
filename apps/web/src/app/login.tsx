@@ -28,6 +28,7 @@ import { queryClient } from "../features/queries";
 import { envTone, versionLabel } from "../lib/utils";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
+import { DeploymentHelp, InstanceIdentity } from "../features/deployment";
 const loginSchema = z.object({
   username: z.string().trim().min(1, "Enter your username."),
   password: z.string().min(1, "Enter your password."),
@@ -137,7 +138,8 @@ export function LoginScreen({ session }: { session?: Session }) {
             Sign in
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Use the account set up for this Spool deployment.
+            Use the account set up for{" "}
+            {session?.instance_name || "this Spool deployment"}.
           </p>
           <form
             className="mt-6 grid gap-4"
@@ -237,8 +239,7 @@ export function LoginScreen({ session }: { session?: Session }) {
             </Button>
           </form>
           <p className="mt-5 text-xs/normal text-pretty text-muted-foreground">
-            Forgot your password? Accounts are set on the server, so ask whoever
-            runs this deployment.
+            <DeploymentHelp session={session} account />
           </p>
         </div>
         {session && (
@@ -250,7 +251,7 @@ export function LoginScreen({ session }: { session?: Session }) {
               )}
               data-tone={envTone(session.environment)}
             />
-            {session.environment}
+            <InstanceIdentity session={session} />
             <span aria-hidden="true">·</span>
             {versionLabel(session.version)}
           </p>
