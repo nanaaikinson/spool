@@ -14,6 +14,7 @@
     "format": "prettier --write src e2e *.ts *.json eslint.config.js"
   },
   "dependencies": {
+    "@aejkatappaja/phantom-ui": "1.6.1",
     "@hookform/resolvers": "5.9.1",
     "@tanstack/react-query": "5.104.0",
     "@tanstack/react-router": "1.170.41",

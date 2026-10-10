@@ -4,6 +4,10 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ## Unreleased
 
+### Changed
+
+- Loading states use structure-aware shimmer skeletons (phantom-ui) that match the Dashboard figures, Queues table, task tables and queue page.
+
 ## 0.1.0 (2026-10-10)
 
 First public release.

@@ -5,7 +5,7 @@ import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
 import { Badge as UiBadge } from "./ui/badge";
 import { Card } from "./ui/card";
-import { Skeleton } from "./ui/skeleton";
+import { Phantom } from "./phantom";
 import {
   Empty as UiEmpty,
   EmptyHeader,
@@ -13,16 +13,20 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from "./ui/empty";
+const widths = ["40%", "18%", "14%", "20%"];
+/** Generic table-shaped skeleton for places without a structure-aware one. */
 export function Loading({ rows = 5 }: { rows?: number }) {
   return (
-    <Card aria-label="Loading data" role="status" className="section">
-      {Array.from({ length: rows }, (_, i) => (
-        <div className="skeleton-row" key={i}>
-          {[0, 1, 2, 3].map((j) => (
-            <Skeleton className="h-4" key={j} />
+    <Card className="section">
+      <Phantom loading count={rows} label="Loading data">
+        <div className="skeleton-row">
+          {widths.map((width) => (
+            <span key={width} style={{ width }}>
+              Loading
+            </span>
           ))}
         </div>
-      ))}
+      </Phantom>
     </Card>
   );
 }

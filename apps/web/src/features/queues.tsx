@@ -81,6 +81,8 @@ import {
   useQueueTrends,
 } from "./charts";
 import { RefreshButton } from "../components/info-tip";
+import { Phantom } from "../components/phantom";
+import { placeholderQueue, placeholderQueues } from "../lib/placeholders";
 import { NeedsAttention } from "./attention";
 import { ErrorGroupsCard } from "./error-groups";
 import { invalidateOperational } from "./queries";
@@ -340,7 +342,7 @@ export function QueueTable({ data }: { data: Queue[] }) {
       ) : (
         <div className="table-wrap">
           <Table>
-            <TableHeader>
+            <TableHeader data-shimmer-ignore>
               {table.getHeaderGroups().map((group) => (
                 <TableRow key={group.id}>
                   {group.headers.map((h) => (
@@ -516,7 +518,20 @@ export function OverviewPage() {
         </div>
       </div>
       {query.isPending ? (
-        <Loading />
+        <>
+          <Phantom loading label="Loading dashboard">
+            <Stats
+              queues={placeholderQueues}
+              activeWorkers={4}
+              concurrency={8}
+              servers={1}
+            />
+          </Phantom>
+          <div className="two-columns dashboard-columns">
+            <Loading rows={3} />
+            <Loading rows={3} />
+          </div>
+        </>
       ) : query.error && !query.data ? (
         <DataError error={query.error} retry={() => query.refetch()} />
       ) : (
@@ -561,7 +576,11 @@ export function QueuesPage() {
         />
       </div>
       {query.isPending ? (
-        <Loading />
+        <Card className="section">
+          <Phantom loading label="Loading queues">
+            <QueueTable data={placeholderQueues} />
+          </Phantom>
+        </Card>
       ) : query.error && !query.data ? (
         <DataError error={query.error} retry={() => query.refetch()} />
       ) : (
@@ -625,7 +644,9 @@ export function QueuePage() {
         </div>
       </div>
       {query.isPending ? (
-        <Loading />
+        <Phantom loading label="Loading queue">
+          <QueueFigures queue={placeholderQueue(queue)} />
+        </Phantom>
       ) : query.error && !query.data ? (
         <DataError error={query.error} retry={() => query.refetch()} />
       ) : (

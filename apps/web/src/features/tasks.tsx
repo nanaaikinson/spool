@@ -104,6 +104,8 @@ import { invalidateOperational, queryClient } from "./queries";
 import { useSession } from "./session";
 import { LIVE_TASK_STATES, TaskStatus, useTaskWorker } from "./task-status";
 import { CronChip, PeriodicTable, TaskSchedule } from "./schedules";
+import { Phantom } from "../components/phantom";
+import { placeholderTasks } from "../lib/placeholders";
 import { ErrorGroupsCard } from "./error-groups";
 import { InfoTip, RefreshButton } from "../components/info-tip";
 import { Time } from "../components/time";
@@ -408,7 +410,7 @@ export function TasksPage({
   const table = useTable({
     features,
     columns,
-    data: query.data?.data ?? empty,
+    data: query.data?.data ?? (query.isPending ? placeholderTasks : empty),
     getRowId: (t) => `${t.queue}/${t.id}`,
   });
   const title =
@@ -755,7 +757,34 @@ export function TasksPage({
           </div>
         )}
         {query.isPending ? (
-          <Loading />
+          <Phantom loading label="Loading tasks">
+            <div className="table-wrap">
+              <Table>
+                <TableHeader data-shimmer-ignore>
+                  {table.getHeaderGroups().map((g) => (
+                    <TableRow key={g.id}>
+                      {g.headers.map((h) => (
+                        <TableHead key={h.id}>
+                          <table.FlexRender header={h} />
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id}>
+                      {row.getAllCells().map((c) => (
+                        <TableCell key={c.id}>
+                          <table.FlexRender cell={c} />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </Phantom>
         ) : query.error && !query.data ? (
           <CardContent className="section-body">
             <DataError error={query.error} retry={() => query.refetch()} />
