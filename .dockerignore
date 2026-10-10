@@ -6,3 +6,9 @@
 bin
 **/test-results
 **/playwright-report
+tmp
+design
+docs
+.claude
+.code-review-graph
+.github

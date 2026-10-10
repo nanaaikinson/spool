@@ -326,8 +326,10 @@ export function MetricsPage() {
 }
 export function SettingsPage() {
   const session = useSession();
-  const audit = useQuery(listAuditOptions());
-  const views = useQuery(listViewsOptions());
+  // Saved views and the audit log live in PostgreSQL.
+  const noDatabase = session.data?.read_only_reason === "no_database";
+  const audit = useQuery({ ...listAuditOptions(), enabled: !noDatabase });
+  const views = useQuery({ ...listViewsOptions(), enabled: !noDatabase });
   const [deleteID, setDeleteID] = useState<string | null>(null);
   const remove = useMutation({
     ...deleteViewMutation(),
@@ -370,9 +372,13 @@ export function SettingsPage() {
             {session.data?.role === "admin" ? "Full access" : "Read only"}
           </strong>
           <small>
-            {session.data?.role === "admin"
-              ? "Can pause queues and act on tasks"
-              : "Can view, but not change"}
+            {noDatabase
+              ? "No database configured"
+              : session.data?.read_only_reason === "configured"
+                ? "Read-only mode is on"
+                : session.data?.role === "admin"
+                  ? "Can pause queues and act on tasks"
+                  : "Can view, but not change"}
           </small>
         </div>
         <div className="live-stat">
@@ -394,7 +400,11 @@ export function SettingsPage() {
           </CardTitle>
           <span className="muted small">Your last 100 views</span>
         </CardHeader>
-        {views.isPending ? (
+        {noDatabase ? (
+          <Empty title="Saved views need a database">
+            Set DATABASE_URL to save filtered task lists.
+          </Empty>
+        ) : views.isPending ? (
           <Loading rows={2} />
         ) : views.error ? (
           <CardContent className="section-body">
@@ -464,7 +474,11 @@ export function SettingsPage() {
             pending={audit.isFetching}
           />
         </CardHeader>
-        {audit.isPending ? (
+        {noDatabase ? (
+          <Empty title="The audit log needs a database">
+            Set DATABASE_URL to record queue and task actions.
+          </Empty>
+        ) : audit.isPending ? (
           <Loading rows={3} />
         ) : audit.error ? (
           <CardContent className="section-body">

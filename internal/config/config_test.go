@@ -1,7 +1,18 @@
 package config
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/hibiken/asynq"
 )
@@ -41,5 +52,127 @@ func TestRedisCredentials(t *testing.T) {
 				t.Fatal("TLS server name was not preserved")
 			}
 		})
+	}
+}
+
+func TestReadOnlyWithoutDatabase(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("SPOOL_READ_ONLY", "false")
+	c, e := Load()
+	if e != nil {
+		t.Fatal(e)
+	}
+	if !c.ReadOnly || c.ReadOnlyReason != "no_database" {
+		t.Fatalf("read only = %v (%q), want no_database", c.ReadOnly, c.ReadOnlyReason)
+	}
+	t.Setenv("DATABASE_URL", "postgres://spool@localhost/spool")
+	if c, e = Load(); e != nil || c.ReadOnly || c.ReadOnlyReason != "" {
+		t.Fatalf("with database: %v %v %q", e, c.ReadOnly, c.ReadOnlyReason)
+	}
+	t.Setenv("SPOOL_READ_ONLY", "true")
+	if c, e = Load(); e != nil || !c.ReadOnly || c.ReadOnlyReason != "configured" {
+		t.Fatalf("configured: %v %v %q", e, c.ReadOnly, c.ReadOnlyReason)
+	}
+}
+
+func writeCA(t *testing.T) string {
+	t.Helper()
+	key, e := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if e != nil {
+		t.Fatal(e)
+	}
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(1),
+		Subject:               pkix.Name{CommonName: "test CA"},
+		NotBefore:             time.Now().Add(-time.Hour),
+		NotAfter:              time.Now().Add(time.Hour),
+		IsCA:                  true,
+		BasicConstraintsValid: true,
+	}
+	der, e := x509.CreateCertificate(rand.Reader, tmpl, tmpl, &key.PublicKey, key)
+	if e != nil {
+		t.Fatal(e)
+	}
+	path := filepath.Join(t.TempDir(), "ca.pem")
+	if e := os.WriteFile(path, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}), 0o600); e != nil {
+		t.Fatal(e)
+	}
+	return path
+}
+
+func TestRedisTLSFiles(t *testing.T) {
+	ca := writeCA(t)
+	t.Setenv("DATABASE_URL", "")
+	t.Setenv("REDIS_TLS_CA_FILE", ca)
+
+	t.Setenv("REDIS_URL", "redis://redis.example.com:6379/0")
+	if _, e := Load(); e == nil || !strings.Contains(e.Error(), "rediss://") {
+		t.Fatalf("plain redis:// with TLS files: %v", e)
+	}
+
+	t.Setenv("REDIS_URL", "rediss://redis.example.com:6380/0")
+	c, e := Load()
+	if e != nil {
+		t.Fatal(e)
+	}
+	opt := c.Redis().(asynq.RedisClientOpt)
+	if opt.TLSConfig == nil || opt.TLSConfig.RootCAs == nil || opt.TLSConfig.ServerName != "redis.example.com" {
+		t.Fatalf("TLS config not applied: %+v", opt.TLSConfig)
+	}
+
+	t.Setenv("REDIS_URL", "redis-sentinel://sentinel.example.com:26379?master=main")
+	if c, e = Load(); e != nil {
+		t.Fatal(e)
+	}
+	if failover := c.Redis().(asynq.RedisFailoverClientOpt); failover.TLSConfig == nil || failover.TLSConfig.RootCAs == nil {
+		t.Fatal("sentinel connection did not get TLS")
+	}
+
+	t.Setenv("REDIS_TLS_CA_FILE", filepath.Join(t.TempDir(), "missing.pem"))
+	if _, e := Load(); e == nil {
+		t.Fatal("missing CA file accepted")
+	}
+	t.Setenv("REDIS_TLS_CA_FILE", "")
+	t.Setenv("REDIS_TLS_CERT_FILE", ca)
+	if _, e := Load(); e == nil || !strings.Contains(e.Error(), "REDIS_TLS_KEY_FILE") {
+		t.Fatalf("certificate without key: %v", e)
+	}
+}
+
+func TestRedisTargetHidesCredentials(t *testing.T) {
+	for uri, want := range map[string]string{
+		"redis://:secret@redis.example.com:6379/2":           "redis://redis.example.com:6379 db 2",
+		"rediss://spool:secret@redis.example.com:6380":       "rediss://redis.example.com:6380 db 0",
+		"redis-sentinel://:pw@s1:26379,s2:26379?master=main": "redis-sentinel://s1:26379,s2:26379 db 0",
+		"redis-socket://:secret@/var/run/redis.sock?db=3":    "redis-socket:///var/run/redis.sock db 3",
+	} {
+		got := (Config{RedisURL: uri}).RedisTarget()
+		if got != want {
+			t.Errorf("RedisTarget(%q) = %q, want %q", uri, got, want)
+		}
+		if strings.Contains(got, "secret") || strings.Contains(got, "pw") {
+			t.Errorf("RedisTarget(%q) leaked a credential: %q", uri, got)
+		}
+	}
+}
+
+func TestRedisSentinelOptions(t *testing.T) {
+	opt, ok := (Config{
+		RedisURL: "redis-sentinel://spool:master%40pw@s1:26379,s2:26379/3?master=main&sentinel_password=sentinel-pw",
+	}).Redis().(asynq.RedisFailoverClientOpt)
+	if !ok {
+		t.Fatal("not a failover option")
+	}
+	if opt.MasterName != "main" || len(opt.SentinelAddrs) != 2 || opt.DB != 3 {
+		t.Fatalf("addresses or database wrong: %+v", opt)
+	}
+	if opt.Username != "spool" || opt.Password != "master@pw" || opt.SentinelPassword != "sentinel-pw" {
+		t.Fatalf("credentials wrong: user %q, password %q, sentinel %q", opt.Username, opt.Password, opt.SentinelPassword)
+	}
+	// Without sentinel_password, one password covers both, as Asynq does.
+	shared := (Config{RedisURL: "redis-sentinel://:pw@s1:26379?master=main"}).Redis().(asynq.RedisFailoverClientOpt)
+	if shared.Password != "pw" || shared.SentinelPassword != "pw" || shared.DB != 0 {
+		t.Fatalf("shared password: %+v", shared)
 	}
 }

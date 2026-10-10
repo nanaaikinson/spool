@@ -1,0 +1,48 @@
+name: Bug report
+description: Something in Spool doesn't work as expected.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Screenshots help.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open …
+        2. Click …
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Spool version
+      description: Shown at the bottom of the sidebar.
+    validations:
+      required: true
+  - type: input
+    id: asynq
+    attributes:
+      label: Asynq version used by your workers
+      placeholder: v0.26.0
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: How do you run Spool?
+      options:
+        - Published container image
+        - Docker Compose from this repository
+        - Dokploy or Coolify
+        - Built from source
+        - Other
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Server logs or browser console output. Remove passwords, tokens and connection strings.
+      render: text

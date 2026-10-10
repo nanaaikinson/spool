@@ -1,8 +1,10 @@
-.PHONY: help dev web run-dev demo infra down build test e2e lint openapi api-client api-check
+.PHONY: help dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
 .DEFAULT_GOAL := help
 GO ?= go
 PNPM ?= pnpm
 AIR ?= air
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null | sed 's/^v//' || echo dev)
+LDFLAGS := -s -w -X github.com/nanaaikinson/spool/internal/version.Version=$(VERSION)
 
 help: ## List available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z0-9-]+:.*## / {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -28,8 +30,10 @@ down: ## Stop local infrastructure, keeping its data
 build: ## Build the web UI and the server and demo binaries
 	$(PNPM) --dir apps/web build
 	mkdir -p bin
-	$(GO) build -o bin/spool ./cmd/server
-	$(GO) build -o bin/spool-demo ./cmd/demo
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/spool ./cmd/server
+	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/spool-demo ./cmd/demo
+image: ## Build the Docker image locally, tagged spool:$(VERSION)
+	docker build --build-arg VERSION=$(VERSION) -t spool:$(VERSION) .
 test: ## Run backend and frontend unit tests
 	$(GO) test ./...
 	$(PNPM) --dir apps/web test

@@ -2013,3 +2013,16 @@ input[type="search"]::-webkit-search-cancel-button:hover {
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.mode-banner {
+  padding: var(--space-2) var(--gutter);
+  border-bottom: 1px solid var(--border);
+  background: var(--amber-bg);
+  color: var(--amber);
+  font-size: var(--text-xs);
+}
+.mode-banner strong {
+  font-weight: 600;
+}
+.mode-banner code {
+  font-size: var(--text-2xs);
+}

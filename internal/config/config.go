@@ -1,9 +1,12 @@
 package config
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
 
 	z "github.com/Oudwins/zog"
@@ -24,7 +27,14 @@ type Config struct {
 	ViewerPassword string
 	SessionKey     string
 	ReadOnly       bool
+	// ReadOnlyReason says why changes are disabled: "configured" when
+	// SPOOL_READ_ONLY is set, "no_database" when there is nowhere to record
+	// audit entries. Empty when changes are allowed.
+	ReadOnlyReason string
 	SecureCookie   bool
+	// RedisTLS adds a private CA or client certificate to rediss:// and
+	// redis-sentinel:// connections. Nil uses the system trust store.
+	RedisTLS *tls.Config
 }
 
 func Load() (Config, error) {
@@ -73,6 +83,26 @@ func Load() (Config, error) {
 	if _, err := asynq.ParseRedisURI(c.RedisURL); err != nil {
 		return c, fmt.Errorf("invalid REDIS_URL")
 	}
+	tlsConfig, e := redisTLS(
+		env.Get("REDIS_TLS_CA_FILE"),
+		env.Get("REDIS_TLS_CERT_FILE"),
+		env.Get("REDIS_TLS_KEY_FILE"),
+	)
+	if e != nil {
+		return c, e
+	}
+	if tlsConfig != nil && !strings.HasPrefix(c.RedisURL, "rediss://") && !strings.HasPrefix(c.RedisURL, "redis-sentinel://") {
+		return c, fmt.Errorf("REDIS_TLS_* settings need a rediss:// or redis-sentinel:// REDIS_URL")
+	}
+	c.RedisTLS = tlsConfig
+	// Every change is recorded in the audit log before it runs, so without
+	// PostgreSQL Spool can only observe.
+	switch {
+	case c.ReadOnly:
+		c.ReadOnlyReason = "configured"
+	case c.DatabaseURL == "":
+		c.ReadOnly, c.ReadOnlyReason = true, "no_database"
+	}
 	if c.PrometheusURL != "" {
 		u, e := url.Parse(c.PrometheusURL)
 		if e != nil || u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
@@ -84,12 +114,99 @@ func Load() (Config, error) {
 
 func (c Config) Redis() asynq.RedisConnOpt {
 	opt, _ := asynq.ParseRedisURI(c.RedisURL)
-	// Asynq v0.26 parses passwords and TLS but omits the Redis ACL username.
-	if redis, ok := opt.(asynq.RedisClientOpt); ok {
+	switch o := opt.(type) {
+	case asynq.RedisClientOpt:
+		// Asynq v0.26 parses passwords and TLS but omits the Redis ACL username.
 		if u, err := url.Parse(c.RedisURL); err == nil && u.User != nil {
-			redis.Username = u.User.Username()
+			o.Username = u.User.Username()
 		}
-		return redis
+		o.TLSConfig = withRedisTLS(o.TLSConfig, c.RedisTLS)
+		return o
+	case asynq.RedisFailoverClientOpt:
+		// Asynq v0.26 reads only the Sentinel addresses, master name and a
+		// Sentinel password. Also take the database from the path, and use the
+		// URL credentials for the master, with sentinel_password overriding the
+		// Sentinel's own password when it differs.
+		if u, err := url.Parse(c.RedisURL); err == nil {
+			if db, err := strconv.Atoi(strings.Trim(u.Path, "/")); err == nil {
+				o.DB = db
+			}
+			if u.User != nil {
+				o.Username = u.User.Username()
+				o.Password, _ = u.User.Password()
+			}
+			if p := u.Query().Get("sentinel_password"); p != "" {
+				o.SentinelPassword = p
+			}
+		}
+		o.TLSConfig = withRedisTLS(o.TLSConfig, c.RedisTLS)
+		return o
 	}
 	return opt
+}
+
+// withRedisTLS layers the configured CA and client certificate over the TLS
+// settings Asynq derived from the URL, keeping its server name. It enables TLS
+// for redis-sentinel:// URLs, which have no TLS scheme of their own.
+func withRedisTLS(base, extra *tls.Config) *tls.Config {
+	if extra == nil {
+		return base
+	}
+	out := extra.Clone()
+	if base != nil && out.ServerName == "" {
+		out.ServerName = base.ServerName
+	}
+	return out
+}
+
+// redisTLS builds the TLS settings for a private CA and an optional client
+// certificate. It returns nil when none are configured.
+func redisTLS(caFile, certFile, keyFile string) (*tls.Config, error) {
+	if caFile == "" && certFile == "" && keyFile == "" {
+		return nil, nil
+	}
+	if (certFile == "") != (keyFile == "") {
+		return nil, fmt.Errorf("set both REDIS_TLS_CERT_FILE and REDIS_TLS_KEY_FILE for a Redis client certificate")
+	}
+	cfg := &tls.Config{MinVersion: tls.VersionTLS12}
+	if caFile != "" {
+		pem, e := os.ReadFile(caFile)
+		if e != nil {
+			return nil, fmt.Errorf("could not read REDIS_TLS_CA_FILE: %w", e)
+		}
+		pool := x509.NewCertPool()
+		if !pool.AppendCertsFromPEM(pem) {
+			return nil, fmt.Errorf("REDIS_TLS_CA_FILE contains no PEM certificates")
+		}
+		cfg.RootCAs = pool
+	}
+	if certFile != "" {
+		cert, e := tls.LoadX509KeyPair(certFile, keyFile)
+		if e != nil {
+			return nil, fmt.Errorf("could not load the Redis client certificate: %w", e)
+		}
+		cfg.Certificates = []tls.Certificate{cert}
+	}
+	return cfg, nil
+}
+
+// RedisTarget describes the Redis connection for logs without credentials:
+// scheme, hosts and database number.
+func (c Config) RedisTarget() string {
+	u, e := url.Parse(c.RedisURL)
+	if e != nil {
+		return "invalid REDIS_URL"
+	}
+	target := u.Scheme + "://" + u.Host
+	if u.Scheme == "redis-socket" {
+		target = u.Scheme + "://" + u.Path
+	} else if db := strings.Trim(u.Path, "/"); db != "" {
+		target += " db " + db
+	} else {
+		target += " db 0"
+	}
+	if db := u.Query().Get("db"); db != "" && u.Scheme == "redis-socket" {
+		target += " db " + db
+	}
+	return target
 }

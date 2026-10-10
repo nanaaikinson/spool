@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/nanaaikinson/spool/internal/domain"
+	"github.com/nanaaikinson/spool/internal/version"
 )
 
 type claims struct {
@@ -111,12 +112,14 @@ func actor(r *http.Request) string {
 func (a *API) session(r *http.Request) domain.Session {
 	c, ok := a.identity(r)
 	return domain.Session{
-		Authenticated: ok,
-		AuthRequired:  a.authRequired(),
-		Actor:         c.Actor,
-		Role:          c.Role,
-		Environment:   a.Config.Environment,
-		Version:       "0.1.0",
+		Authenticated:  ok,
+		AuthRequired:   a.authRequired(),
+		Actor:          c.Actor,
+		Role:           c.Role,
+		Environment:    a.Config.Environment,
+		Version:        version.Version,
+		ReadOnly:       a.Config.ReadOnly,
+		ReadOnlyReason: a.Config.ReadOnlyReason,
 	}
 }
 
@@ -211,12 +214,14 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	a.json(
 		w,
 		domain.Session{
-			Authenticated: true,
-			AuthRequired:  true,
-			Actor:         in.Username,
-			Role:          role,
-			Environment:   a.Config.Environment,
-			Version:       "0.1.0",
+			Authenticated:  true,
+			AuthRequired:   true,
+			Actor:          in.Username,
+			Role:           role,
+			Environment:    a.Config.Environment,
+			Version:        version.Version,
+			ReadOnly:       a.Config.ReadOnly,
+			ReadOnlyReason: a.Config.ReadOnlyReason,
 		},
 	)
 }

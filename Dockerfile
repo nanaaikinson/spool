@@ -1,17 +1,28 @@
-FROM node:24-alpine AS web
+# syntax=docker/dockerfile:1
+# Build stages run on the build machine's platform and cross-compile, so
+# multi-architecture images don't need emulation.
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 WORKDIR /src/apps/web
 COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
-RUN corepack enable && pnpm install --frozen-lockfile
+RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
+    corepack enable && pnpm install --frozen-lockfile
 COPY apps/web/ ./
 RUN pnpm build
 
-FROM golang:1.27-alpine AS backend
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS backend
+ARG TARGETOS
+ARG TARGETARCH
+ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/spool ./cmd/server && \
-    CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/spool-demo ./cmd/demo
+ENV CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    LDFLAGS="-s -w -X github.com/nanaaikinson/spool/internal/version.Version=${VERSION}" && \
+    go build -trimpath -ldflags="$LDFLAGS" -o /out/spool ./cmd/server && \
+    go build -trimpath -ldflags="$LDFLAGS" -o /out/spool-demo ./cmd/demo
 
 FROM alpine:3.23
 RUN apk add --no-cache ca-certificates && addgroup -S spool && adduser -S spool -G spool

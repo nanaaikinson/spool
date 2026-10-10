@@ -12,7 +12,46 @@ What Spool shows:
 - **Periodic schedules**: cron specs with plain-English descriptions. Tasks link back to the schedule entry that enqueued them, and those links are kept in PostgreSQL after Asynq drops its enqueue history.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
-## Quick start
+## Run it against your Asynq Redis
+
+Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. The quickest way to try it is the published image with a Redis URL and an account (Spool always requires sign-in when it listens beyond localhost, as it does in a container):
+
+```sh
+docker run --rm -p 127.0.0.1:8080:8080 \
+  -e REDIS_URL='redis://:PASSWORD@redis.internal:6379/0' \
+  -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD='choose-a-long-password' \
+  -e SPOOL_SESSION_KEY="$(openssl rand -hex 32)" \
+  ghcr.io/nanaaikinson/spool:latest
+```
+
+Open http://127.0.0.1:8080 and sign in. Without a database Spool runs **read-only**: everything is visible, but pausing queues and acting on tasks are off. Add `DATABASE_URL` (PostgreSQL) to turn on actions, the audit log, saved views and schedule links:
+
+```sh
+docker run -d --name spool -p 127.0.0.1:8080:8080 \
+  -e REDIS_URL='rediss://spool:PASSWORD@redis.internal:6380/0' \
+  -e DATABASE_URL='postgres://spool:PASSWORD@postgres.internal:5432/spool?sslmode=verify-full' \
+  -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD="$(openssl rand -hex 32)" \
+  -e SPOOL_SESSION_KEY="$(openssl rand -hex 32)" \
+  ghcr.io/nanaaikinson/spool:latest
+docker logs spool   # reports whether it reached Redis and found your queues
+```
+
+Images are published for linux/amd64 and linux/arm64. Pin a version tag such as `0.1.0` in production. The [deployment guide](docs/deployment.md) covers Compose, Dokploy, Coolify, HTTPS and Prometheus.
+
+### Connecting to Redis
+
+- **Use the same database number as your workers.** `redis://host:6379/2` reads database 2. If Spool starts but shows no queues, its log says so; the database number is the usual cause.
+- **Supported URLs:** `redis://` (plain), `rediss://` (TLS), `redis-sentinel://:password@host1:26379,host2:26379/0?master=NAME` (Sentinel; add `&sentinel_password=…` if the Sentinels use a different password from Redis), and `redis-socket://:password@/path/to/redis.sock?db=0` (Unix socket). Usernames for Redis ACLs go before the password: `rediss://spool:PASSWORD@host:6380/0`. Percent-encode special characters in credentials.
+- **Private CA or client certificates:** mount the files and set `REDIS_TLS_CA_FILE`, and `REDIS_TLS_CERT_FILE` plus `REDIS_TLS_KEY_FILE` for mutual TLS. These apply to `rediss://` and `redis-sentinel://` URLs.
+- **Redis Cluster** isn't supported yet.
+- **Permissions:** viewing needs read access to the `asynq:*` keys and Lua scripting, as Asynq's own Inspector does; pausing queues and acting on tasks need write access. For people who only need to look, use a viewer account or `SPOOL_READ_ONLY=true`.
+- **Network:** inside a container, `localhost` is the Spool container itself. Use a hostname your Redis is reachable at from there.
+
+### Compatibility
+
+Spool is built and tested against Asynq **v0.26**. It reads Asynq's data in Redis directly through Asynq's Inspector, so workers on other Asynq versions may store data Spool can't read. Please report incompatibilities with your worker version.
+
+## Develop locally
 
 Requires Go 1.27+, Node 24+, pnpm 10.33 (pinned in `package.json`), and Docker Compose. [Air](https://github.com/air-verse/air) is optional: `make dev` uses it for live reload when installed and falls back to `go run` otherwise. With Corepack, run `corepack enable` once before installing dependencies.
 
@@ -64,7 +103,9 @@ The server loads `.env` when present without overriding process environment vari
 | --- | --- | --- |
 | `SPOOL_ADDR` | HTTP listen address | `127.0.0.1:8088` |
 | `REDIS_URL` | Asynq connection URI, including DB index | `redis://127.0.0.1:6388/0` |
-| `DATABASE_URL` | PostgreSQL URI for the audit log, saved views and schedule links | unset |
+| `DATABASE_URL` | PostgreSQL URI for the audit log, saved views and schedule links; without it Spool is read-only | unset |
+| `REDIS_TLS_CA_FILE` | PEM file with the CA that signed your Redis server certificate | unset |
+| `REDIS_TLS_CERT_FILE`, `REDIS_TLS_KEY_FILE` | Client certificate and key for Redis mutual TLS | unset |
 | `PROMETHEUS_URL` | Prometheus base URL, with optional URI credentials | unset |
 | `SPOOL_ENV` | Environment label | `development` |
 | `SPOOL_STATIC_DIR` | Compiled frontend directory | `apps/web/dist` |
@@ -76,7 +117,7 @@ The server loads `.env` when present without overriding process environment vari
 
 Accounts are required when `SPOOL_ADDR` is not a loopback address. Use long random account passwords, a random signing secret, TLS termination, and `SPOOL_SECURE_COOKIE=true` in production. Protect Redis and PostgreSQL with their own network and credentials. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
 
-Without PostgreSQL, viewing works but every change is refused before it reaches Redis, and task-to-schedule links last only as long as Asynq keeps its enqueue history. Migrations run under an advisory lock at startup. Each change is written to the audit log as pending before the Redis action and marked succeeded or failed afterward, so a record left pending (for example after a crash) means the outcome is unknown. Payloads are never stored in the audit log. Back up PostgreSQL and retain audit records as your deployment requires.
+Without PostgreSQL, Spool runs read-only and says so in a banner: every change is refused before it reaches Redis, saved views and the audit log are unavailable, and task-to-schedule links last only as long as Asynq keeps its enqueue history. Migrations run under an advisory lock at startup. Each change is written to the audit log as pending before the Redis action and marked succeeded or failed afterward, so a record left pending (for example after a crash) means the outcome is unknown. Payloads are never stored in the audit log. Back up PostgreSQL and retain audit records as your deployment requires.
 
 `/health` checks the running process; `/ready` checks Redis and, when configured, PostgreSQL. Prometheus is optional and does not block readiness. Structured logs include request IDs, route templates, statuses and timings. `/metrics` exports native Asynq metrics, Go/process metrics and `spool_http_request_duration_seconds`.
 

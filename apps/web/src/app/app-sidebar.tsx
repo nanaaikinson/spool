@@ -180,7 +180,10 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
           >
             <span className="env-dot" />
             {session.data.environment}
-            <span aria-hidden="true">·</span>v{session.data.version}
+            <span aria-hidden="true">·</span>
+            {/^\d/.test(session.data.version)
+              ? `v${session.data.version}`
+              : session.data.version}
           </p>
         )}
       </SidebarFooter>

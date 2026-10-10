@@ -58,3 +58,8 @@ collector-output.txt
 .claude/
 
 design/
+# Personal AI and editor tooling; kept locally, not part of the project.
+.mcp.json
+CLAUDE.md
+AGENTS.md
+.github/instructions/

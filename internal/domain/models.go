@@ -258,6 +258,10 @@ type Session struct {
 	Role          string `json:"role"`
 	Environment   string `json:"environment"`
 	Version       string `json:"version"`
+	// ReadOnly is true when no changes are allowed for anyone, with the reason
+	// in ReadOnlyReason: "configured" or "no_database".
+	ReadOnly       bool   `json:"read_only"`
+	ReadOnlyReason string `json:"read_only_reason"`
 }
 
 type LoginRequest struct {

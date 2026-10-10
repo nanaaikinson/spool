@@ -1,6 +1,22 @@
 # Production deployment
 
-Spool's Dockerfile builds the React frontend and Go server into one non-root application image. The Go server serves both the UI and API on **8080**. You do not need a separate Node server or frontend deployment.
+Spool ships as one non-root container image that serves both the UI and the API on **8080**. You do not need a separate Node server or frontend deployment.
+
+## Published image
+
+Each release publishes `ghcr.io/nanaaikinson/spool` for linux/amd64 and linux/arm64, tagged with the full version (`0.1.0`), the minor version (`0.1`) and `latest`. Pin the full version in production and read the [changelog](../CHANGELOG.md) before upgrading. Images carry build provenance and an SBOM.
+
+```sh
+cp .env.production.external.example .env.production
+chmod 600 .env.production
+# Edit .env.production: fill both connection URLs, admin password and signing key.
+docker run -d --name spool --restart unless-stopped \
+  --stop-timeout 30 --env-file .env.production \
+  -p 127.0.0.1:8080:8080 ghcr.io/nanaaikinson/spool:0.1.0
+docker logs spool
+```
+
+The log says whether Spool reached Redis and found your Asynq queues. Without `DATABASE_URL` it runs read-only. The sections below build from source instead, which suits platforms that deploy from a Git repository.
 
 Choose the dependencies you want Spool to manage:
 
@@ -22,11 +38,13 @@ Example connection formats, with placeholders to replace:
 REDIS_URL=redis://:URL_ENCODED_PASSWORD@redis.example.com:6379/0
 # Named Redis ACL user, with TLS
 REDIS_URL=rediss://spool:URL_ENCODED_PASSWORD@redis.example.com:6380/0
+# Redis Sentinel; add &sentinel_password=… if the Sentinels use their own password
+REDIS_URL=redis-sentinel://:URL_ENCODED_PASSWORD@sentinel-1.example.com:26379,sentinel-2.example.com:26379/0?master=mymaster
 # External PostgreSQL with certificate and hostname verification
 DATABASE_URL=postgres://spool:URL_ENCODED_PASSWORD@postgres.example.com:5432/spool?sslmode=verify-full
 ```
 
-Percent-encode special characters in URI usernames/passwords, including `@`, `:`, `/`, `#`, and `%`. Use your provider's endpoint and TLS settings. Publicly trusted TLS certificates work with the image's CA bundle; a private PostgreSQL CA requires a read-only certificate mount and `sslrootcert=/path/in/container/ca.pem` in `DATABASE_URL`. Redis private CA/client-certificate configuration is not exposed by the current environment configuration.
+Percent-encode special characters in URI usernames/passwords, including `@`, `:`, `/`, `#`, and `%`. Use your provider's endpoint and TLS settings. Publicly trusted TLS certificates work with the image's CA bundle; a private PostgreSQL CA requires a read-only certificate mount and `sslrootcert=/path/in/container/ca.pem` in `DATABASE_URL`. For Redis behind a private CA, mount the CA file read-only and set `REDIS_TLS_CA_FILE` to its path; for mutual TLS also set `REDIS_TLS_CERT_FILE` and `REDIS_TLS_KEY_FILE`. These apply to `rediss://` and `redis-sentinel://` URLs. Redis Cluster is not supported yet.
 
 External PostgreSQL must already contain the database named in `DATABASE_URL`. Give the application role permission to create its tables/indexes and read/write them. Spool runs its own migrations on startup; no separate migration command is needed. PostgreSQL holds the audit log, saved views and the links between tasks and the periodic schedules that enqueued them. Tasks remain in your Asynq Redis.
 

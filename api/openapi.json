@@ -793,6 +793,12 @@
           "environment": {
             "type": "string"
           },
+          "read_only": {
+            "type": "boolean"
+          },
+          "read_only_reason": {
+            "type": "string"
+          },
           "role": {
             "enum": [
               "admin",
@@ -811,7 +817,9 @@
           "actor",
           "role",
           "environment",
-          "version"
+          "version",
+          "read_only",
+          "read_only_reason"
         ],
         "type": "object"
       },

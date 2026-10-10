@@ -210,6 +210,13 @@ function ShellContent() {
       <AppSidebar onSignOut={signOut} />
       <SidebarInset>
         <Topbar live={live} onSearch={() => setPalette(true)} />
+        {session.data?.read_only_reason === "no_database" && (
+          <div className="mode-banner" role="status">
+            <strong>Read-only.</strong> No database is configured, so changes
+            are off. Set <code>DATABASE_URL</code> to pause queues, act on
+            tasks, save views and keep an audit log.
+          </div>
+        )}
         <div className="main" id="main" tabIndex={-1}>
           {session.isPending ? (
             <Loading />

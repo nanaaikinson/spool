@@ -208,6 +208,8 @@ export type Session = {
     auth_required: boolean;
     authenticated: boolean;
     environment: string;
+    read_only: boolean;
+    read_only_reason: string;
     role: 'admin' | 'viewer' | '';
     version: string;
 };

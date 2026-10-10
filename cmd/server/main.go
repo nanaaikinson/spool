@@ -18,6 +18,7 @@ import (
 	"github.com/nanaaikinson/spool/internal/events"
 	"github.com/nanaaikinson/spool/internal/metrics"
 	"github.com/nanaaikinson/spool/internal/store"
+	"github.com/nanaaikinson/spool/internal/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -40,6 +41,7 @@ func run(log *slog.Logger) error {
 	defer stop()
 	source := asynqadapter.New(c.Redis())
 	defer source.Close()
+	checkRedis(ctx, log, c, source)
 	startup, cancel := context.WithTimeout(ctx, 10*time.Second)
 	db, e := store.Open(startup, c.DatabaseURL)
 	cancel()
@@ -93,6 +95,7 @@ func run(log *slog.Logger) error {
 			"address", c.Addr,
 			"environment", c.Environment,
 			"read_only", c.ReadOnly,
+			"version", version.Version,
 		)
 		errs <- server.ListenAndServe()
 	}()
@@ -107,4 +110,26 @@ func run(log *slog.Logger) error {
 		return server.Shutdown(shutdown)
 	}
 	return nil
+}
+
+// checkRedis reports early whether Spool can see the Asynq data. It never stops
+// startup: Redis may come up later, and /ready reports it until then.
+func checkRedis(ctx context.Context, log *slog.Logger, c config.Config, source *asynqadapter.Adapter) {
+	check, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	queues, e := source.Queues(check)
+	switch {
+	case e != nil:
+		log.Warn("cannot reach Redis yet; check REDIS_URL and network access", "redis", c.RedisTarget())
+	case len(queues) == 0:
+		log.Warn(
+			"connected to Redis but found no Asynq queues; check that REDIS_URL uses the same database number as your workers",
+			"redis", c.RedisTarget(),
+		)
+	default:
+		log.Info("connected to Redis", "redis", c.RedisTarget(), "queues", len(queues))
+	}
+	if c.ReadOnlyReason == "no_database" {
+		log.Warn("DATABASE_URL is not set; running read-only without the audit log, saved views or schedule links")
+	}
 }
