@@ -43,6 +43,10 @@ Use [compose.hosted.yaml](compose.hosted.yaml) as a separate Dokploy or Coolify 
 
 Prepare each customer's runtime credentials with `python3 scripts/prepare-hosted.py CUSTOMER --image "$SPOOL_RELEASE_IMAGE"`, where the image is a tested full release tag or digest containing the hosted support. The command prompts for Redis privately and writes `deployments/CUSTOMER/.env.hosted` with owner-only permissions. Supply its values in the platform before deploying. The [hosted operator guide](docs/hosting.md) covers both platforms, onboarding, verification, backups and upgrades. This is an operator-managed dedicated offering; signup, billing and automatic provisioning are not included.
 
+Rehearse a built image with `make smoke-hosted HOSTED_IMAGE=YOUR_IMAGE`: it starts a disposable HTTPS and Redis TLS stack, verifies the console and metrics, then tests redeployment, PostgreSQL restore and administrator recovery. After deployment, `python3 scripts/check_hosted.py --url YOUR_HTTPS_ORIGIN --credentials-file PRIVATE_JSON` validates the customer console without changing tasks or configuration. See the [pilot verification instructions](docs/hosting.md#verify-before-handing-over-access).
+
+Create private PostgreSQL backups on the deployment host with `python3 scripts/backup_hosted.py --project ACTUAL_COMPOSE_PROJECT --output-dir PRIVATE_DIRECTORY`. The command publishes a completed dump and checksum, preserving earlier backups and removing failed partial dumps. The [backup procedure](docs/hosting.md#operate-back-up-and-upgrade) covers scheduling, encrypted off-host storage, key preservation and restore verification.
+
 Settings now shows Redis, database and metrics collection checks. Set `SPOOL_INSTANCE_NAME` and `SPOOL_SUPPORT_URL` at runtime to identify the instance and provide a public support contact; these appear before sign-in. The hosted preparation command also accepts `--instance-name`, `--environment` and `--support-url`. See [runtime metadata](docs/deployment.md#instance-identity-support-and-diagnostics).
 
 ## Try the published image

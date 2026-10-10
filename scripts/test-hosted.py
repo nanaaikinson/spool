@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Check hosted preparation and the actual Compose model; no daemon or Redis needed."""
 import json
+import hashlib
 import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+
+from check_hosted import Client
 
 ROOT = Path(__file__).resolve().parents[1]
 IMAGE = "ghcr.io/nanaaikinson/spool:9.9.9"
@@ -138,6 +141,81 @@ class HostedTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertNotIn(self.uri.read_text().strip(), result.stdout + result.stderr)
         self.assertFalse((self.directory / "acme").exists())
+
+    def test_verifier_rejects_unsafe_origins(self):
+        for origin in ("http://example.com", "https://user:password@example.com", "https://:password@example.com",
+                       "https://example.com/path", "https://example.com?token=secret", "https://example.com#secret"):
+            with self.assertRaises(RuntimeError):
+                Client(origin)
+
+    def test_verifier_keeps_private_input_out_of_errors(self):
+        credentials = self.directory / "pilot.json"
+        private_value = "never-print-this-password"
+        credentials.write_text(json.dumps({"username": "admin", "password": private_value}))
+        credentials.chmod(0o644)
+        result = subprocess.run(
+            ["python3", str(ROOT / "scripts/check_hosted.py"), "--url", "https://example.com",
+             "--credentials-file", str(credentials)], capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("owner-only", result.stderr)
+        self.assertNotIn(private_value, result.stdout + result.stderr)
+        credentials.chmod(0o600)
+        credentials.write_text('{"username":"admin","password":"' + private_value + '",bad json}')
+        result = subprocess.run(
+            ["python3", str(ROOT / "scripts/check_hosted.py"), "--url", "https://example.com",
+             "--credentials-file", str(credentials)], capture_output=True, text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn(private_value, result.stdout + result.stderr)
+
+    def test_backup_selection_publication_and_failures(self):
+        fake_bin = self.directory / "backup-bin"
+        fake_bin.mkdir()
+        docker = fake_bin / "docker"
+        # Fake only Docker's boundary; the real backup writer streams and publishes files.
+        docker.write_text('''#!/usr/bin/env python3
+import json, os, sys
+if sys.argv[1] == "ps":
+    if os.getenv("BACKUP_CASE") != "missing": print("a" * 12)
+    if os.getenv("BACKUP_CASE") == "ambiguous": print("b" * 12)
+elif sys.argv[1] == "inspect":
+    project = "other" if os.getenv("BACKUP_CASE") == "mismatch" else "acme"
+    print(json.dumps({"com.docker.compose.project": project, "com.docker.compose.service": "postgres"}))
+else:
+    sys.stdout.buffer.write(b"not-a-dump" if os.getenv("BACKUP_CASE") == "invalid" else b"PGDMPfake-private-database-data")
+    if os.getenv("BACKUP_CASE") == "failed":
+        print("never-print-private-upstream-error", file=sys.stderr)
+        sys.exit(1)
+''')
+        docker.chmod(0o700)
+        environment = dict(self.environment, PATH=str(fake_bin) + os.pathsep + os.environ["PATH"])
+        output = self.directory / "backups"
+        command = ["python3", str(ROOT / "scripts/backup_hosted.py"), "--project", "acme", "--output-dir", str(output)]
+        for case in ("missing", "ambiguous", "mismatch", "failed", "invalid"):
+            result = subprocess.run(command, env=dict(environment, BACKUP_CASE=case), capture_output=True, text=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertNotIn("never-print-private-upstream-error", result.stdout + result.stderr)
+            self.assertFalse(output.exists() and list(output.iterdir()))
+        result = subprocess.run(command, env=environment, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        dumps = list(output.glob("*.dump"))
+        self.assertEqual(len(dumps), 1)
+        original = dumps[0].read_bytes()
+        self.assertNotIn(original.decode(), result.stdout + result.stderr)
+        self.assertEqual(output.stat().st_mode & 0o777, 0o700)
+        self.assertEqual(dumps[0].stat().st_mode & 0o777, 0o600)
+        checksum = dumps[0].with_suffix(".dump.sha256")
+        self.assertEqual(checksum.read_text(), f"{hashlib.sha256(original).hexdigest()}  {dumps[0].name}\n")
+        self.assertEqual(checksum.stat().st_mode & 0o777, 0o600)
+        output.chmod(0o755)
+        self.assertNotEqual(subprocess.run(command, env=environment, capture_output=True).returncode, 0)
+        self.assertEqual(dumps[0].read_bytes(), original)
+        output.chmod(0o700)
+        # Later runs add backups instead of replacing the previous successful one.
+        self.assertEqual(subprocess.run(command, env=environment, capture_output=True).returncode, 0)
+        self.assertEqual(len(list(output.glob("*.dump"))), 2)
+        self.assertEqual(dumps[0].read_bytes(), original)
 
 
 if __name__ == "__main__":

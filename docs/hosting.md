@@ -22,6 +22,17 @@ You need an operational Dokploy or Coolify server, DNS and HTTPS access, registr
 
 ## Prepare a customer
 
+Before provisioning the first customer, rehearse the chosen image locally:
+
+```sh
+# For an image built from this checkout:
+docker build -t spool:hosted-pilot .
+make smoke-hosted HOSTED_IMAGE=spool:hosted-pilot
+# Or use a tested registry image directly as HOSTED_IMAGE.
+```
+
+The rehearsal requires Python 3, OpenSSL and Docker Compose supporting `up --wait`. It extends the actual hosted Compose definition with disposable Redis and an HTTPS proxy, uses a temporary trusted certificate for both HTTPS and Redis TLS, and never reads your deployment configuration or customer Redis. It checks the built UI, secure sessions, live events, metrics protection and collection, redeployment, a logical PostgreSQL dump restored into an empty database, and administrator recovery through the container CLI. Restore checks cover accounts, audit entries, saved views, organization metadata and encrypted Redis connections. Its random project, loopback-only proxy port, containers, networks and volumes are removed on completion; the selected image is retained. CI runs this rehearsal before release checks can pass. This is a local rehearsal; DNS, platform routing, off-host backups and actual customer connectivity must still be verified on the destination.
+
 1. Agree on a region, environment, unique customer slug and hostname. Record the platform resource/destination, image digest, approved Redis endpoint/database, owner and backup policy in your operator inventory. Keep passwords in the secret store, not the inventory.
 2. Obtain a dedicated Redis credential through a secure channel. Confirm the database index matches the customer's workers, verify Asynq v0.26 compatibility, and approve network access from the destination. Use `rediss://` with certificate verification or an approved private connection. Do not expose plaintext Redis to the internet. A read-only Spool role still uses Asynq Inspector's Redis commands; test ACL compatibility, including Lua scripting.
 3. Set `SPOOL_RELEASE_IMAGE` to a tested full release tag or SHA-256 digest, then prepare credentials:
@@ -62,6 +73,24 @@ The template pulls an image, uses named volumes, and generates Prometheus config
 
 ## Verify before handing over access
 
+After account setup, create an owner-only `deployments/acme/private-pilot.json` in your editor with the pilot account credentials. Keep it in the prepared customer directory, which is ignored by Git and excluded from Docker builds:
+
+```json
+{"username": "admin", "password": "PRIVATE_PILOT_ACCOUNT_PASSWORD"}
+```
+
+```sh
+chmod 600 deployments/acme/private-pilot.json
+python3 scripts/check_hosted.py \
+  --url https://acme.spool.example.com \
+  --credentials-file deployments/acme/private-pilot.json \
+  --instance-name "Acme operations"
+```
+
+This check verifies HTTPS certificates, the expected public identity, built frontend assets, unauthenticated API denial, metrics denial without a valid token, sign-in, secure session cookies, organization access, live events, Redis/PostgreSQL connectivity, and successful Prometheus scraping. It waits up to 90 seconds for initial collection and signs out its own session. A viewer account with membership is sufficient; it makes no task or configuration changes. Use `--organization-id ID` to check each additional organization, `--wait-seconds 180` for slower initial scrapes, and `--ca-file /path/to/trusted-ca.pem` for an approved private HTTPS CA. TLS verification is never disabled, redirects are rejected, and credentials stay out of arguments and output. Do not include the input file in support reports.
+
+A passing automated check covers the console path. Complete the platform isolation, real queue/database selection, backup and customer handover checks below as well. Record the checked image digest, platform resource, timestamp and outcomes in your operator inventory.
+
 - Open Settings and verify the three connection checks. Its Prometheus check must show collecting, not just reachable. Test the support link and friendly instance identity.
 - Confirm all three services are healthy. In organization mode, `/ready` checks PostgreSQL so an unavailable organization Redis does not stop the whole console; it does not check Prometheus. Check each organization’s Redis and metrics separately in Settings. Legacy mode also checks Redis in `/ready`.
 - Open the HTTPS hostname and sign in. Confirm the intended environment and queues appear, secure session cookies work, and live events stream through the proxy. An empty queue list can mean the wrong Redis database; confirm with the customer.
@@ -80,17 +109,16 @@ Configure an off-host encrypted PostgreSQL backup schedule before customer hando
 For an operator with Docker access to the destination, use the platform's **actual** Compose project name (it may differ from the customer slug):
 
 ```sh
-umask 077
-mkdir -p /path/to/private/backups/acme
-PG_CONTAINER=$(docker ps -q \
-  --filter "label=com.docker.compose.project=$PLATFORM_PROJECT" \
-  --filter 'label=com.docker.compose.service=postgres')
-# Verify this selects exactly one container for the intended customer first.
-docker exec "$PG_CONTAINER" pg_dump -U spool -d spool -Fc \
-  > /path/to/private/backups/acme/spool.dump
+python3 scripts/backup_hosted.py \
+  --project "$PLATFORM_PROJECT" \
+  --output-dir /path/to/private/backups/acme
 ```
 
-Upload successful dumps to the approved backup destination; do not keep the only copy on the application server. For restoration, provision a disposable customer stack, stop **app** to prevent writes, and run `pg_restore --clean --if-exists --no-owner -U spool -d spool` inside its PostgreSQL container with the dump on stdin. Start app and verify the data, readiness and scrape health. See [database backup details](deployment.md#metrics-persistence-and-updates).
+The backup command requires exactly one running `postgres` service with the requested project labels; it never guesses a customer from the current directory or `.env`. It creates a mode-700 directory and mode-600 files, refusing an existing shared directory or symlink. It publishes the custom-format `.dump` only after `pg_dump` succeeds and the accompanying `.dump.sha256` checksum is complete. Failed dumps are removed, upstream errors stay out of output, and later runs create new UTC-named files without replacing older backups. It performs no database writes and does not contact customer Redis. The hosted rehearsal restores a backup made with this same command.
+
+Schedule the command under an operator account on the destination and alert on its nonzero exit status. Upload completed dumps and checksums to the approved encrypted off-host backup destination, applying your agreed retention period; the command creates a local plaintext dump and checksum. Do not keep the only copy on the application server, and preserve runtime secrets separately. After downloading a backup, verify its checksum before restoring: on Linux run `sha256sum --check BACKUP.dump.sha256` from the backup directory, substituting the generated filename.
+
+For restoration, provision a disposable customer stack, stop **app** to prevent writes, and run `pg_restore --exit-on-error --clean --if-exists --no-owner -U spool -d spool` inside its PostgreSQL container with the verified dump on stdin. Preserve the original `SPOOL_DATA_KEY`, start app, and verify accounts, organization connections, audit entries, saved views, readiness and scrape health. See [database backup details](deployment.md#metrics-persistence-and-updates).
 
 Upgrade a canary resource first, take a fresh backup, set `SPOOL_IMAGE` to the tested full tag/digest, and redeploy the same resource. Record the old image digest and preserve volumes and signing keys. Migrations run on app startup. Rolling back the app image is safe only when its schema remains compatible; otherwise restore the matching database backup into a replacement resource and account for writes since that backup. Do not delete volumes as part of a routine redeployment.
 

@@ -6,6 +6,9 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
+- Hosted pilot rehearsal for HTTPS, Redis TLS, redeployment, database restore and administrator recovery, plus a deployed-console verification command and CI coverage.
+- Operator PostgreSQL backup command with exact customer-container selection, private files, checksums and removal of failed partial dumps; the hosted rehearsal restores its output.
+
 - Deployment administrator grants, revocation and atomic handover with current-password verification, session revocation and organization audit entries.
 - Operator-only `spool admin recover` for an existing administrator’s password recovery, without Redis or public recovery endpoints.
 
