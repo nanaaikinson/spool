@@ -17,7 +17,7 @@ import (
 
 func main() {
 	if os.Getenv("REDIS_URL") == "" {
-		log.Fatal("Set REDIS_URL to a dedicated demo database before running the demo worker")
+		log.Fatal("set REDIS_URL to a dedicated demo Redis database before running the demo")
 	}
 	c, e := config.Load()
 	if e != nil {
@@ -91,7 +91,7 @@ func main() {
 	seed()
 	t := time.NewTicker(30 * time.Second)
 	defer t.Stop()
-	log.Println("Demo worker running. Use a dedicated Redis database; stop to end traffic.")
+	log.Println("demo running: enqueuing tasks every 30 seconds; press Ctrl+C to stop")
 	for {
 		select {
 		case <-ctx.Done():

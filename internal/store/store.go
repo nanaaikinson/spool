@@ -124,7 +124,7 @@ func (s *Store) Finish(ctx context.Context, id string, success bool) error {
 		return e
 	}
 	if n != 1 {
-		return errors.New("audit intent no longer pending")
+		return errors.New("audit record is no longer pending")
 	}
 	return nil
 }
@@ -219,7 +219,7 @@ type scheduleLinkModel struct {
 	EnqueuedAt    time.Time `bun:"enqueued_at"`
 }
 
-// RecordScheduleLinks stores task-to-entry links; already known links are kept.
+// RecordScheduleLinks stores task-to-entry links; existing links are left unchanged.
 func (s *Store) RecordScheduleLinks(ctx context.Context, links []domain.ScheduleLink) error {
 	if s == nil {
 		return ErrUnavailable

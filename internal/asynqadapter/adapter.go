@@ -241,7 +241,7 @@ func (a *Adapter) Tasks(ctx context.Context, f domain.TaskFilter) (domain.TaskLi
 		return out, e
 	}
 	if len(queues) > 256 {
-		return out, fmt.Errorf("queue limit exceeded; scope your connection")
+		return out, fmt.Errorf("too many queues to list tasks (limit 256)")
 	}
 	buckets := []bucket{}
 	for _, q := range queues {
@@ -281,7 +281,8 @@ func (a *Adapter) Tasks(ctx context.Context, f domain.TaskFilter) (domain.TaskLi
 			return out, ErrCursor
 		}
 	}
-	// Read one native page, never scan Redis to satisfy arbitrary filters. Empty filtered pages retain a next cursor.
+	// Read a single Asynq page rather than scanning Redis to satisfy arbitrary filters,
+	// so a filtered page can be empty and still have a next cursor.
 	if c.Bucket >= len(buckets) {
 		return out, nil
 	}

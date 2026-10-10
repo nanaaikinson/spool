@@ -80,7 +80,7 @@ func (a *Adapter) ErrorGroups(ctx context.Context, queue string, sample int) (do
 		}
 	}
 	if len(buckets) > 256 {
-		return out, fmt.Errorf("queue limit exceeded; scope your connection")
+		return out, fmt.Errorf("too many queues to sample failures (limit 256)")
 	}
 	if len(buckets) == 0 {
 		return out, nil
@@ -102,7 +102,7 @@ func (a *Adapter) ErrorGroups(ctx context.Context, queue string, sample int) (do
 	return out, nil
 }
 
-// newestFailures returns up to n of the most recently failed tasks in a bucket.
+// newestFailures returns up to n of the most recently failed tasks for one queue and state.
 // Archived tasks are scored by archive time in ascending order, so the newest
 // sit on the last page; retry tasks are scored by next attempt instead.
 func (a *Adapter) newestFailures(b bucket, n int) ([]domain.TaskSummary, error) {
@@ -207,8 +207,8 @@ func firstLine(s string) string {
 	return truncateRunes(s, 500)
 }
 
-// allocate splits the sample across buckets so small buckets take only what they
-// hold and the remainder goes to larger ones, with at least one task each.
+// allocate splits the sample across queue states so small ones take only what
+// they hold and the remainder goes to larger ones, with at least one task each.
 func allocate(buckets []bucket, sample int) []int {
 	order := make([]int, len(buckets))
 	for i := range order {

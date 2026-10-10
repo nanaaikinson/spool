@@ -1,8 +1,12 @@
 import type { ReactNode } from "react";
 import { Info, RefreshCw } from "lucide-react";
+import { Popover } from "radix-ui";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { Button } from "./ui/button";
-/** Secondary explanation kept out of the layout until asked for. */
+/**
+ * Secondary explanation kept out of the layout until asked for. A popover, not
+ * a tooltip, so it also opens on tap.
+ */
 export function InfoTip({
   children,
   label = "More information",
@@ -11,14 +15,24 @@ export function InfoTip({
   label?: string;
 }) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
+    <Popover.Root>
+      <Popover.Trigger asChild>
         <button type="button" className="info-tip" aria-label={label}>
           <Info size={14} />
         </button>
-      </TooltipTrigger>
-      <TooltipContent className="info-tip-content">{children}</TooltipContent>
-    </Tooltip>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          className="info-tip-content"
+          side="bottom"
+          align="start"
+          sideOffset={6}
+          collisionPadding={16}
+        >
+          {children}
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }
 export function RefreshButton({

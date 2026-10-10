@@ -54,20 +54,20 @@ func Load() (Config, error) {
 		"RedisURL":    z.String().Required(),
 	}).Validate(&c)
 	if len(issues) > 0 {
-		return c, fmt.Errorf("invalid configuration")
+		return c, fmt.Errorf("invalid configuration: SPOOL_ADDR, SPOOL_ENV, and REDIS_URL must be set, and SPOOL_ENV must be at most 80 characters")
 	}
 	if (c.AdminUser == "") != (c.AdminPassword == "") || (c.ViewerUser == "") != (c.ViewerPassword == "") {
-		return c, fmt.Errorf("both username and password are required for each account")
+		return c, fmt.Errorf("set both the username and password for each account (SPOOL_ADMIN_USER/SPOOL_ADMIN_PASSWORD, SPOOL_VIEWER_USER/SPOOL_VIEWER_PASSWORD)")
 	}
 	if c.AdminUser != "" && c.ViewerUser == c.AdminUser {
-		return c, fmt.Errorf("admin and viewer usernames must differ")
+		return c, fmt.Errorf("SPOOL_ADMIN_USER and SPOOL_VIEWER_USER must differ")
 	}
 	if c.AdminUser == "" && c.ViewerUser == "" && !strings.HasPrefix(c.Addr, "127.0.0.1:") && !strings.HasPrefix(c.Addr, "localhost:") {
-		return c, fmt.Errorf("authentication is required when listening beyond loopback")
+		return c, fmt.Errorf("SPOOL_ADDR is not a loopback address; set SPOOL_ADMIN_USER or SPOOL_VIEWER_USER to require sign-in")
 	}
 	if c.AdminUser != "" || c.ViewerUser != "" {
 		if len(c.SessionKey) < 32 {
-			return c, fmt.Errorf("SPOOL_SESSION_KEY must contain at least 32 characters when authentication is enabled")
+			return c, fmt.Errorf("SPOOL_SESSION_KEY must be at least 32 characters when sign-in is enabled")
 		}
 	}
 	if _, err := asynq.ParseRedisURI(c.RedisURL); err != nil {

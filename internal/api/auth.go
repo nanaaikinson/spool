@@ -79,7 +79,7 @@ func (a *API) protect(next http.Handler) http.Handler {
 		}
 		if r.Method != "GET" && r.Method != "HEAD" {
 			if !a.csrf(r) {
-				a.fail(w, r, 403, "CSRF_REJECTED", "The action must originate from this console.", nil)
+				a.fail(w, r, 403, "CSRF_REJECTED", "This request did not come from the Spool console. Reload the page and try again.", nil)
 				return
 			}
 			if c.Role != "admin" && r.URL.Path != "/api/v1/session" {
@@ -169,7 +169,7 @@ func (a *API) login(w http.ResponseWriter, r *http.Request) {
 	if origin := r.Header.Get("Origin"); origin != "" {
 		u, e := url.Parse(origin)
 		if e != nil || u.Host != r.Host {
-			a.fail(w, r, 403, "CSRF_REJECTED", "Sign in from this console.", nil)
+			a.fail(w, r, 403, "CSRF_REJECTED", "Sign in from the Spool console. Reload the page and try again.", nil)
 			return
 		}
 	}

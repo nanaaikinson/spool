@@ -98,7 +98,7 @@ import {
   Loading,
   Stale,
 } from "../components/data-state";
-import { date, duration, number } from "../lib/utils";
+import { date, duration, number, plural, capitalize } from "../lib/utils";
 import { errorCode, errorMessage } from "../api/client";
 import { invalidateOperational, queryClient } from "./queries";
 import { useSession } from "./session";
@@ -244,7 +244,7 @@ export function TasksPage({
       const failed = result.data.filter((r) => !r.success);
       if (failed.length)
         toast.error(
-          `${failed.length} action${failed.length === 1 ? "" : "s"} failed. Inspect task states and audit records.`,
+          `${failed.length} action${failed.length === 1 ? "" : "s"} failed. Check those tasks’ current state and the audit log.`,
         );
       else
         toast.success(
@@ -394,8 +394,8 @@ export function TasksPage({
           header: "Last error",
           cell: ({ row }) => (
             <span
-              className={row.original.last_error ? "danger" : "muted"}
-              style={{ display: "block", maxWidth: 340, whiteSpace: "normal" }}
+              className={`error-cell ${row.original.last_error ? "danger" : "muted"}`}
+              title={row.original.last_error || undefined}
             >
               {row.original.last_error || "—"}
             </span>
@@ -631,12 +631,10 @@ export function TasksPage({
                         ref={field.ref}
                         onBlur={field.onBlur}
                       >
-                        <SelectValue placeholder="All inspectable states" />
+                        <SelectValue placeholder="All states" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="all">
-                          All inspectable states
-                        </SelectItem>
+                        <SelectItem value="all">All states</SelectItem>
                         {[...states, "failed"].map((state) => (
                           <SelectItem key={state} value={state}>
                             {state}
@@ -688,7 +686,7 @@ export function TasksPage({
                 <FieldLabel htmlFor={`${filtersID}-id`}>Task ID</FieldLabel>
                 <Input
                   id={`${filtersID}-id`}
-                  placeholder="Exact ID…"
+                  placeholder="Exact task ID"
                   {...form.register("id")}
                 />
               </Field>
@@ -769,13 +767,13 @@ export function TasksPage({
               <Empty
                 title={
                   query.data?.pagination.has_more
-                    ? "No matching tasks in this page"
-                    : "No tasks in this view"
+                    ? "No matches on this page"
+                    : "No tasks here"
                 }
               >
                 {query.data?.pagination.has_more
-                  ? "Use Next page to inspect the next bounded page, or narrow the queue and state filters."
-                  : "Adjust the filters or enqueue tasks in this environment."}
+                  ? "Try the next page, or narrow the queue and state filters."
+                  : "Change the filters, or check back once tasks are enqueued."}
               </Empty>
             ) : (
               <div className="table-wrap">
@@ -807,9 +805,9 @@ export function TasksPage({
             )}
             <div className="pagination">
               <span className="muted small">
-                {query.data?.data.length ?? 0} matches in this page ·{" "}
-                {number(query.data?.pagination.total ?? 0)} tasks before page
-                filters
+                {plural(query.data?.data.length ?? 0, "match", "matches")} on
+                this page · {number(query.data?.pagination.total ?? 0)} tasks in
+                total
               </span>
               <Pagination className="m-0 w-auto" aria-label="Task pages">
                 <PaginationContent className="pagination-buttons">
@@ -865,10 +863,10 @@ export function TasksPage({
             <h1>{title}</h1>
             <p>
               {preset === "failed"
-                ? "Inspect retained failures, understand the last error, and retry eligible tasks."
+                ? "Tasks that failed and are retrying or archived. See why they failed, then retry or clean up."
                 : preset === "scheduled"
-                  ? "Tasks waiting for a future processing time."
-                  : "Inspect tasks across queues without scanning your Redis database."}
+                  ? "One-off tasks set to run later, and the periodic schedules that enqueue tasks on a timer."
+                  : "Every task across your queues, filtered by queue, state and type."}
             </p>
           </div>
           <div className="heading-actions">
@@ -931,7 +929,7 @@ export function TasksPage({
                   ? "—"
                   : number(schedules.data?.data.length ?? 0)
             }
-            note="Registered in this environment"
+            note="Registered by running schedulers"
           >
             <Link className="table-link summary-link" to="/schedulers">
               Inspect cron entries <ChevronRight size={13} />
@@ -948,7 +946,7 @@ export function TasksPage({
                   ? "—"
                   : number(stateCount("retry"))
             }
-            note="Retained tasks with a retry time"
+            note="Failed tasks with another attempt scheduled"
           >
             <SnapshotBar
               segments={[
@@ -967,7 +965,7 @@ export function TasksPage({
           </SummaryCard>
           <SummaryCard
             icon={<Timer size={18} />}
-            label="Next in this page"
+            label="Next on this page"
             value={
               nextTask?.next_process_at ? (
                 new Date(nextTask.next_process_at).getTime() <= Date.now() ? (
@@ -991,7 +989,7 @@ export function TasksPage({
                 ? date(nextTask.next_process_at)
                 : query.isPending
                   ? "Loading scheduled tasks"
-                  : "No scheduled tasks in this page"
+                  : "No scheduled tasks on this page"
             }
           >
             {nextTask ? (
@@ -1025,11 +1023,10 @@ export function TasksPage({
                   ? "Upcoming tasks"
                   : preset === "failed"
                     ? "Retained failures"
-                    : "Task explorer"}
+                    : "Tasks"}
             </h2>
             <p className="muted small title-row">
-              {number(query.data?.pagination.total ?? 0)} tasks before page
-              filters
+              {plural(query.data?.pagination.total ?? 0, "task")}
               <InfoTip label="How filters work">
                 Spool reads one page of up to 50 tasks at a time instead of
                 scanning Redis. Queue and state narrow what is read; type,
@@ -1044,7 +1041,7 @@ export function TasksPage({
               search={{ queue: scopedQueue }}
               className="table-link small"
             >
-              Open explorer
+              Open in All tasks
             </Link>
           ) : null}
         </CardHeader>
@@ -1071,14 +1068,14 @@ export function TasksPage({
         onOpenChange={(open) =>
           !open && !bulkMutation.isPending && setBulk(null)
         }
-        title={`${bulk ?? "Update"} ${selected.length} selected tasks?`}
-        description="Tasks are checked against their current state. Each action receives an audit record; partial failures are reported."
+        title={`${capitalize(bulk ?? "update")} ${plural(selected.length, "selected task")}?`}
+        description="Each task is checked against its current state and recorded in the audit log. You’ll see which ones fail."
       >
         <Alert role="note" className="notice">
           <AlertDescription>
             {bulk === "delete"
-              ? "Deletion permanently removes retained task data."
-              : "Ineligible tasks will fail safely without changing their state."}
+              ? "This permanently removes the selected tasks and their data."
+              : "Tasks that can’t take this action are left unchanged."}
           </AlertDescription>
         </Alert>
         <DialogFooter className="dialog-actions">
@@ -1113,7 +1110,7 @@ export function TasksPage({
         open={save}
         onOpenChange={setSave}
         title="Save this view"
-        description="Store the current filters and URL for later."
+        description="Keep the current filters so you can reopen them from Settings."
       >
         <form
           className="form"
@@ -1195,7 +1192,7 @@ function PayloadPanel({ payload, title }: { payload: Payload; title: string }) {
         {payload.truncated && (
           <Alert role="note" className="notice" style={{ marginBottom: 12 }}>
             <AlertDescription>
-              Display truncated at 256 KiB. This is not the complete payload.
+              Showing the first 256 KB. The full payload is larger.
             </AlertDescription>
           </Alert>
         )}
@@ -1281,8 +1278,8 @@ export function TaskPage() {
       setAction(null);
       toast.success(
         action === "cancel"
-          ? "Cancellation requested. The worker must acknowledge it."
-          : `Task ${action === "retry" ? "queued for processing" : action === "archive" ? "archived" : "deleted"}.`,
+          ? "Cancellation requested. It takes effect when the worker checks for it."
+          : `Task ${action === "retry" ? "queued to run now" : action === "archive" ? "archived" : "deleted"}.`,
       );
       if (action === "delete") navigate({ to: "/tasks", search: { queue } });
     } catch (e) {
@@ -1315,7 +1312,7 @@ export function TaskPage() {
   const events = [
     { title: "Started on worker", time: worker?.started },
     { title: "Last failure", time: task.last_failed_at },
-    { title: "Next processing time", time: task.next_process_at },
+    { title: "Next run", time: task.next_process_at },
     { title: "Completed", time: task.completed_at },
   ]
     .filter((e) => e.time)
@@ -1427,7 +1424,7 @@ export function TaskPage() {
                 <dd>
                   {task.timeout_seconds
                     ? duration(task.timeout_seconds)
-                    : "Not specified"}
+                    : "Server default"}
                 </dd>
                 <dt>Deadline</dt>
                 <dd>
@@ -1471,7 +1468,7 @@ export function TaskPage() {
               </ol>
               {!events.length && (
                 <p className="muted small">
-                  No lifecycle timestamps retained for this state.
+                  Asynq hasn’t kept any timestamps for this task yet.
                 </p>
               )}
             </CardContent>
@@ -1505,16 +1502,16 @@ export function TaskPage() {
         title={
           action === "clone"
             ? "Clone task"
-            : `${action === "retry" ? "Run" : (action ?? "Update")} this task?`
+            : `${action === "retry" ? "Run" : capitalize(action ?? "update")} this task?`
         }
         description={
           action === "delete"
-            ? "Deletion permanently removes this task and its retained payload and error."
+            ? "This permanently removes the task, its payload and its last error."
             : action === "cancel"
-              ? "Cancellation is cooperative. The worker must acknowledge the request."
+              ? "The worker stops the task only if its handler checks for cancellation."
               : action === "clone"
-                ? "A new task ID is created. Review the payload and options before enqueueing."
-                : "This action checks the current state and is recorded in the audit log."
+                ? "This enqueues a copy with a new ID. Review the payload and options first."
+                : "The task’s current state is checked first, and the action is recorded in the audit log."
         }
       >
         {action === "clone" ? (
@@ -1550,9 +1547,9 @@ export function TaskPage() {
             </Field>
             <Alert role="note" className="notice">
               <AlertDescription>
-                The new task uses 24-hour retention and the worker's default
-                timeout. Original unique, schedule, group and deadline options
-                are not copied.
+                The copy keeps results for 24 hours and uses the worker’s
+                default timeout. Uniqueness, schedule, group and deadline
+                settings aren’t copied.
               </AlertDescription>
             </Alert>
             {Object.values(form.formState.errors).map((e, i) => (

@@ -208,8 +208,8 @@ export function SchedulersPage() {
           </CardContent>
         ) : !query.data?.data.length ? (
           <Empty title="No periodic schedules registered">
-            Start an Asynq scheduler to inspect its cron entries. One-off
-            scheduled tasks are available in the Scheduled view.
+            Start an Asynq scheduler to see its cron entries here. One-off
+            delayed tasks are on the Scheduled page.
           </Empty>
         ) : (
           <PeriodicTable data={query.data.data} />
@@ -279,11 +279,10 @@ export function MetricsPage() {
             </InfoTip>
           </h1>
           <p>
-            Trends for every queue over time, read from the Prometheus collector
-            built into Asynq. The other pages show what is true right now; this
-            page shows how you got here, so you can tell a brief spike from a
-            backlog that has been growing for hours, check whether latency is
-            creeping past your targets, and confirm a fix actually brought
+            Trends for every queue over time, from Asynq’s Prometheus metrics.
+            Other pages show what’s true right now; this one shows how you got
+            here. Tell a brief spike from a backlog that has grown for hours,
+            spot latency creeping past your targets, and confirm a fix brought
             failures down.
           </p>
         </div>
@@ -345,8 +344,8 @@ export function SettingsPage() {
         <div>
           <h1>Settings & audit</h1>
           <p>
-            Your environment and access, saved task views, and the log of
-            administrative actions.
+            Your environment and access, saved task filters, and the log of
+            queue and task actions.
           </p>
         </div>
       </div>
@@ -368,12 +367,12 @@ export function SettingsPage() {
         <div className="live-stat">
           <span>Access</span>
           <strong>
-            {session.data?.role === "admin" ? "Operations" : "Read only"}
+            {session.data?.role === "admin" ? "Full access" : "Read only"}
           </strong>
           <small>
             {session.data?.role === "admin"
               ? "Can pause queues and act on tasks"
-              : "Can inspect, cannot change"}
+              : "Can view, but not change"}
           </small>
         </div>
         <div className="live-stat">
@@ -403,7 +402,7 @@ export function SettingsPage() {
           </CardContent>
         ) : !views.data?.data.length ? (
           <Empty title="No saved views">
-            Apply filters in the task explorer, then choose Save view.
+            Filter any task list, then choose Save view.
           </Empty>
         ) : (
           <div className="table-wrap">
@@ -452,7 +451,7 @@ export function SettingsPage() {
         <CardHeader className="section-heading">
           <CardTitle>
             <h2 className="title-row">
-              Administrative audit
+              Audit log
               <InfoTip label="About the audit log">
                 Every queue and task action is recorded before it runs. Pending
                 means the outcome is unknown, for example if the process stopped
@@ -472,8 +471,8 @@ export function SettingsPage() {
             <DataError error={audit.error} retry={() => audit.refetch()} />
           </CardContent>
         ) : !audit.data?.data.length ? (
-          <Empty title="No administrative actions yet">
-            Queue and task operations are recorded here before they run.
+          <Empty title="No actions yet">
+            Queue and task actions are recorded here before they run.
           </Empty>
         ) : (
           <div className="table-wrap">
@@ -514,7 +513,7 @@ export function SettingsPage() {
         open={!!deleteID}
         onOpenChange={(open) => !open && !remove.isPending && setDeleteID(null)}
         title="Delete saved view?"
-        description="This removes the bookmark from your account."
+        description="Only the saved filters are removed. Tasks aren’t affected."
       >
         <DialogFooter className="dialog-actions">
           <AlertDialogCancel

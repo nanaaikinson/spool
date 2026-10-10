@@ -6,13 +6,15 @@ export const number = (value: number) =>
 export const date = (value?: string | null) =>
   value ? new Date(value).toLocaleString() : "Unavailable";
 export const duration = (seconds: number) =>
-  seconds < 1
-    ? `${Math.round(seconds * 1000)}ms`
-    : seconds < 60
-      ? `${number(seconds)}s`
-      : seconds < 3600
-        ? `${number(seconds / 60)}m`
-        : `${number(seconds / 3600)}h`;
+  seconds <= 0
+    ? "0s"
+    : seconds < 1
+      ? `${Math.round(seconds * 1000)}ms`
+      : seconds < 60
+        ? `${number(seconds)}s`
+        : seconds < 3600
+          ? `${number(seconds / 60)}m`
+          : `${number(seconds / 3600)}h`;
 export const bytes = (value: number) => {
   const units = ["B", "KB", "MB", "GB", "TB"];
   let n = value;
@@ -23,5 +25,6 @@ export const bytes = (value: number) => {
   }
   return `${number(n)} ${units[i]}`;
 };
-export const plural = (n: number, unit: string) =>
-  `${number(n)} ${unit}${n === 1 ? "" : "s"}`;
+export const plural = (n: number, unit: string, many = `${unit}s`) =>
+  `${number(n)} ${n === 1 ? unit : many}`;
+export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

@@ -258,8 +258,8 @@ export function QueueTable({ data }: { data: Queue[] }) {
   if (!data.length)
     return (
       <Empty title="No queues yet">
-        Enqueue tasks in your Asynq application or start the demo worker to
-        create traffic.
+        Enqueue tasks from your Asynq application. For sample traffic, run{" "}
+        <code>make demo</code>.
       </Empty>
     );
   return (
@@ -587,7 +587,7 @@ export function QueuePage() {
     onSuccess: () => {
       invalidateOperational();
       setConfirm(false);
-      toast.success("Queue paused. Active tasks continue processing.");
+      toast.success("Queue paused. Running tasks will finish.");
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
@@ -686,8 +686,8 @@ export function QueuePage() {
         title={`${paused ? "Resume" : "Pause"} ${queue}?`}
         description={
           paused
-            ? "Pending tasks become eligible for processing again."
-            : "New processing will stop. Tasks already active continue until they finish."
+            ? "Workers start picking up waiting tasks again."
+            : "Workers stop picking up new tasks from this queue. Tasks already running finish normally."
         }
       >
         <Alert role="note" className="notice">

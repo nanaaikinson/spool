@@ -317,7 +317,7 @@ export function LivePage() {
           <Empty title="Nothing is processing">
             {servers.data?.data.length
               ? "Workers are idle. New tasks appear here as soon as a worker picks them up."
-              : "No Asynq servers are registered for this connection."}
+              : "No Asynq servers are running."}
           </Empty>
         ) : (
           <div className="table-wrap">

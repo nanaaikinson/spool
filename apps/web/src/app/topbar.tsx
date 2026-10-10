@@ -117,7 +117,7 @@ export function Topbar({
           variant="outline"
           className="command-trigger"
           onClick={onSearch}
-          aria-label="Search queues and views"
+          aria-label="Search pages, queues and actions"
           aria-keyshortcuts="Meta+K Control+K"
         >
           <Search />

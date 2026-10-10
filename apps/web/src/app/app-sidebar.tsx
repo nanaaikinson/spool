@@ -153,7 +153,7 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
           </span>
           <span className="sidebar-text">
             <strong>{actor}</strong>
-            <span>{readOnly ? "Read only" : "Operations access"}</span>
+            <span>{readOnly ? "Read only" : "Full access"}</span>
           </span>
           {session.data?.auth_required && session.data.authenticated && (
             <Tooltip>

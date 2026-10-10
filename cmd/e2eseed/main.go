@@ -14,7 +14,7 @@ import (
 func main() {
 	address := os.Getenv("SPOOL_TEST_REDIS")
 	if address == "" || !strings.HasSuffix(address, "/15") {
-		log.Fatal("SPOOL_TEST_REDIS must explicitly select the dedicated test database /15")
+		log.Fatal("SPOOL_TEST_REDIS must select the dedicated test database 15 (for example redis://127.0.0.1:6388/15)")
 	}
 	opt, e := asynq.ParseRedisURI(address)
 	if e != nil {
@@ -52,5 +52,5 @@ func main() {
 	); e != nil {
 		log.Fatal(e)
 	}
-	fmt.Println("Seeded isolated spool-e2e queue in Redis database 15")
+	fmt.Println("Seeded the spool-e2e queue in Redis database 15.")
 }

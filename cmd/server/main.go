@@ -44,7 +44,7 @@ func run(log *slog.Logger) error {
 	db, e := store.Open(startup, c.DatabaseURL)
 	cancel()
 	if e != nil {
-		return errors.New("could not initialize audit storage")
+		return errors.New("could not connect to PostgreSQL or apply migrations; check DATABASE_URL")
 	}
 	if db != nil {
 		defer db.DB.Close()
@@ -89,7 +89,7 @@ func run(log *slog.Logger) error {
 	errs := make(chan error, 1)
 	go func() {
 		log.Info(
-			"Spool listening",
+			"server listening",
 			"address", c.Addr,
 			"environment", c.Environment,
 			"read_only", c.ReadOnly,

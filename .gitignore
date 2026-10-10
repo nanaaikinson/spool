@@ -56,3 +56,5 @@ tmp/
 collector-output.txt
 
 .claude/
+
+design/

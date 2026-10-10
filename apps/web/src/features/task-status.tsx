@@ -7,7 +7,7 @@ import { clock, dueIn, runState, timeOfDay, useNow } from "../lib/time";
 import { date, duration } from "../lib/utils";
 type Tone = "green" | "amber" | "red" | "purple" | "muted";
 type Step = "todo" | "current" | "done" | "failed";
-/** Polling cadence for task states that change on their own. */
+/** States that change without user action; task pages poll while in them. */
 export const LIVE_TASK_STATES = new Set<Task["state"]>([
   "active",
   "pending",
@@ -60,7 +60,7 @@ export function TaskStatus({ task, gone }: { task: Task; gone: boolean }) {
     tone = "red";
     title = "Orphaned";
     detail =
-      "The worker processing this task stopped heartbeating. Asynq recovers it when a server next processes the queue.";
+      "The worker running this task stopped responding. Asynq recovers it the next time a server processes this queue.";
   } else if (task.state === "active") {
     tone =
       run?.tone === "red" ? "red" : run?.tone === "amber" ? "amber" : "green";

@@ -51,17 +51,17 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Go to…"
-      description={`Search queues, views and actions. Use ${altLabel}+1 through ${altLabel}+${nav.length} for primary views.`}
+      description={`Search pages, queues and actions. Use ${altLabel}+1 through ${altLabel}+${nav.length} to jump between pages.`}
       showCloseButton={false}
       className="command-palette"
     >
-      <CommandInput placeholder="Search queues and views…" />
+      <CommandInput placeholder="Search pages, queues and actions…" />
       <CommandList>
         <CommandEmpty>
           <SearchX size={20} className="command-empty-icon" />
-          No matching queues or views.
+          No matching pages, queues or actions.
         </CommandEmpty>
-        <CommandGroup heading="Views">
+        <CommandGroup heading="Pages">
           {nav.map((n, i) => (
             <CommandItem
               key={n.to}
@@ -122,11 +122,11 @@ export function CommandPalette({
             Switch to {theme === "dark" ? "light" : "dark"} mode
           </CommandItem>
           <CommandItem
-            value="Refresh current data"
+            value="Refresh data"
             onSelect={run(invalidateOperational)}
           >
             <RefreshCw />
-            Refresh current data
+            Refresh data
           </CommandItem>
           {session.data?.auth_required && session.data.authenticated && (
             <CommandItem value="Sign out log out" onSelect={run(onSignOut)}>

@@ -50,7 +50,7 @@ var expressions = map[string]struct {
 func (p *Prometheus) Health(ctx context.Context) domain.MetricHealth {
 	h := domain.MetricHealth{
 		Configured: p.URL != "",
-		Message:    "Configure PROMETHEUS_URL to enable historical charts.",
+		Message:    "Set PROMETHEUS_URL to enable historical charts.",
 	}
 	if p.URL == "" {
 		return h
@@ -58,9 +58,9 @@ func (p *Prometheus) Health(ctx context.Context) domain.MetricHealth {
 	_, e := p.request(ctx, "/api/v1/query", url.Values{"query": {"up"}})
 	h.Available = e == nil
 	if h.Available {
-		h.Message = "Prometheus is available."
+		h.Message = "Connected to Prometheus."
 	} else {
-		h.Message = "Prometheus could not be reached. Check the server connection."
+		h.Message = "Cannot reach Prometheus. Check PROMETHEUS_URL and that Prometheus is running."
 	}
 	return h
 }

@@ -166,11 +166,11 @@ export function HistoricalChart({
         <Empty
           title={
             health.data?.configured
-              ? "Prometheus unavailable"
-              : "Historical metrics are not connected"
+              ? "Can’t reach Prometheus"
+              : "Prometheus isn’t configured"
           }
         >
-          {health.data?.message} Current queue statistics remain available.
+          {health.data?.message} Current queue figures don’t depend on it.
         </Empty>
       ) : query.isPending ? (
         <Loading rows={3} />
@@ -180,8 +180,8 @@ export function HistoricalChart({
         </CardContent>
       ) : !chartData.length ? (
         <Empty title="No samples in this range">
-          Check the Prometheus scrape target or choose a wider time range. Spool
-          does not infer history from current snapshots.
+          Check that Prometheus is scraping Spool’s /metrics endpoint, or choose
+          a longer time range.
         </Empty>
       ) : (
         <>
@@ -268,7 +268,7 @@ const readings: {
   { metric: "depth", label: "Queue depth", combine: "sum", format: number },
   {
     metric: "latency",
-    label: "Worst latency",
+    label: "Oldest wait",
     combine: "max",
     format: (v) => duration(v),
   },

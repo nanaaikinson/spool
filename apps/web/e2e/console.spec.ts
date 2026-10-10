@@ -39,7 +39,7 @@ test("dark default, persisted light, queue inspection and confirmed archive/retr
   await expect(
     page.getByRole("heading", { name: "spool-e2e", exact: true }),
   ).toBeVisible();
-  await page.getByRole("link", { name: "Open explorer" }).click();
+  await page.getByRole("link", { name: "Open in All tasks" }).click();
   await page.getByRole("combobox", { name: "State", exact: true }).click();
   await page.getByRole("option", { name: "pending", exact: true }).click();
   await page.getByRole("button", { name: "Apply filters" }).click();
@@ -155,7 +155,7 @@ test("failure presets, keyboard palette, bounded non-JSON display and mobile lay
   await expect(page.locator(".page-heading .badge")).toHaveText("archived");
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByPlaceholder("Search queues and views…").fill("Scheduled");
+  await page.getByPlaceholder("Search pages, queues and actions…").fill("Scheduled");
   await page.getByRole("option", { name: "Scheduled", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Scheduled tasks" }),
@@ -256,7 +256,7 @@ test("shadcn Select keyboard control, URL restoration, and field validation", as
   await state.focus();
   await page.keyboard.press("ArrowDown");
   await expect(
-    page.getByRole("option", { name: "All inspectable states", exact: true }),
+    page.getByRole("option", { name: "All states", exact: true }),
   ).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(
@@ -285,7 +285,7 @@ test("shadcn Select keyboard control, URL restoration, and field validation", as
   ).toBeVisible();
   await state.click();
   await page
-    .getByRole("option", { name: "All inspectable states", exact: true })
+    .getByRole("option", { name: "All states", exact: true })
     .click();
   await queue.click();
   await page.getByRole("option", { name: "All queues", exact: true }).click();

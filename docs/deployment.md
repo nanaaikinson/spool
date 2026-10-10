@@ -28,7 +28,7 @@ DATABASE_URL=postgres://spool:URL_ENCODED_PASSWORD@postgres.example.com:5432/spo
 
 Percent-encode special characters in URI usernames/passwords, including `@`, `:`, `/`, `#`, and `%`. Use your provider's endpoint and TLS settings. Publicly trusted TLS certificates work with the image's CA bundle; a private PostgreSQL CA requires a read-only certificate mount and `sslrootcert=/path/in/container/ca.pem` in `DATABASE_URL`. Redis private CA/client-certificate configuration is not exposed by the current environment configuration.
 
-External PostgreSQL must already contain the database named in `DATABASE_URL`. Give the application role permission to create its tables/indexes and read/write them. Spool runs its own migrations on startup; no separate migration command is needed. PostgreSQL holds audits and saved views, while tasks remain in your Asynq Redis.
+External PostgreSQL must already contain the database named in `DATABASE_URL`. Give the application role permission to create its tables/indexes and read/write them. Spool runs its own migrations on startup; no separate migration command is needed. PostgreSQL holds the audit log, saved views and the links between tasks and the periodic schedules that enqueued them. Tasks remain in your Asynq Redis.
 
 Generate a different random value for each secret:
 
@@ -142,8 +142,8 @@ Caddy preserves Host for this HTTP upstream and streams SSE responses. See its [
 
 ## Metrics, persistence and updates
 
-Set `PROMETHEUS_URL` only if you have Prometheus. Its scrape target should reach this app's internal `:8080/metrics`; for a shared Docker network, use `app:8080`. Without Prometheus, live queue/task inspection works, but historical charts have no source.
+Set `PROMETHEUS_URL` only if you have Prometheus. Its scrape target should reach this app's internal `:8080/metrics`; for a shared Docker network, use `app:8080`. Without Prometheus, queues, tasks, live activity and the dashboard checks still work, but the charts, the Metrics page and the archive-growth check have no data.
 
-Back up the bundled PostgreSQL database and keep its named volume. Keep the same Compose project name/resource across redeployments. Do not use `docker compose down -v` unless you intend to delete audit logs and saved views. Changing `POSTGRES_PASSWORD` in the environment does not change a password in an already initialized PostgreSQL volume: rotate the database role's password and update the app together. Keep PostgreSQL on major version 17 until you perform a planned database upgrade.
+Back up the bundled PostgreSQL database and keep its named volume. Keep the same Compose project name/resource across redeployments. Do not use `docker compose down -v` unless you intend to delete the audit log, saved views and periodic schedule links. Changing `POSTGRES_PASSWORD` in the environment does not change a password in an already initialized PostgreSQL volume: rotate the database role's password and update the app together. Keep PostgreSQL on major version 17 until you perform a planned database upgrade.
 
 After updates, rebuild/redeploy and verify `/ready` and the HTTPS login. `/health` only confirms the process is running; `/ready` checks Redis and PostgreSQL connectivity. If startup fails, inspect logs for database reachability, credentials, migration permissions, or an invalid session key.

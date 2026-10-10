@@ -62,7 +62,7 @@ const root = createRootRoute({
   search: { middlewares: [stripSearchParams(searchSchema.parse({}))] },
   notFoundComponent: () => (
     <Empty title="Page not found">
-      Use the navigation to open an operational view.
+      Check the address, or pick a page from the sidebar.
     </Empty>
   ),
 });

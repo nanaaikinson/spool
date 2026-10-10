@@ -50,18 +50,18 @@ func (a *API) Handler(scrape http.Handler) http.Handler {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
 		if _, e := a.Source.Queues(ctx); e != nil {
-			a.fail(w, r, 503, "NOT_READY", "Redis is unavailable.", e)
+			a.fail(w, r, 503, "NOT_READY", "Cannot reach Redis. Check REDIS_URL and that Redis is running.", e)
 			return
 		}
 		if a.Store != nil {
 			if e := a.Store.Ping(ctx); e != nil {
-				a.fail(w, r, 503, "NOT_READY", "Audit storage is unavailable.", e)
+				a.fail(w, r, 503, "NOT_READY", "Cannot reach PostgreSQL. Check DATABASE_URL and that PostgreSQL is running.", e)
 				return
 			}
 		}
 		a.json(w, domain.OK{OK: true})
 	})
-	// Scrape endpoint is private to the deployment network; never publish it on an untrusted ingress.
+	// The scrape endpoint is unauthenticated; expose it only to the monitoring network, never on public ingress.
 	r.Handle("/metrics", scrape)
 	spec, _ := OpenAPI()
 	r.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +127,7 @@ func (a *API) json(w http.ResponseWriter, v any) {
 func (a *API) fail(w http.ResponseWriter, r *http.Request, status int, code, message string, cause error) {
 	if cause != nil {
 		a.Log.Error(
-			"operation failed",
+			"request failed",
 			"request_id",
 			middleware.GetReqID(r.Context()),
 			"code",
@@ -158,7 +158,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			500,
 			"AUDIT_OUTCOME_UNKNOWN",
-			"The action may have succeeded. Inspect the current state and pending audit record before trying again.",
+			"The action may have run, but its result was not recorded in the audit log. Check the current state before trying again.",
 			e,
 		)
 	case errors.Is(e, asynqadapter.ErrNotFound):
@@ -169,7 +169,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			409,
 			"STATE_CONFLICT",
-			"The task state changed or does not support this action. Refresh and inspect it again.",
+			"The task has changed state or does not support this action. Refresh and try again.",
 			nil,
 		)
 	case errors.Is(e, asynqadapter.ErrCursor):
@@ -178,7 +178,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			422,
 			"INVALID_CURSOR",
-			"The cursor is invalid for these filters. Start from the first page.",
+			"This page no longer matches the current filters. Go back to the first page.",
 			nil,
 		)
 	case errors.Is(e, store.ErrUnavailable):
@@ -187,7 +187,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			503,
 			"AUDIT_UNAVAILABLE",
-			"Configure a reachable PostgreSQL database before making changes.",
+			"Changes are disabled because the audit log is unavailable. Set DATABASE_URL to a reachable PostgreSQL database.",
 			e,
 		)
 	case errors.Is(e, metrics.ErrUnavailable):
@@ -196,7 +196,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			503,
 			"METRICS_UNAVAILABLE",
-			"Historical metrics are unavailable. Check Prometheus configuration.",
+			"Historical metrics are unavailable. Set PROMETHEUS_URL and check that Prometheus is reachable.",
 			e,
 		)
 	default:
@@ -205,7 +205,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			503,
 			"DEPENDENCY_UNAVAILABLE",
-			"The operation could not reach a dependency. Refresh and try again.",
+			"The request failed. Check that Redis and PostgreSQL are reachable, then try again.",
 			e,
 		)
 	}
@@ -213,13 +213,13 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 
 func (a *API) decode(w http.ResponseWriter, r *http.Request, out any) bool {
 	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		a.fail(w, r, 400, "INVALID_REQUEST", "A JSON request body is required.", nil)
+		a.fail(w, r, 400, "INVALID_REQUEST", "Send the request body as JSON.", nil)
 		return false
 	}
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 512*1024))
 	d.DisallowUnknownFields()
 	if d.Decode(out) != nil || d.Decode(&struct{}{}) != io.EOF {
-		a.fail(w, r, 400, "INVALID_REQUEST", "The request body is invalid or too large.", nil)
+		a.fail(w, r, 400, "INVALID_REQUEST", "The request body is malformed, has unknown fields, or is larger than 512 KB.", nil)
 		return false
 	}
 	return true
@@ -266,7 +266,7 @@ var identifier = regexp.MustCompile(`^[^\x00-\x1f\x7f/{}]{1,200}$`)
 func (a *API) targets(w http.ResponseWriter, r *http.Request) (string, string, bool) {
 	q, id := chi.URLParam(r, "queue"), chi.URLParam(r, "id")
 	if (q != "" && !identifier.MatchString(q)) || (id != "" && !identifier.MatchString(id)) {
-		a.fail(w, r, 422, "INVALID_IDENTIFIER", "Queue and task identifiers are invalid.", nil)
+		a.fail(w, r, 422, "INVALID_IDENTIFIER", "The queue name or task ID is too long or contains unsupported characters.", nil)
 		return "", "", false
 	}
 	return q, id, true
@@ -383,14 +383,14 @@ func (a *API) dispatch(id string, w http.ResponseWriter, r *http.Request) {
 		if raw := r.URL.Query().Get("limit"); raw != "" {
 			n, e := strconv.Atoi(raw)
 			if e != nil || n < 50 || n > 1000 {
-				a.fail(w, r, 422, "VALIDATION_ERROR", "Sample size must be between 50 and 1000.", nil)
+				a.fail(w, r, 422, "VALIDATION_ERROR", "Sample size must be between 50 and 1,000 tasks.", nil)
 				return
 			}
 			limit = n
 		}
 		queue := r.URL.Query().Get("queue")
 		if len(queue) > 200 {
-			a.fail(w, r, 422, "VALIDATION_ERROR", "Queue name is too long.", nil)
+			a.fail(w, r, 422, "VALIDATION_ERROR", "Queue name must be 200 characters or fewer.", nil)
 			return
 		}
 		v, e := a.Source.ErrorGroups(ctx, queue, limit)
@@ -478,7 +478,7 @@ func (a *API) dispatch(id string, w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !validView(in.Path) {
-			a.fail(w, r, 422, "INVALID_VIEW", "Save a local task or queue view.", nil)
+			a.fail(w, r, 422, "INVALID_VIEW", "Saved views can only point to the Queues, All tasks, Scheduled, or Failed page.", nil)
 			return
 		}
 		v, e := a.Store.SaveView(ctx, actor(r), in)
@@ -522,7 +522,7 @@ func (a *API) taskFilter(w http.ResponseWriter, r *http.Request) (domain.TaskFil
 		if raw := v.Get(key); raw != "" {
 			n, e := strconv.Atoi(raw)
 			if e != nil {
-				a.fail(w, r, 422, "VALIDATION_ERROR", "Task page numbers are invalid.", nil)
+				a.fail(w, r, 422, "VALIDATION_ERROR", "Limit and minimum retry count must be whole numbers.", nil)
 				return f, false
 			}
 			*target = n
@@ -542,17 +542,17 @@ func (a *API) taskFilter(w http.ResponseWriter, r *http.Request) (domain.TaskFil
 		return f, false
 	}
 	if (f.Queue != "" && !identifier.MatchString(f.Queue)) || (f.ID != "" && !identifier.MatchString(f.ID)) {
-		a.fail(w, r, 422, "INVALID_IDENTIFIER", "Invalid task filters.", nil)
+		a.fail(w, r, 422, "INVALID_IDENTIFIER", "The queue or task ID filter is too long or contains unsupported characters.", nil)
 		return f, false
 	}
 	if f.State == "aggregating" && f.Group == "" {
-		a.fail(w, r, 422, "GROUP_REQUIRED", "Specify a group to inspect aggregating tasks.", nil)
+		a.fail(w, r, 422, "GROUP_REQUIRED", "Choose a group to view aggregating tasks.", nil)
 		return f, false
 	}
 	if raw := v.Get("failed_after"); raw != "" {
 		t, e := time.Parse(time.RFC3339, raw)
 		if e != nil {
-			a.fail(w, r, 422, "VALIDATION_ERROR", "Use an RFC3339 failure timestamp.", nil)
+			a.fail(w, r, 422, "VALIDATION_ERROR", "Failed-after time must be an RFC 3339 timestamp, such as 2026-01-02T15:04:05Z.", nil)
 			return f, false
 		}
 		f.FailedAfter = &t
@@ -566,7 +566,7 @@ func (a *API) clone(w http.ResponseWriter, r *http.Request, q, id string) {
 		return
 	}
 	if !in.Confirm {
-		a.fail(w, r, 422, "CONFIRMATION_REQUIRED", "Confirm task creation.", nil)
+		a.fail(w, r, 422, "CONFIRMATION_REQUIRED", "Confirm before creating the task.", nil)
 		return
 	}
 	if !a.validate(
@@ -608,14 +608,14 @@ func (a *API) bulk(w http.ResponseWriter, r *http.Request) {
 	}
 	if !in.Confirm || len(in.Tasks) < 1 || len(in.Tasks) > 50 ||
 		(in.Action != "retry" && in.Action != "archive" && in.Action != "delete") {
-		a.fail(w, r, 422, "VALIDATION_ERROR", "Confirm 1–50 tasks and an eligible action.", nil)
+		a.fail(w, r, 422, "VALIDATION_ERROR", "Select 1–50 tasks, choose retry, archive, or delete, and confirm.", nil)
 		return
 	}
 	seen := map[string]bool{}
 	for _, t := range in.Tasks {
 		k := t.Queue + "/" + t.ID
 		if !identifier.MatchString(t.Queue) || !identifier.MatchString(t.ID) || seen[k] {
-			a.fail(w, r, 422, "VALIDATION_ERROR", "Task targets are invalid or duplicated.", nil)
+			a.fail(w, r, 422, "VALIDATION_ERROR", "The selection includes an invalid or duplicate task.", nil)
 			return
 		}
 		seen[k] = true
@@ -637,7 +637,7 @@ func (a *API) bulk(w http.ResponseWriter, r *http.Request) {
 		result := domain.ActionResult{Queue: t.Queue, ID: t.ID, Success: e == nil}
 		if e != nil {
 			result.Code = "ACTION_FAILED"
-			result.Message = "Action failed. Inspect the current task state and audit record."
+			result.Message = "Action failed. Check the task's current state and the audit log."
 		}
 		out.Data = append(out.Data, result)
 	}
@@ -678,7 +678,7 @@ func (a *API) metric(w http.ResponseWriter, r *http.Request, ranged bool) {
 				r,
 				422,
 				"INVALID_RANGE",
-				"Choose a range up to 7 days, with 15–3600 second steps and at most 1500 points.",
+				"Choose a range of up to 7 days, a step of 15–3,600 seconds, and no more than 1,500 points.",
 				nil,
 			)
 			return
@@ -697,7 +697,7 @@ func (a *API) metric(w http.ResponseWriter, r *http.Request, ranged bool) {
 func (a *API) sse(w http.ResponseWriter, r *http.Request) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		a.fail(w, r, 500, "STREAM_UNAVAILABLE", "Streaming is unavailable.", nil)
+		a.fail(w, r, 500, "STREAM_UNAVAILABLE", "Live updates are not supported on this connection.", nil)
 		return
 	}
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -727,7 +727,7 @@ func (a *API) sse(w http.ResponseWriter, r *http.Request) {
 
 func (a *API) static(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") || r.Method != "GET" {
-		a.fail(w, r, 404, "NOT_FOUND", "Route not found.", nil)
+		a.fail(w, r, 404, "NOT_FOUND", "No route matches this path.", nil)
 		return
 	}
 	path := filepath.Join(a.Config.StaticDir, filepath.Clean("/"+r.URL.Path))
@@ -737,7 +737,7 @@ func (a *API) static(w http.ResponseWriter, r *http.Request) {
 	}
 	index := filepath.Join(a.Config.StaticDir, "index.html")
 	if _, e := os.Stat(index); e != nil {
-		a.fail(w, r, 503, "UI_NOT_BUILT", "Build the frontend or use the Vite development server.", nil)
+		a.fail(w, r, 503, "UI_NOT_BUILT", "The web UI has not been built. Run make build, or use the Vite dev server with make web.", nil)
 		return
 	}
 	http.ServeFile(w, r, index)
@@ -748,7 +748,7 @@ func (a *API) recover(next http.Handler) http.Handler {
 		defer func() {
 			if recovered := recover(); recovered != nil {
 				a.Log.Error("handler panic", "request_id", middleware.GetReqID(r.Context()))
-				a.fail(w, r, 500, "INTERNAL_ERROR", "An internal error prevented the request.", nil)
+				a.fail(w, r, 500, "INTERNAL_ERROR", "Something went wrong on the server. Try again, and check the server logs if it keeps happening.", nil)
 			}
 		}()
 		next.ServeHTTP(w, r)
@@ -766,7 +766,7 @@ func (a *API) limitMiddleware() func(http.Handler) http.Handler {
 				}()
 				next.ServeHTTP(w, r)
 			default:
-				a.fail(w, r, 429, "RATE_LIMITED", "The console is busy. Try again shortly.", nil)
+				a.fail(w, r, 429, "RATE_LIMITED", "Spool is handling too many requests. Try again in a moment.", nil)
 			}
 		})
 	}

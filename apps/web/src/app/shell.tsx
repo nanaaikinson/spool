@@ -59,7 +59,7 @@ function Login() {
       </div>
       <h1>Sign in</h1>
       <p className="muted" style={{ marginTop: 8 }}>
-        Access your Asynq operations console.
+        Sign in to monitor and manage your Asynq queues.
       </p>
       <form
         className="form"

@@ -78,7 +78,7 @@ export function Stale({ error }: { error: unknown }) {
   return error ? (
     <Alert role="status" className="border-[var(--amber)] text-[var(--amber)]">
       <AlertDescription>
-        The latest refresh failed. Showing the last successful snapshot.
+        Couldn’t refresh. Showing data from the last successful update.
       </AlertDescription>
     </Alert>
   ) : null;
