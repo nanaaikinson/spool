@@ -145,17 +145,19 @@ test("failure presets, keyboard palette, bounded non-JSON display and mobile lay
   page,
 }) => {
   await page.goto("/failures?queue=spool-e2e");
-  await expect(
-    page.getByRole("link", { name: "fixture:inspect", exact: true }).first(),
-  ).toBeVisible();
-  await page
+  // The Top errors card also links each task type; open a task from the table.
+  const taskLink = page
+    .getByRole("table")
     .getByRole("link", { name: "fixture:inspect", exact: true })
-    .first()
-    .click();
+    .first();
+  await expect(taskLink).toBeVisible();
+  await taskLink.click();
   await expect(page.locator(".page-heading .badge")).toHaveText("archived");
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByPlaceholder("Search pages, queues and actions…").fill("Scheduled");
+  await page
+    .getByPlaceholder("Search pages, queues and actions…")
+    .fill("Scheduled");
   await page.getByRole("option", { name: "Scheduled", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Scheduled tasks" }),
@@ -203,6 +205,8 @@ test("signed session login, logout and viewer restrictions", async ({
     .fill("viewer");
   await page.locator("input[type=password]").fill("test-viewer-password");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  // Signing in lands on the dashboard; queues are one click away.
+  await page.getByRole("link", { name: "Queues", exact: true }).click();
   await page.getByRole("link", { name: "spool-e2e", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Pause queue" }),
@@ -284,9 +288,7 @@ test("shadcn Select keyboard control, URL restoration, and field validation", as
     page.getByRole("textbox", { name: "Group", exact: true }),
   ).toBeVisible();
   await state.click();
-  await page
-    .getByRole("option", { name: "All states", exact: true })
-    .click();
+  await page.getByRole("option", { name: "All states", exact: true }).click();
   await queue.click();
   await page.getByRole("option", { name: "All queues", exact: true }).click();
   await page
