@@ -4,6 +4,10 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ## Unreleased
 
+## 0.1.0 (2026-10-10)
+
+First public release.
+
 ### Added
 
 - Dashboard with needs-attention checks and top error groups.
@@ -21,3 +25,7 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 ### Fixed
 
 - `redis-sentinel://` URLs now use the database number and the Redis master's credentials; previously only the Sentinel password was applied and the database was always 0. Add `sentinel_password` when the Sentinels use a different password.
+
+### Security
+
+- Development dependency `js-yaml` (used by the API client generator) is pinned to 4.3.2 or later to clear three CPU-exhaustion advisories.
