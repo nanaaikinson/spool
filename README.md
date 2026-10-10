@@ -17,7 +17,27 @@ What Spool shows:
 - **Periodic schedules**: cron specs with plain-English descriptions. Tasks link back to the schedule entry that enqueued them, and those links are kept in PostgreSQL after Asynq drops its enqueue history.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
-## Run it against your Asynq Redis
+## Install on your own Docker host
+
+Have the Redis connection URL used by your Asynq workers ready, including its database index. With Docker, a Compose plugin supporting `up --wait`, Bash and OpenSSL installed:
+
+```sh
+git clone https://github.com/nanaaikinson/spool.git
+cd spool
+./scripts/install.sh
+```
+
+The terminal wizard asks for your Redis URL, administrator username, local port and console URL. It bundles PostgreSQL and Prometheus by default; choose external services if you already operate them. It generates separate administrator, database and session secrets, builds the frontend and backend inside Docker, then waits for Redis/PostgreSQL readiness and checks metrics connectivity. Local Go, Node and pnpm installations are unnecessary.
+
+Open the console URL you chose (default `http://localhost:8080`) and sign in using `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` from `.env.installation`. That file has owner-only permissions and also records the selected Compose files and project name. Rerunning the installer preserves it and reuses the same persistent volumes.
+
+To prepare configuration before starting, run `./scripts/install.sh --configure-only`. Use `--env-file PATH` for a custom configuration location and pass the same path on reruns. `make self-host` runs the default installer; `make install` installs frontend development dependencies.
+
+The app is published on loopback only; bundled PostgreSQL and Prometheus have no published host ports. Local HTTP access works directly or through an SSH tunnel. For remote browser access, choose an HTTPS URL and configure your reverse proxy, certificates and DNS. The installer enables secure cookies for HTTPS but does not provision the proxy.
+
+See the [deployment guide](docs/deployment.md) for upgrades, backups, connection changes, manual Compose deployments, Dokploy and Coolify.
+
+## Try the published image
 
 Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. The quickest way to try it is the published image with a Redis URL and an account (Spool always requires sign-in when it listens beyond localhost, as it does in a container):
 
@@ -35,7 +55,7 @@ Open http://127.0.0.1:8080 and sign in. Without a database Spool runs **read-onl
 docker run -d --name spool -p 127.0.0.1:8080:8080 \
   -e REDIS_URL='rediss://spool:PASSWORD@redis.internal:6380/0' \
   -e DATABASE_URL='postgres://spool:PASSWORD@postgres.internal:5432/spool?sslmode=verify-full' \
-  -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD="$(openssl rand -hex 32)" \
+  -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD='choose-a-long-password' \
   -e SPOOL_SESSION_KEY="$(openssl rand -hex 32)" \
   ghcr.io/nanaaikinson/spool:latest
 docker logs spool   # reports whether it reached Redis and found your queues
@@ -91,6 +111,8 @@ Open http://127.0.0.1:8088. The development Compose account is `admin` / `spool-
 
 ## Production deployment
 
+The [guided installer](#install-on-your-own-docker-host) manages configuration on your Docker host. For manual deployments or a hosting platform, choose a base Compose file and enter credentials before startup:
+
 | Dependencies | Compose file | Environment template |
 | --- | --- | --- |
 | Your Redis + bundled PostgreSQL | [compose.production.redis.yaml](compose.production.redis.yaml) | [.env.production.redis.example](.env.production.redis.example) |
@@ -98,11 +120,21 @@ Open http://127.0.0.1:8088. The development Compose account is `admin` / `spool-
 
 Both build the root Dockerfile, require production credentials, and expose port 8080 only to the container network. The optional [host override](compose.production.host.yaml) publishes it on loopback for a host-installed HTTPS proxy.
 
+Add the [Prometheus override](compose.production.prometheus.yaml) to either base file to bundle private metrics storage. It scrapes `app:8080` and retains 15 days of history in a persistent volume. The guided installer includes it unless you choose external Prometheus.
+
 See the [production deployment guide](docs/deployment.md) for exact commands, Dokploy/Coolify settings, Dockerfile-only hosting, connection URLs, HTTPS, metrics routing, and persistent storage.
 
 ## Configuration
 
-The server loads `.env` when present without overriding process environment variables. Infrastructure URLs never reach the browser.
+The Go server reads configuration at startup. It loads `.env` from its working directory when present without overriding process environment variables. The guided installer passes `.env.installation` through Compose; the server does not load that file directly. The frontend build does not need Redis, PostgreSQL or Prometheus credentials, and infrastructure URLs never reach the browser.
+
+| Configuration file | Used by | Purpose |
+| --- | --- | --- |
+| `.env` (copy `.env.example`) | Native development server | Local development connections and settings |
+| `.env.installation` (generated) | Guided installer and its Compose stack | Saved service choices, credentials, access settings and project identity |
+| `.env.production` (copy the matching production template) | Manual Compose, hosting platforms or `docker run` | User-supplied production settings; use the parser rules in the deployment guide |
+
+The defaults below are for the standalone Go server. The installer provisions PostgreSQL and Prometheus and supplies their URLs. Missing URLs on a standalone deployment do not automatically create those services. Change runtime settings in the appropriate file or hosting dashboard and redeploy.
 
 | Variable | Purpose | Default |
 | --- | --- | --- |
@@ -120,11 +152,11 @@ The server loads `.env` when present without overriding process environment vari
 | `SPOOL_SESSION_KEY` | Session signing secret; at least 32 characters when accounts are set | unset |
 | `SPOOL_SECURE_COOKIE` | HTTPS-only session cookie | `false` |
 
-Accounts are required when `SPOOL_ADDR` is not a loopback address. Use long random account passwords, a random signing secret, TLS termination, and `SPOOL_SECURE_COOKIE=true` in production. Protect Redis and PostgreSQL with their own network and credentials. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
+Accounts are required when `SPOOL_ADDR` is not a loopback address. Use long random account passwords and a random signing secret. For remote access, use TLS termination and `SPOOL_SECURE_COOKIE=true`; the installer's localhost HTTP option uses `false`. Protect Redis and PostgreSQL with their own network and credentials. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
 
 Without PostgreSQL, Spool runs read-only and says so in a banner: every change is refused before it reaches Redis, saved views and the audit log are unavailable, and task-to-schedule links last only as long as Asynq keeps its enqueue history. Migrations run under an advisory lock at startup. Each change is written to the audit log as pending before the Redis action and marked succeeded or failed afterward, so a record left pending (for example after a crash) means the outcome is unknown. Payloads are never stored in the audit log. Back up PostgreSQL and retain audit records as your deployment requires.
 
-`/health` checks the running process; `/ready` checks Redis and, when configured, PostgreSQL. Prometheus is optional and does not block readiness. Structured logs include request IDs, route templates, statuses and timings. `/metrics` exports native Asynq metrics, Go/process metrics and `spool_http_request_duration_seconds`.
+`/health` checks the running process; `/ready` checks Redis and, when configured, PostgreSQL. Prometheus is optional and does not block server readiness; the installer performs its own metrics check after starting services. Structured logs include request IDs, route templates, statuses and timings. `/metrics` exports native Asynq metrics, Go/process metrics and `spool_http_request_duration_seconds`.
 
 ## Data limits
 
@@ -147,6 +179,7 @@ make lint          # go vet, ESLint, TypeScript
 make test          # Backend and frontend unit tests
 make build         # Build the web UI and the Go server and demo binaries
 make e2e           # Build the web UI and run the Playwright browser tests
+make test-install  # Installer and Compose checks; Python 3 + Docker Compose, no running containers
 (cd apps/web && pnpm exec prettier --write src e2e '*.ts')
 ```
 

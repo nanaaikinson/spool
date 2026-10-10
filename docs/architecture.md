@@ -66,4 +66,16 @@ Every queue or task action writes a pending audit record before it runs, then ma
 
 Each deployment connects to one environment, configured on the server and included in the session. Connection secrets never reach the browser. Use separate deployments for staging and production.
 
-Session cookies are signed, HTTP-only and SameSite strict. Admin and viewer accounts are configured on the server, and role checks protect every change. Listening on a non-loopback address requires sign-in to be configured. Production should use secure cookies behind TLS. Changes require an explicit confirmation in the request body, a custom action header and a same-origin request. Read-only mode disables all changes. Payloads are size-limited, never logged, and shown as base64 when they aren't valid UTF-8. Bulk actions are limited to 50 tasks and report a result for each.
+Session cookies are signed, HTTP-only and SameSite strict. Admin and viewer accounts are configured on the server, and role checks protect every change. Listening on a non-loopback address requires sign-in to be configured. Remote browser access uses secure cookies behind TLS; localhost HTTP uses ordinary cookies. Changes require an explicit confirmation in the request body, a custom action header and a same-origin request. Read-only mode disables all changes. Payloads are size-limited, never logged, and shown as base64 when they aren't valid UTF-8. Bulk actions are limited to 50 tasks and report a result for each.
+
+## Installation and runtime configuration
+
+`scripts/install.sh` configures one self-hosted environment. It saves connection URLs, generated secrets, console access settings and the Compose file list in `.env.installation`. Compose supplies runtime environment variables to the Go server, which creates its Redis adapter, PostgreSQL store and Prometheus provider at startup. React assets are built independently of these credentials. The installer is a terminal workflow; accounts and connection settings are configured before startup rather than through browser onboarding.
+
+The installer selects `compose.production.redis.yaml` for bundled PostgreSQL or `compose.production.external.yaml` for an existing database. Either can include `compose.production.prometheus.yaml`, whose private Prometheus service scrapes the app's native Asynq collector at `app:8080/metrics`. The bundled database and metrics store have separate persistent volumes; Prometheus retains 15 days of samples. `compose.production.host.yaml` publishes the console on host loopback for local access or a host-installed proxy.
+
+The server can run without PostgreSQL or Prometheus when configured manually: absent PostgreSQL disables all changes and durable saved views/audit/schedule links, while absent Prometheus disables historical charts. The guided installer supplies both by default. A configured external service is never replaced by a bundled fallback when it is unavailable.
+
+`/health` checks the process; `/ready` checks Redis and configured PostgreSQL. Prometheus does not affect server readiness. After Compose reports healthy services, the installer separately checks a successful bundled scrape or an external Prometheus query. Samples accumulate from the first successful scrape; installation does not reconstruct earlier history.
+
+Runtime configuration changes require a redeployment. Preserve the installation file, project name and volumes across upgrades. For procedures and troubleshooting, see the [deployment guide](deployment.md).

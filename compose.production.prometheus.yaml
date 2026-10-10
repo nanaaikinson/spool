@@ -1,0 +1,24 @@
+# Optional private metrics storage, usable with either production Compose file.
+services:
+  app:
+    environment:
+      PROMETHEUS_URL: http://prometheus:9090
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    stop_grace_period: 30s
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./deploy/prometheus.production.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9090/-/ready]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+volumes:
+  prometheus-data:

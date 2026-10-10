@@ -1,4 +1,4 @@
-.PHONY: help install dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
+.PHONY: help install self-host test-install dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
 .DEFAULT_GOAL := help
 GO ?= go
 PNPM ?= pnpm
@@ -11,6 +11,10 @@ help: ## List available targets
 
 install: ## Install web UI dependencies at the pinned pnpm version
 	cd apps/web && $(PNPM) install --frozen-lockfile
+self-host: ## Guided self-hosted setup with optional bundled PostgreSQL and Prometheus
+	./scripts/install.sh
+test-install: ## Check self-hosted setup and Compose configuration without starting containers
+	python3 scripts/test-install.py
 dev: ## Run the API server, rebuilding on change with Air when installed
 	@if command -v $(AIR) >/dev/null 2>&1; then \
 		$(AIR); \

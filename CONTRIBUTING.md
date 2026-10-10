@@ -4,7 +4,7 @@ Thanks for helping. Bug reports, fixes and focused improvements are all welcome.
 
 ## Set up
 
-You need Go 1.27+, Node 24+, pnpm 10.33 (`corepack enable` picks the version pinned in `apps/web/package.json`) and Docker Compose.
+You need Go 1.27+, Node 24+, pnpm 10.33 (`corepack enable` picks the version pinned in `apps/web/package.json`) and Docker Compose. Installer checks also require Python 3, Bash and OpenSSL.
 
 ```sh
 cp .env.example .env
@@ -16,10 +16,13 @@ REDIS_URL=redis://127.0.0.1:6388/0 make demo   # optional sample traffic
 
 Run `make` to list every target.
 
+For installation work, use `./scripts/install.sh --configure-only --env-file /path/to/private/config.env` to try the prompts and inspect the generated configuration without starting services. The parent directory must exist. The default self-hosted entry point is `make self-host`; `make install` installs frontend dependencies for development. See the [deployment guide](docs/deployment.md) for the installation flow and persistent data.
+
 ## Before opening a pull request
 
 ```sh
 make lint test api-check
+make test-install  # real Compose parsing; does not need the Docker daemon or network services
 make e2e        # browser tests; needs `cd apps/web && pnpm exec playwright install chromium` once
 ```
 
@@ -27,6 +30,9 @@ make e2e        # browser tests; needs `cd apps/web && pnpm exec playwright inst
 - **Database changes:** add idempotent SQL under `db/migrations` and embed it in `db/migrations/embed.go`. Migrations run at startup.
 - **UI changes:** follow [docs/design.md](docs/design.md), including its copy guidelines. Check phone, tablet and desktop widths.
 - **Tests:** add or update tests with behaviour changes. Integration tests use isolated services through `SPOOL_TEST_REDIS` and `SPOOL_TEST_DATABASE`; see the README.
+- **Installation changes:** keep `scripts/install.sh`, the production Compose files, environment templates and deployment guide consistent. Run `make test-install` for bundled/external combinations, literal credential handling, file permissions, reruns and failure handling. ShellCheck is useful for changes to the Bash installer. Test live startup against isolated Redis/PostgreSQL services, never a production Asynq database.
+
+CI runs installer checks alongside API generation, lint, unit tests, builds and browser tests. The installer suite parses real Compose configurations and mocks daemon operations; live container readiness and metrics scraping need a separate smoke test when deployment behavior changes.
 
 Keep pull requests focused, and explain the problem and how you verified the fix. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/) style (`fix:`, `feat:`, `docs:`).
 

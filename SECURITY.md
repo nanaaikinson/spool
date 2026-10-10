@@ -13,7 +13,17 @@ Only the latest release receives security fixes while Spool is below 1.0.
 ## Deploying safely
 
 - Require sign-in (`SPOOL_ADMIN_USER` or `SPOOL_VIEWER_USER`) anywhere other than your own machine. Spool refuses to listen on a non-loopback address without it.
-- Serve Spool over HTTPS and set `SPOOL_SECURE_COOKIE=true`.
+- For remote browser access, serve Spool over HTTPS and set `SPOOL_SECURE_COOKIE=true`. The guided installer's local HTTP option disables secure cookies and binds the host port to loopback; use it on your own machine or through an SSH tunnel.
 - Use long random values for passwords and `SPOOL_SESSION_KEY` (`openssl rand -hex 32`).
 - Keep `/metrics` off public ingress; it is unauthenticated by design for Prometheus.
 - Give Spool its own Redis and PostgreSQL credentials, and use `SPOOL_READ_ONLY=true` or a viewer account where people only need to look.
+
+## Installation credentials and storage
+
+The [guided installer](docs/deployment.md#guided-installation-on-your-own-docker-host) generates separate random administrator, PostgreSQL and session secrets. It saves them, including connection credentials, in `.env.installation` with owner-only permissions (`600`), and reuses them on reruns. The file is plaintext: restrict access to it and its backups. Do not commit it, include it in support reports, source it as a shell script or pass it to `docker run --env-file`; it uses Compose's dotenv quoting rules.
+
+Configuration is passed to the Go server at runtime. Keep Redis, PostgreSQL and Prometheus credentials out of frontend configuration, Docker build arguments and baked images. Settings and connection URLs remain server-side. Separate deployments are required for distinct Asynq environments.
+
+Bundled PostgreSQL and Prometheus have no published host ports and use persistent named volumes. Keep the unauthenticated `/metrics` scrape path off public ingress even when the console requires sign-in. External Prometheus must contain only the intended environment's Asynq metrics; current queries do not isolate multiple environments sharing queue names.
+
+After changing credentials, redeploy with the same configuration file and project name. Rotating `POSTGRES_PASSWORD` in an environment file does not change an existing PostgreSQL role: change the role's password and the application configuration together. Rotate `SPOOL_SESSION_KEY` to invalidate existing signed sessions. See [connection and account changes](docs/deployment.md#connection-and-account-changes) for the procedure.

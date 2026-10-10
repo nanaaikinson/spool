@@ -10,6 +10,14 @@ A sticky topbar holds the sidebar toggle, a breadcrumb for the current page, sea
 
 Pages follow one pattern: a heading with a one-line description and actions, an optional row of figures, then cards holding tables, lists or charts. The task page adds a status panel with a lifecycle line, a wide payload column and a narrow details column.
 
+## Installation and first sign-in
+
+Self-hosted setup runs in the terminal through `scripts/install.sh`. It collects the Asynq Redis connection, bundled/external service choices, administrator username and console access settings, then saves generated credentials before starting the app. The console's first screen is the existing sign-in page; browser onboarding and connection editing are not implemented.
+
+Installation instructions should point operators to `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` in their private `.env.installation` file. The console URL defaults to localhost HTTP; remote access uses the operator's HTTPS proxy. Keep credential entry and infrastructure details in the installation flow, with the sign-in form focused on the account.
+
+An installation is ready when Redis and PostgreSQL are reachable and the installer's metrics check passes. Historical charts need collected samples, so explain missing history as a collection or connection state. Never imply installation can recover samples from before scraping began. Use the [deployment guide](deployment.md) for connection troubleshooting and account changes.
+
 ## Responsive behavior
 
 Styles are mobile first: unprefixed utilities describe the phone layout, and wider layouts are added with breakpoint variants. Page grids use container queries on the content area (the `@container/main` element in `app/shell.tsx`) rather than the viewport, so they respond to the width actually available whether the sidebar is open, collapsed or hidden.
