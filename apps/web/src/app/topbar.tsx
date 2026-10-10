@@ -22,6 +22,8 @@ import { StatusDot } from "@/components/page";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
 import { activeNav, modLabel } from "./nav";
+import { useSession } from "../features/session";
+import { InstanceIdentity } from "../features/deployment";
 type Crumb = { label: ReactNode; link?: ReactElement };
 /** Long queue names and task IDs in the trail are cut short. */
 const mono =
@@ -87,6 +89,7 @@ export function Topbar({
   onSearch: () => void;
 }) {
   const { theme, toggle } = useTheme();
+  const session = useSession();
   const crumbs = useCrumbs();
   const next = theme === "dark" ? "light" : "dark";
   return (
@@ -130,6 +133,9 @@ export function Topbar({
         </Breadcrumb>
       </div>
       <div className="flex min-w-0 items-center gap-2">
+        <div className="max-w-24 sm:max-w-40">
+          <InstanceIdentity session={session.data} />
+        </div>
         <Button
           variant="outline"
           className="h-8 w-8 justify-center gap-2 bg-surface! p-0 font-normal text-muted-foreground shadow-none hover:text-foreground has-[>svg]:p-0 md:w-50 md:justify-start md:has-[>svg]:pr-[5px] md:has-[>svg]:pl-2.5 xl:w-60"

@@ -15,13 +15,20 @@ services:
       driver: json-file
       options: {max-size: "10m", max-file: "3"}
     environment:
+      SPOOL_MULTI_ORG: ${SPOOL_MULTI_ORG:-false}
+      SPOOL_ORGANIZATION_NAME: ${SPOOL_ORGANIZATION_NAME:-My organization}
+      SPOOL_DATA_KEY: ${SPOOL_DATA_KEY:-}
+      SPOOL_SETUP_TOKEN: ${SPOOL_SETUP_TOKEN:-}
       SPOOL_ADDR: 0.0.0.0:8080
-      SPOOL_ENV: hosted-${SPOOL_CUSTOMER:?Set a unique customer slug}
+      SPOOL_ENV: ${SPOOL_ENV:-production}
+      SPOOL_INSTANCE_NAME: ${SPOOL_INSTANCE_NAME:-${SPOOL_CUSTOMER:?Set a unique customer slug}}
+      SPOOL_DEPLOYMENT_MODE: hosted
+      SPOOL_SUPPORT_URL: ${SPOOL_SUPPORT_URL:-}
       REDIS_URL: ${REDIS_URL:?Set the customer's Asynq Redis URI}
       DATABASE_URL: postgres://spool:${POSTGRES_PASSWORD:?Set a URL-safe database password}@postgres:5432/spool?sslmode=disable
       PROMETHEUS_URL: http://prometheus:9090
-      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER:-admin}
-      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:?Set an admin password}
+      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER-admin}
+      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:-}
       SPOOL_SESSION_KEY: ${SPOOL_SESSION_KEY:?Set a signing key}
       SPOOL_METRICS_TOKEN: ${SPOOL_METRICS_TOKEN:?Set a metrics scrape token}
       SPOOL_VIEWER_USER: ${SPOOL_VIEWER_USER:-}

@@ -16,6 +16,11 @@ export type ActionResult = {
     success: boolean;
 };
 
+export type AdministrationRequest = {
+    action: 'grant' | 'revoke' | 'transfer';
+    confirm: true;
+};
+
 export type Audit = {
     action: string;
     actor: string;
@@ -49,6 +54,20 @@ export type CloneRequest = {
     payload: string;
     queue: string;
     type: string;
+};
+
+export type ConnectionHealth = {
+    available: boolean;
+    configured: boolean;
+    message: string;
+};
+
+export type DeploymentStatus = {
+    checked_at: string;
+    database: ConnectionHealth;
+    metrics: MetricHealth;
+    queue_count: number;
+    redis: ConnectionHealth;
 };
 
 export type Error = {
@@ -87,14 +106,35 @@ export type FieldError = {
 };
 
 export type LoginRequest = {
-    password: string;
     username: string;
+};
+
+export type Member = {
+    disabled: boolean;
+    id: string;
+    role: 'admin' | 'operator' | 'viewer';
+    username: string;
+};
+
+export type MemberList = {
+    data: Array<Member>;
+};
+
+export type MemberRequest = {
+    role: 'admin' | 'operator' | 'viewer';
+    username: string;
+};
+
+export type MemberRoleRequest = {
+    role: 'admin' | 'operator' | 'viewer';
 };
 
 export type MetricHealth = {
     available: boolean;
     configured: boolean;
     message: string;
+    scrape_status: string;
+    warming_up: boolean;
 };
 
 export type MetricResult = {
@@ -106,6 +146,25 @@ export type MetricResult = {
 
 export type Ok = {
     ok: boolean;
+};
+
+export type Organization = {
+    created_at: string;
+    id: string;
+    name: string;
+    role: string;
+};
+
+export type OrganizationList = {
+    data: Array<Organization>;
+};
+
+export type OrganizationNameRequest = {
+    name: string;
+};
+
+export type OrganizationRequest = {
+    name: string;
 };
 
 export type Overview = {
@@ -121,6 +180,11 @@ export type Pagination = {
     next_cursor: string;
     scope: string;
     total: number;
+};
+
+export type PasswordRequest = {
+    current_password: string;
+    password: string;
 };
 
 export type Payload = {
@@ -210,11 +274,27 @@ export type Session = {
     actor: string;
     auth_required: boolean;
     authenticated: boolean;
+    deployment_mode: string;
     environment: string;
+    instance_name: string;
+    managed: boolean;
+    organization: Organization | null;
+    platform_admin: boolean;
     read_only: boolean;
     read_only_reason: string;
-    role: 'admin' | 'viewer' | '';
+    role: 'admin' | 'operator' | 'viewer' | '';
+    setup_required: boolean;
+    support_url: string;
     version: string;
+};
+
+export type SetupRequest = {
+    organization: OrganizationRequest;
+    username: string;
+};
+
+export type SwitchOrganizationRequest = {
+    id: string;
 };
 
 export type Task = {
@@ -267,6 +347,22 @@ export type TaskTarget = {
     queue: string;
 };
 
+export type User = {
+    created_at: string;
+    disabled: boolean;
+    id: string;
+    platform_admin: boolean;
+    username: string;
+};
+
+export type UserList = {
+    data: Array<User>;
+};
+
+export type UserUpdateRequest = {
+    disabled: boolean | null;
+};
+
 export type ViewList = {
     data: Array<SavedView>;
 };
@@ -284,8 +380,113 @@ export type Worker = {
     task_type: string;
 };
 
+export type AdministrationRequestWritable = {
+    action: 'grant' | 'revoke' | 'transfer';
+    confirm: true;
+    current_password: string;
+};
+
+export type LoginRequestWritable = {
+    password: string;
+    username: string;
+};
+
+export type MemberRequestWritable = {
+    password: string;
+    role: 'admin' | 'operator' | 'viewer';
+    username: string;
+};
+
+export type OrganizationRequestWritable = {
+    name: string;
+    prometheus_url: string;
+    redis_url: string;
+};
+
+export type SetupRequestWritable = {
+    organization: OrganizationRequestWritable;
+    password: string;
+    token: string;
+    username: string;
+};
+
+export type UserUpdateRequestWritable = {
+    disabled: boolean | null;
+    password: string;
+};
+
+export type ChangePasswordData = {
+    body: PasswordRequest;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/account/password';
+};
+
+export type ChangePasswordErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ChangePasswordError = ChangePasswordErrors[keyof ChangePasswordErrors];
+
+export type ChangePasswordResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type ChangePasswordResponse = ChangePasswordResponses[keyof ChangePasswordResponses];
+
 export type ListAuditData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -352,8 +553,19 @@ export type ListAuditResponse = ListAuditResponses[keyof ListAuditResponses];
 
 export type EventsData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Organization ID for EventSource clients; membership is verified on every stream update
+         */
+        organization?: string;
+    };
     url: '/api/v1/events';
 };
 
@@ -409,6 +621,12 @@ export type EventsResponse = EventsResponses[keyof EventsResponses];
 
 export type ListErrorGroupsData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -473,8 +691,279 @@ export type ListErrorGroupsResponses = {
 
 export type ListErrorGroupsResponse = ListErrorGroupsResponses[keyof ListErrorGroupsResponses];
 
+export type ListMembersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/members';
+};
+
+export type ListMembersErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ListMembersError = ListMembersErrors[keyof ListMembersErrors];
+
+export type ListMembersResponses = {
+    /**
+     * Successful response
+     */
+    200: MemberList;
+};
+
+export type ListMembersResponse = ListMembersResponses[keyof ListMembersResponses];
+
+export type AddMemberData = {
+    body: MemberRequestWritable;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/members';
+};
+
+export type AddMemberErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type AddMemberError = AddMemberErrors[keyof AddMemberErrors];
+
+export type AddMemberResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type AddMemberResponse = AddMemberResponses[keyof AddMemberResponses];
+
+export type RemoveMemberData = {
+    body: ActionRequest;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/members/{id}';
+};
+
+export type RemoveMemberErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type RemoveMemberError = RemoveMemberErrors[keyof RemoveMemberErrors];
+
+export type RemoveMemberResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
+
+export type ChangeMemberData = {
+    body: MemberRoleRequest;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/members/{id}';
+};
+
+export type ChangeMemberErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ChangeMemberError = ChangeMemberErrors[keyof ChangeMemberErrors];
+
+export type ChangeMemberResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type ChangeMemberResponse = ChangeMemberResponses[keyof ChangeMemberResponses];
+
 export type MetricsHealthData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/metrics';
@@ -532,6 +1021,12 @@ export type MetricsHealthResponse = MetricsHealthResponses[keyof MetricsHealthRe
 
 export type QueryMetricData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query: {
         metric: 'depth' | 'pending' | 'active' | 'retry' | 'archived' | 'latency' | 'processed' | 'failed';
@@ -595,6 +1090,12 @@ export type QueryMetricResponse = QueryMetricResponses[keyof QueryMetricResponse
 
 export type QueryMetricRangeData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query: {
         metric: 'depth' | 'pending' | 'active' | 'retry' | 'archived' | 'latency' | 'processed' | 'failed';
@@ -668,8 +1169,269 @@ export type QueryMetricRangeResponses = {
 
 export type QueryMetricRangeResponse = QueryMetricRangeResponses[keyof QueryMetricRangeResponses];
 
+export type RenameOrganizationData = {
+    body: OrganizationNameRequest;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organization';
+};
+
+export type RenameOrganizationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type RenameOrganizationError = RenameOrganizationErrors[keyof RenameOrganizationErrors];
+
+export type RenameOrganizationResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type RenameOrganizationResponse = RenameOrganizationResponses[keyof RenameOrganizationResponses];
+
+export type UpdateOrganizationConnectionData = {
+    body: OrganizationRequestWritable;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organization/connection';
+};
+
+export type UpdateOrganizationConnectionErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type UpdateOrganizationConnectionError = UpdateOrganizationConnectionErrors[keyof UpdateOrganizationConnectionErrors];
+
+export type UpdateOrganizationConnectionResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type UpdateOrganizationConnectionResponse = UpdateOrganizationConnectionResponses[keyof UpdateOrganizationConnectionResponses];
+
+export type ListOrganizationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations';
+};
+
+export type ListOrganizationsErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ListOrganizationsError = ListOrganizationsErrors[keyof ListOrganizationsErrors];
+
+export type ListOrganizationsResponses = {
+    /**
+     * Successful response
+     */
+    200: OrganizationList;
+};
+
+export type ListOrganizationsResponse = ListOrganizationsResponses[keyof ListOrganizationsResponses];
+
+export type CreateOrganizationData = {
+    body: OrganizationRequestWritable;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/organizations';
+};
+
+export type CreateOrganizationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type CreateOrganizationError = CreateOrganizationErrors[keyof CreateOrganizationErrors];
+
+export type CreateOrganizationResponses = {
+    /**
+     * Successful response
+     */
+    200: Organization;
+};
+
+export type CreateOrganizationResponse = CreateOrganizationResponses[keyof CreateOrganizationResponses];
+
 export type GetOverviewData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/overview';
@@ -727,6 +1489,12 @@ export type GetOverviewResponse = GetOverviewResponses[keyof GetOverviewResponse
 
 export type ListQueuesData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/queues';
@@ -784,6 +1552,12 @@ export type ListQueuesResponse = ListQueuesResponses[keyof ListQueuesResponses];
 
 export type GetQueueData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path: {
         /**
          * Validated resource identifier
@@ -847,6 +1621,10 @@ export type GetQueueResponse = GetQueueResponses[keyof GetQueueResponses];
 export type PauseQueueData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -912,6 +1690,10 @@ export type PauseQueueResponse = PauseQueueResponses[keyof PauseQueueResponses];
 export type ResumeQueueData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -976,6 +1758,12 @@ export type ResumeQueueResponse = ResumeQueueResponses[keyof ResumeQueueResponse
 
 export type ListSchedulersData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/schedulers';
@@ -1033,6 +1821,12 @@ export type ListSchedulersResponse = ListSchedulersResponses[keyof ListScheduler
 
 export type ListServersData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/servers';
@@ -1091,6 +1885,10 @@ export type ListServersResponse = ListServersResponses[keyof ListServersResponse
 export type LogoutData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path?: never;
@@ -1206,7 +2004,7 @@ export type GetSessionResponses = {
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
 
 export type LoginData = {
-    body: LoginRequest;
+    body: LoginRequestWritable;
     path?: never;
     query?: never;
     url: '/api/v1/session';
@@ -1262,8 +2060,201 @@ export type LoginResponses = {
 
 export type LoginResponse = LoginResponses[keyof LoginResponses];
 
+export type SwitchOrganizationData = {
+    body: SwitchOrganizationRequest;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/session/organization';
+};
+
+export type SwitchOrganizationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type SwitchOrganizationError = SwitchOrganizationErrors[keyof SwitchOrganizationErrors];
+
+export type SwitchOrganizationResponses = {
+    /**
+     * Successful response
+     */
+    200: Session;
+};
+
+export type SwitchOrganizationResponse = SwitchOrganizationResponses[keyof SwitchOrganizationResponses];
+
+export type SetupData = {
+    body: SetupRequestWritable;
+    headers: {
+        'X-Spool-Action': 'confirmed';
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/setup';
+};
+
+export type SetupErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type SetupError = SetupErrors[keyof SetupErrors];
+
+export type SetupResponses = {
+    /**
+     * Successful response
+     */
+    200: Organization;
+};
+
+export type SetupResponse = SetupResponses[keyof SetupResponses];
+
+export type GetDeploymentStatusData = {
+    body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/status';
+};
+
+export type GetDeploymentStatusErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type GetDeploymentStatusError = GetDeploymentStatusErrors[keyof GetDeploymentStatusErrors];
+
+export type GetDeploymentStatusResponses = {
+    /**
+     * Successful response
+     */
+    200: DeploymentStatus;
+};
+
+export type GetDeploymentStatusResponse = GetDeploymentStatusResponses[keyof GetDeploymentStatusResponses];
+
 export type ListTasksData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: {
         /**
@@ -1359,6 +2350,10 @@ export type ListTasksResponse = ListTasksResponses[keyof ListTasksResponses];
 export type BulkActionData = {
     body: BulkRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path?: never;
@@ -1419,6 +2414,10 @@ export type BulkActionResponse = BulkActionResponses[keyof BulkActionResponses];
 export type DeleteTaskData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -1487,6 +2486,12 @@ export type DeleteTaskResponse = DeleteTaskResponses[keyof DeleteTaskResponses];
 
 export type GetTaskData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path: {
         /**
          * Validated resource identifier
@@ -1554,6 +2559,10 @@ export type GetTaskResponse = GetTaskResponses[keyof GetTaskResponses];
 export type ArchiveTaskData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -1623,6 +2632,10 @@ export type ArchiveTaskResponse = ArchiveTaskResponses[keyof ArchiveTaskResponse
 export type CancelTaskData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -1692,6 +2705,10 @@ export type CancelTaskResponse = CancelTaskResponses[keyof CancelTaskResponses];
 export type CloneTaskData = {
     body: CloneRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -1761,6 +2778,10 @@ export type CloneTaskResponse = CloneTaskResponses[keyof CloneTaskResponses];
 export type RetryTaskData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {
@@ -1827,8 +2848,215 @@ export type RetryTaskResponses = {
 
 export type RetryTaskResponse = RetryTaskResponses[keyof RetryTaskResponses];
 
+export type ListUsersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/v1/users';
+};
+
+export type ListUsersErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ListUsersError = ListUsersErrors[keyof ListUsersErrors];
+
+export type ListUsersResponses = {
+    /**
+     * Successful response
+     */
+    200: UserList;
+};
+
+export type ListUsersResponse = ListUsersResponses[keyof ListUsersResponses];
+
+export type UpdateUserData = {
+    body: UserUpdateRequestWritable;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/users/{id}';
+};
+
+export type UpdateUserErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type UpdateUserError = UpdateUserErrors[keyof UpdateUserErrors];
+
+export type UpdateUserResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type UpdateUserResponse = UpdateUserResponses[keyof UpdateUserResponses];
+
+export type ChangeAdministrationData = {
+    body: AdministrationRequestWritable;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/users/{id}/administration';
+};
+
+export type ChangeAdministrationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ChangeAdministrationError = ChangeAdministrationErrors[keyof ChangeAdministrationErrors];
+
+export type ChangeAdministrationResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type ChangeAdministrationResponse = ChangeAdministrationResponses[keyof ChangeAdministrationResponses];
+
 export type ListViewsData = {
     body?: never;
+    headers?: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+    };
     path?: never;
     query?: never;
     url: '/api/v1/views';
@@ -1887,6 +3115,10 @@ export type ListViewsResponse = ListViewsResponses[keyof ListViewsResponses];
 export type SaveViewData = {
     body: ViewRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path?: never;
@@ -1947,6 +3179,10 @@ export type SaveViewResponse = SaveViewResponses[keyof SaveViewResponses];
 export type DeleteViewData = {
     body: ActionRequest;
     headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
         'X-Spool-Action': 'confirmed';
     };
     path: {

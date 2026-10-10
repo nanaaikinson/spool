@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -448,5 +449,84 @@ func TestMetricsScrapeToken(t *testing.T) {
 	w = call(h, "GET", "/metrics", "", nil)
 	if w.Code != 200 || calls != 2 {
 		t.Fatal("unconfigured scrape endpoint must remain accessible")
+	}
+}
+
+// Error text deliberately contains credentials to verify diagnostics cannot leak them.
+type disconnectedSource struct{ fakeSource }
+
+func (s *disconnectedSource) Queues(context.Context) ([]domain.Queue, error) {
+	return nil, fmt.Errorf("redis://user:private-password@secret-host/0")
+}
+
+func TestDeploymentDiagnostics(t *testing.T) {
+	a := testAPI(&fakeSource{})
+	a.Config.InstanceName, a.Config.Environment = "Acme operations", "production"
+	a.Config.DeploymentMode, a.Config.SupportURL = "hosted", "https://support.example.com"
+	h := a.Handler(http.NotFoundHandler())
+	w := call(h, "GET", "/api/v1/status", "", nil)
+	var status domain.DeploymentStatus
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &status) != nil || !status.Redis.Available || status.QueueCount != 0 || status.Database.Configured || status.Metrics.Configured || status.CheckedAt.IsZero() {
+		t.Fatalf("diagnostics: %d %s", w.Code, w.Body.String())
+	}
+	a.Source = &disconnectedSource{}
+	a.Config.DatabaseURL = "postgres://secret:private-password@secret-host/spool"
+	w = call(h, "GET", "/api/v1/status", "", nil)
+	if json.Unmarshal(w.Body.Bytes(), &status) != nil || status.Redis.Available || !status.Database.Configured || status.Database.Available {
+		t.Fatal("failed connections reported healthy")
+	}
+	if strings.Contains(w.Body.String(), "private-password") || strings.Contains(w.Body.String(), "secret-host") {
+		t.Fatal("diagnostics exposed a connection secret")
+	}
+	a.Config.AdminUser, a.Config.AdminPassword = "admin", "secret"
+	if w = call(h, "GET", "/api/v1/status", "", nil); w.Code != 401 {
+		t.Fatal("diagnostics must require sign-in")
+	}
+	w = call(h, "GET", "/api/v1/session", "", nil)
+	var session domain.Session
+	if json.Unmarshal(w.Body.Bytes(), &session) != nil || session.InstanceName != "Acme operations" || session.SupportURL != a.Config.SupportURL || session.DeploymentMode != "hosted" {
+		t.Fatal("safe sign-in metadata missing")
+	}
+	if strings.Contains(w.Body.String(), "private-password") || strings.Contains(w.Body.String(), "secret-host") {
+		t.Fatal("session exposed a connection secret")
+	}
+}
+
+type slowSource struct {
+	fakeSource
+	started chan struct{}
+	release chan struct{}
+}
+
+func (s *slowSource) Queues(context.Context) ([]domain.Queue, error) {
+	close(s.started)
+	<-s.release
+	return nil, fmt.Errorf("private-password")
+}
+
+func TestDiagnosticsCancellationDoesNotWaitForInspector(t *testing.T) {
+	source := &slowSource{started: make(chan struct{}), release: make(chan struct{})}
+	defer close(source.release)
+	a := testAPI(source)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	request := httptest.NewRequest("GET", "/api/v1/status", nil).WithContext(ctx)
+	response := httptest.NewRecorder()
+	finished := make(chan struct{})
+	go func() { a.Handler(http.NotFoundHandler()).ServeHTTP(response, request); close(finished) }()
+	select {
+	case <-source.started:
+	case <-time.After(time.Second):
+		t.Fatal("Inspector check did not start")
+	}
+	cancel()
+	select {
+	case <-finished:
+	case <-time.After(time.Second):
+		t.Fatal("diagnostics waited for an Inspector call that ignored cancellation")
+	}
+	var status domain.DeploymentStatus
+	if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &status) != nil || status.Redis.Available {
+		t.Fatal("cancelled check must remain unavailable")
 	}
 }

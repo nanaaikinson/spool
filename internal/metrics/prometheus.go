@@ -25,12 +25,14 @@ type Provider interface {
 }
 
 type Prometheus struct {
-	URL    string
-	Client *http.Client
+	Organization string
+	URL          string
+	Job          string
+	Client       *http.Client
 }
 
 func New(address string) *Prometheus {
-	return &Prometheus{address, &http.Client{Timeout: 10 * time.Second}}
+	return &Prometheus{URL: address, Job: "spool", Client: &http.Client{Timeout: 10 * time.Second}}
 }
 
 var expressions = map[string]struct {
@@ -48,19 +50,70 @@ var expressions = map[string]struct {
 }
 
 func (p *Prometheus) Health(ctx context.Context) domain.MetricHealth {
-	h := domain.MetricHealth{
-		Configured: p.URL != "",
-		Message:    "Set PROMETHEUS_URL to enable historical charts.",
-	}
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	h := domain.MetricHealth{Configured: p.URL != "", ScrapeStatus: "unconfigured", Message: "Historical charts are disabled. Ask the operator to configure metrics collection."}
 	if p.URL == "" {
 		return h
 	}
-	_, e := p.request(ctx, "/api/v1/query", url.Values{"query": {"up"}})
-	h.Available = e == nil
-	if h.Available {
-		h.Message = "Connected to Prometheus."
-	} else {
-		h.Message = "Cannot reach Prometheus. Check PROMETHEUS_URL and that Prometheus is running."
+	// A successful HTTP response alone is insufficient: verify the Prometheus envelope.
+	b, err := p.request(ctx, "/api/v1/query", url.Values{"query": {"up"}})
+	_, decoded := decode(b, "up", "")
+	if err != nil || decoded != nil {
+		h.ScrapeStatus, h.Message = "unavailable", "Cannot reach Prometheus. Ask the operator to check metrics availability."
+		return h
+	}
+	h.Available = true
+	h.ScrapeStatus, h.Message = "unknown", "Prometheus is reachable, but Spool scrape health could not be verified."
+	b, err = p.request(ctx, "/api/v1/targets", url.Values{"state": {"active"}})
+	var targets struct {
+		Status string `json:"status"`
+		Data   struct {
+			Active []struct {
+				Labels map[string]string `json:"labels"`
+				Health string            `json:"health"`
+			} `json:"activeTargets"`
+		} `json:"data"`
+	}
+	if err != nil || json.Unmarshal(b, &targets) != nil || targets.Status != "success" {
+		return h
+	}
+	matched, pending, down := 0, false, false
+	for _, target := range targets.Data.Active {
+		if target.Labels["job"] != p.Job {
+			continue
+		}
+		matched++
+		switch target.Health {
+		case "up":
+		case "unknown":
+			pending = true
+		case "down":
+			down = true
+		default:
+			return h
+		}
+	}
+	switch {
+	case matched == 0:
+		h.ScrapeStatus, h.Message = "missing", "Prometheus is reachable, but no scrape target matches this instance's metrics job. Ask the operator to check the scrape configuration."
+	case down:
+		h.ScrapeStatus, h.Message = "down", "Prometheus is reachable, but a Spool scrape is failing. Ask the operator to check connectivity and scrape authentication."
+	case pending:
+		h.ScrapeStatus, h.Message = "pending", "Prometheus has a Spool target and is waiting for its first successful scrape."
+	default:
+		h.ScrapeStatus, h.Message = "up", "Prometheus is collecting Spool metrics."
+		// Rate charts need two successful samples. Only announce warm-up when
+		// Prometheus confirms a healthy target and fewer than two recent successes.
+		query := "min(sum_over_time(up{job=" + strconv.Quote(p.Job) + "}[2m]))"
+		b, err = p.request(ctx, "/api/v1/query", url.Values{"query": {query}})
+		successes, decoded := decode(b, "scrapes", "")
+		if err == nil && decoded == nil && len(successes.Data) == 1 && len(successes.Data[0].Points) == 1 {
+			h.WarmingUp = successes.Data[0].Points[0].Value < 2
+			if h.WarmingUp {
+				h.Message = "Collecting your first samples. Rate charts need at least two successful scrapes."
+			}
+		}
 	}
 	return h
 }
@@ -138,7 +191,7 @@ func decode(b []byte, metric, unit string) (domain.MetricResult, error) {
 		Data:   []domain.Series{},
 	}
 	var r prometheusResponse
-	if json.Unmarshal(b, &r) != nil || r.Status != "success" {
+	if json.Unmarshal(b, &r) != nil || r.Status != "success" || (r.Data.ResultType != "vector" && r.Data.ResultType != "matrix") {
 		return out, ErrUnavailable
 	}
 	for _, s := range r.Data.Result {
@@ -168,7 +221,7 @@ func decode(b []byte, metric, unit string) (domain.MetricResult, error) {
 }
 
 func (p *Prometheus) Query(ctx context.Context, metric, queue string) (domain.MetricResult, error) {
-	expr, unit, e := expression(metric, queue)
+	expr, unit, e := p.expression(metric, queue)
 	if e != nil {
 		return domain.MetricResult{}, e
 	}
@@ -188,7 +241,7 @@ func (p *Prometheus) QueryRange(
 	if !end.After(start) || end.Sub(start) > 7*24*time.Hour || step < 15*time.Second || end.Sub(start)/step > 1500 {
 		return domain.MetricResult{}, fmt.Errorf("invalid metrics range")
 	}
-	expr, unit, e := expression(metric, queue)
+	expr, unit, e := p.expression(metric, queue)
 	if e != nil {
 		return domain.MetricResult{}, e
 	}
@@ -206,4 +259,22 @@ func (p *Prometheus) QueryRange(
 		return domain.MetricResult{}, e
 	}
 	return decode(b, metric, unit)
+}
+
+// Organization selectors are server-owned; never accept arbitrary PromQL from users.
+func (p *Prometheus) expression(metric, queue string) (string, string, error) {
+	expr, unit, e := expression(metric, queue)
+	if e != nil || p.Organization == "" {
+		return expr, unit, e
+	}
+	labels := "organization=" + strconv.Quote(p.Organization) + ",job=" + strconv.Quote(p.Job)
+	names := []string{"asynq_queue_size", "asynq_tasks_enqueued_total", "asynq_queue_latency_seconds", "asynq_tasks_processed_total", "asynq_tasks_failed_total"}
+	for _, name := range names {
+		if strings.Contains(expr, name+"{") {
+			expr = strings.Replace(expr, name+"{", name+"{"+labels+",", 1)
+		} else if strings.Contains(expr, name) {
+			expr = strings.Replace(expr, name, name+"{"+labels+"}", 1)
+		}
+	}
+	return expr, unit, nil
 }

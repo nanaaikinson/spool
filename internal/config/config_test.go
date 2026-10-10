@@ -190,3 +190,58 @@ func TestMetricsTokenValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestDeploymentMetadata(t *testing.T) {
+	t.Setenv("SPOOL_ENV", "staging")
+	t.Setenv("SPOOL_INSTANCE_NAME", "")
+	t.Setenv("SPOOL_DEPLOYMENT_MODE", "self-hosted")
+	t.Setenv("SPOOL_SUPPORT_URL", "")
+	c, err := Load()
+	if err != nil || c.InstanceName != "staging" || c.DeploymentMode != "self-hosted" {
+		t.Fatalf("metadata defaults: %v", err)
+	}
+	t.Setenv("SPOOL_INSTANCE_NAME", "Acme operations")
+	t.Setenv("SPOOL_DEPLOYMENT_MODE", "hosted")
+	for _, link := range []string{"https://support.example.com/help", "mailto:support@example.com"} {
+		t.Setenv("SPOOL_SUPPORT_URL", link)
+		c, err = Load()
+		if err != nil || c.InstanceName != "Acme operations" || c.SupportURL != link {
+			t.Fatalf("valid metadata rejected: %v", err)
+		}
+	}
+	for _, link := range []string{"javascript:alert(1)", "http://support.example.com", "https://user:secret@support.example.com", "//support.example.com", "mailto:"} {
+		t.Setenv("SPOOL_SUPPORT_URL", link)
+		if _, err = Load(); err == nil {
+			t.Fatal("unsafe support link accepted")
+		}
+	}
+	t.Setenv("SPOOL_SUPPORT_URL", "")
+	t.Setenv("SPOOL_DEPLOYMENT_MODE", "other")
+	if _, err = Load(); err == nil {
+		t.Fatal("unknown deployment mode accepted")
+	}
+}
+
+func TestManagedConfiguration(t *testing.T) {
+	t.Setenv("SPOOL_MULTI_ORG", "true")
+	t.Setenv("SPOOL_METRICS_TOKEN", strings.Repeat("m", 32))
+	t.Setenv("SPOOL_ADDR", "0.0.0.0:8080")
+	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
+	t.Setenv("SPOOL_DATA_KEY", strings.Repeat("d", 32))
+	t.Setenv("SPOOL_SESSION_KEY", strings.Repeat("s", 32))
+	t.Setenv("SPOOL_SETUP_TOKEN", strings.Repeat("t", 32))
+	t.Setenv("SPOOL_ADMIN_USER", "")
+	t.Setenv("SPOOL_ADMIN_PASSWORD", "")
+	c, e := Load()
+	if e != nil || !c.MultiOrg {
+		t.Fatal("browser setup config", e)
+	}
+	for _, key := range []string{"DATABASE_URL", "SPOOL_DATA_KEY", "SPOOL_SESSION_KEY", "SPOOL_METRICS_TOKEN"} {
+		value := os.Getenv(key)
+		t.Setenv(key, "")
+		if _, e := Load(); e == nil {
+			t.Fatal("missing managed secret accepted", key)
+		}
+		t.Setenv(key, value)
+	}
+}

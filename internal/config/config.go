@@ -15,19 +15,27 @@ import (
 )
 
 type Config struct {
-	Addr           string
-	RedisURL       string
-	DatabaseURL    string
-	PrometheusURL  string
-	Environment    string
-	StaticDir      string
-	AdminUser      string
-	AdminPassword  string
-	ViewerUser     string
-	ViewerPassword string
-	SessionKey     string
-	MetricsToken   string
-	ReadOnly       bool
+	MultiOrg         bool
+	SetupToken       string
+	DataKey          string
+	OrganizationName string
+	Addr             string
+	RedisURL         string
+	DatabaseURL      string
+	PrometheusURL    string
+	Environment      string
+	InstanceName     string
+	DeploymentMode   string
+	SupportURL       string
+	MetricsJob       string
+	StaticDir        string
+	AdminUser        string
+	AdminPassword    string
+	ViewerUser       string
+	ViewerPassword   string
+	SessionKey       string
+	MetricsToken     string
+	ReadOnly         bool
 	// ReadOnlyReason says why changes are disabled: "configured" when
 	// SPOOL_READ_ONLY is set, "no_database" when there is nowhere to record
 	// audit entries. Empty when changes are allowed.
@@ -45,20 +53,43 @@ func Load() (Config, error) {
 		}
 	}
 	c := Config{
-		Addr:           env.Get("SPOOL_ADDR", "127.0.0.1:8088"),
-		RedisURL:       env.Get("REDIS_URL", "redis://127.0.0.1:6388/0"),
-		DatabaseURL:    env.Get("DATABASE_URL"),
-		PrometheusURL:  env.Get("PROMETHEUS_URL"),
-		Environment:    env.Get("SPOOL_ENV", "development"),
-		StaticDir:      env.Get("SPOOL_STATIC_DIR", "apps/web/dist"),
-		AdminUser:      env.Get("SPOOL_ADMIN_USER"),
-		AdminPassword:  env.Get("SPOOL_ADMIN_PASSWORD"),
-		ViewerUser:     env.Get("SPOOL_VIEWER_USER"),
-		ViewerPassword: env.Get("SPOOL_VIEWER_PASSWORD"),
-		SessionKey:     env.Get("SPOOL_SESSION_KEY"),
-		MetricsToken:   env.Get("SPOOL_METRICS_TOKEN"),
-		ReadOnly:       env.GetBool("SPOOL_READ_ONLY", false),
-		SecureCookie:   env.GetBool("SPOOL_SECURE_COOKIE", false),
+		MultiOrg:         env.GetBool("SPOOL_MULTI_ORG", false),
+		SetupToken:       env.Get("SPOOL_SETUP_TOKEN"),
+		DataKey:          env.Get("SPOOL_DATA_KEY"),
+		OrganizationName: env.Get("SPOOL_ORGANIZATION_NAME", "My organization"),
+		Addr:             env.Get("SPOOL_ADDR", "127.0.0.1:8088"),
+		RedisURL:         env.Get("REDIS_URL", "redis://127.0.0.1:6388/0"),
+		DatabaseURL:      env.Get("DATABASE_URL"),
+		PrometheusURL:    env.Get("PROMETHEUS_URL"),
+		Environment:      env.Get("SPOOL_ENV", "development"),
+		InstanceName:     env.Get("SPOOL_INSTANCE_NAME"),
+		DeploymentMode:   env.Get("SPOOL_DEPLOYMENT_MODE", "self-hosted"),
+		SupportURL:       env.Get("SPOOL_SUPPORT_URL"),
+		MetricsJob:       env.Get("SPOOL_METRICS_JOB", "spool"),
+		StaticDir:        env.Get("SPOOL_STATIC_DIR", "apps/web/dist"),
+		AdminUser:        env.Get("SPOOL_ADMIN_USER"),
+		AdminPassword:    env.Get("SPOOL_ADMIN_PASSWORD"),
+		ViewerUser:       env.Get("SPOOL_VIEWER_USER"),
+		ViewerPassword:   env.Get("SPOOL_VIEWER_PASSWORD"),
+		SessionKey:       env.Get("SPOOL_SESSION_KEY"),
+		MetricsToken:     env.Get("SPOOL_METRICS_TOKEN"),
+		ReadOnly:         env.GetBool("SPOOL_READ_ONLY", false),
+		SecureCookie:     env.GetBool("SPOOL_SECURE_COOKIE", false),
+	}
+	if c.MultiOrg {
+		if len(c.MetricsToken) < 32 {
+			return c, fmt.Errorf("organization management requires SPOOL_METRICS_TOKEN to protect the combined metrics export")
+		}
+		if c.DatabaseURL == "" || len(c.DataKey) < 32 {
+			return c, fmt.Errorf("organization management requires DATABASE_URL and a stable SPOOL_DATA_KEY of at least 32 characters")
+		}
+		if c.SetupToken != "" && len(c.SetupToken) < 32 {
+			return c, fmt.Errorf("SPOOL_SETUP_TOKEN must be at least 32 characters")
+		}
+
+		if strings.TrimSpace(c.OrganizationName) == "" || len(c.OrganizationName) > 80 || strings.ContainsAny(c.OrganizationName, "\r\n\x00") {
+			return c, fmt.Errorf("SPOOL_ORGANIZATION_NAME must be 1–80 characters")
+		}
 	}
 	issues := z.Struct(z.Shape{
 		"Addr":        z.String().Required(),
@@ -68,16 +99,34 @@ func Load() (Config, error) {
 	if len(issues) > 0 {
 		return c, fmt.Errorf("invalid configuration: SPOOL_ADDR, SPOOL_ENV, and REDIS_URL must be set, and SPOOL_ENV must be at most 80 characters")
 	}
+	if c.InstanceName == "" {
+		c.InstanceName = c.Environment
+	}
+	if len(c.InstanceName) > 80 || strings.ContainsAny(c.InstanceName, "\r\n") {
+		return c, fmt.Errorf("SPOOL_INSTANCE_NAME must be at most 80 characters without line breaks")
+	}
+	if c.DeploymentMode != "self-hosted" && c.DeploymentMode != "hosted" {
+		return c, fmt.Errorf("SPOOL_DEPLOYMENT_MODE must be self-hosted or hosted")
+	}
+	if c.MetricsJob == "" || len(c.MetricsJob) > 80 {
+		return c, fmt.Errorf("SPOOL_METRICS_JOB must be between 1 and 80 characters")
+	}
+	if c.SupportURL != "" {
+		u, err := url.Parse(c.SupportURL)
+		if err != nil || u.User != nil || strings.ContainsAny(c.SupportURL, "\r\n") || !((u.Scheme == "https" && u.Hostname() != "") || (u.Scheme == "mailto" && strings.Contains(u.Opaque, "@"))) {
+			return c, fmt.Errorf("SPOOL_SUPPORT_URL must be an HTTPS or mailto link without embedded credentials")
+		}
+	}
 	if (c.AdminUser == "") != (c.AdminPassword == "") || (c.ViewerUser == "") != (c.ViewerPassword == "") {
 		return c, fmt.Errorf("set both the username and password for each account (SPOOL_ADMIN_USER/SPOOL_ADMIN_PASSWORD, SPOOL_VIEWER_USER/SPOOL_VIEWER_PASSWORD)")
 	}
 	if c.AdminUser != "" && c.ViewerUser == c.AdminUser {
 		return c, fmt.Errorf("SPOOL_ADMIN_USER and SPOOL_VIEWER_USER must differ")
 	}
-	if c.AdminUser == "" && c.ViewerUser == "" && !strings.HasPrefix(c.Addr, "127.0.0.1:") && !strings.HasPrefix(c.Addr, "localhost:") {
+	if !c.MultiOrg && c.AdminUser == "" && c.ViewerUser == "" && !strings.HasPrefix(c.Addr, "127.0.0.1:") && !strings.HasPrefix(c.Addr, "localhost:") {
 		return c, fmt.Errorf("SPOOL_ADDR is not a loopback address; set SPOOL_ADMIN_USER or SPOOL_VIEWER_USER to require sign-in")
 	}
-	if c.AdminUser != "" || c.ViewerUser != "" {
+	if c.MultiOrg || c.AdminUser != "" || c.ViewerUser != "" {
 		if len(c.SessionKey) < 32 {
 			return c, fmt.Errorf("SPOOL_SESSION_KEY must be at least 32 characters when sign-in is enabled")
 		}

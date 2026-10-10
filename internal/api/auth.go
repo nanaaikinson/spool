@@ -15,19 +15,25 @@ import (
 	"time"
 
 	"github.com/nanaaikinson/spool/internal/domain"
+	"github.com/nanaaikinson/spool/internal/store"
 	"github.com/nanaaikinson/spool/internal/version"
 )
 
 type claims struct {
-	Actor   string `json:"actor"`
-	Role    string `json:"role"`
-	Expires int64  `json:"exp"`
+	UserID         string               `json:"user_id,omitempty"`
+	OrganizationID string               `json:"organization_id,omitempty"`
+	AuthVersion    int                  `json:"auth_version,omitempty"`
+	PlatformAdmin  bool                 `json:"-"`
+	Organization   *domain.Organization `json:"-"`
+	Actor          string               `json:"actor"`
+	Role           string               `json:"role"`
+	Expires        int64                `json:"exp"`
 }
 
 type authKey struct{}
 
 func (a *API) authRequired() bool {
-	return a.Config.AdminUser != "" || a.Config.ViewerUser != ""
+	return a.Config.MultiOrg || a.Config.AdminUser != "" || a.Config.ViewerUser != ""
 }
 
 func (a *API) identity(r *http.Request) (claims, bool) {
@@ -60,6 +66,38 @@ func (a *API) identity(r *http.Request) (claims, bool) {
 	if e != nil || json.Unmarshal(raw, &c) != nil || c.Expires <= time.Now().Unix() {
 		return claims{}, false
 	}
+	if a.Config.MultiOrg {
+		if a.Store == nil || c.UserID == "" {
+			return claims{}, false
+		}
+		u, e := a.Store.Account(r.Context(), c.UserID)
+		if e != nil || u.Disabled || u.AuthVersion != c.AuthVersion {
+			return claims{}, false
+		}
+		c.Actor, c.PlatformAdmin, c.Role = u.Username, u.PlatformAdmin, ""
+		explicit := r.Header.Get("X-Spool-Organization")
+		if r.URL.Path == "/api/v1/events" && r.URL.Query().Get("organization") != "" {
+			explicit = r.URL.Query().Get("organization")
+		}
+		if explicit != "" {
+			c.OrganizationID = explicit
+		}
+		if c.OrganizationID != "" {
+			org, e := a.Store.Organization(r.Context(), c.OrganizationID, c.UserID, c.PlatformAdmin)
+			if e != nil {
+				if explicit != "" {
+					return claims{}, false
+				}
+				c.OrganizationID = ""
+			} else {
+				c.Organization, c.Role = &org, org.Role
+			}
+		}
+		if a.Config.ReadOnly {
+			c.Role = "viewer"
+		}
+		return c, true
+	}
 	if (c.Role == "admin" && c.Actor != a.Config.AdminUser) ||
 		(c.Role == "viewer" && c.Actor != a.Config.ViewerUser) ||
 		(c.Role != "admin" && c.Role != "viewer") {
@@ -71,7 +109,7 @@ func (a *API) identity(r *http.Request) (claims, bool) {
 	return c, true
 }
 
-func (a *API) protect(next http.Handler) http.Handler {
+func (a *API) protect(next http.Handler, ep Endpoint) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		c, ok := a.identity(r)
 		if !ok {
@@ -83,10 +121,18 @@ func (a *API) protect(next http.Handler) http.Handler {
 				a.fail(w, r, 403, "CSRF_REJECTED", "This request did not come from the Spool console. Reload the page and try again.", nil)
 				return
 			}
-			if c.Role != "admin" && r.URL.Path != "/api/v1/session" {
+			if !a.Config.MultiOrg && c.Role != "admin" && r.URL.Path != "/api/v1/session" {
 				a.fail(w, r, 403, "READ_ONLY", "Your account can view data but cannot make changes.", nil)
 				return
 			}
+		}
+		if a.Config.MultiOrg && !allowed(ep.ID, r.Method, c, a.Config.ReadOnly) {
+			a.fail(w, r, 403, "FORBIDDEN", "Your role does not allow this action in this organization.", nil)
+			return
+		}
+		if ep.ID == "changeAdministration" && !a.administrationAttempts.allow(r) {
+			a.fail(w, r, 429, "RATE_LIMITED", "Too many administrator verification attempts. Try again in a minute.", nil)
+			return
 		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authKey{}, c)))
 	})
@@ -111,12 +157,23 @@ func actor(r *http.Request) string {
 
 func (a *API) session(r *http.Request) domain.Session {
 	c, ok := a.identity(r)
+	setup := false
+	if a.Config.MultiOrg && a.Store != nil {
+		setup, _ = a.Store.NeedsSetup(r.Context())
+	}
 	return domain.Session{
+		SetupRequired:  setup,
+		Managed:        a.Config.MultiOrg,
+		PlatformAdmin:  c.PlatformAdmin,
+		Organization:   c.Organization,
 		Authenticated:  ok,
 		AuthRequired:   a.authRequired(),
 		Actor:          c.Actor,
 		Role:           c.Role,
 		Environment:    a.Config.Environment,
+		InstanceName:   a.Config.InstanceName,
+		DeploymentMode: a.Config.DeploymentMode,
+		SupportURL:     a.Config.SupportURL,
 		Version:        version.Version,
 		ReadOnly:       a.Config.ReadOnly,
 		ReadOnlyReason: a.Config.ReadOnlyReason,
@@ -202,6 +259,28 @@ func (a *API) login(w http.ResponseWriter, r *http.Request, _ params) {
 	if !a.decode(w, r, &in) {
 		return
 	}
+	if a.Config.MultiOrg {
+		if a.Store == nil {
+			a.failure(w, r, store.ErrUnavailable)
+			return
+		}
+		u, e := a.Store.Authenticate(r.Context(), in.Username, in.Password)
+		if e != nil {
+			a.fail(w, r, 401, "INVALID_CREDENTIALS", "Username or password is incorrect.", nil)
+			return
+		}
+		orgs, e := a.Store.Organizations(r.Context(), u.ID, u.PlatformAdmin)
+		if e != nil {
+			a.failure(w, r, e)
+			return
+		}
+		c := claims{UserID: u.ID, Actor: u.Username, AuthVersion: u.AuthVersion, Expires: time.Now().Add(12 * time.Hour).Unix()}
+		if len(orgs) > 0 {
+			c.OrganizationID = orgs[0].ID
+		}
+		a.writeSession(w, r, c)
+		return
+	}
 	role := ""
 	if a.Config.AdminUser != "" && secureEqual(in.Username, a.Config.AdminUser) && secureEqual(in.Password, a.Config.AdminPassword) {
 		role = "admin"
@@ -214,36 +293,51 @@ func (a *API) login(w http.ResponseWriter, r *http.Request, _ params) {
 		return
 	}
 	c := claims{Actor: in.Username, Role: role, Expires: time.Now().Add(12 * time.Hour).Unix()}
+	a.writeSession(w, r, c)
+}
+
+func (a *API) writeSession(w http.ResponseWriter, r *http.Request, c claims) {
 	raw, _ := json.Marshal(c)
 	payload := base64.RawURLEncoding.EncodeToString(raw)
 	mac := hmac.New(sha256.New, []byte(a.Config.SessionKey))
 	mac.Write([]byte(payload))
-	http.SetCookie(
-		w,
-		&http.Cookie{
-			Name:     "spool_session",
-			Value:    payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)),
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   a.Config.SecureCookie,
-			SameSite: http.SameSiteStrictMode,
-			MaxAge:   43200,
-		},
-	)
-	if a.Config.ReadOnly {
-		role = "viewer"
+	cookie := &http.Cookie{Name: "spool_session", Value: payload + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil)), Path: "/", HttpOnly: true, Secure: a.Config.SecureCookie, SameSite: http.SameSiteStrictMode, MaxAge: int(c.Expires - time.Now().Unix())}
+	http.SetCookie(w, cookie)
+	// Reuse identity validation to produce the complete public session contract.
+	req := r.Clone(r.Context())
+	req.Header = req.Header.Clone()
+	req.Header.Del("Cookie")
+	req.Header.Del("X-Spool-Organization")
+	req.AddCookie(cookie)
+	a.json(w, a.session(req))
+}
+
+func allowed(id, method string, c claims, readOnly bool) bool {
+	if id == "logout" || id == "switchOrganization" || id == "changePassword" {
+		return true
 	}
-	a.json(
-		w,
-		domain.Session{
-			Authenticated:  true,
-			AuthRequired:   true,
-			Actor:          in.Username,
-			Role:           role,
-			Environment:    a.Config.Environment,
-			Version:        version.Version,
-			ReadOnly:       a.Config.ReadOnly,
-			ReadOnlyReason: a.Config.ReadOnlyReason,
-		},
-	)
+	if method != "GET" && readOnly {
+		return false
+	}
+	switch id {
+	case "listOrganizations":
+		return true
+	case "updateOrganizationConnection":
+		return c.PlatformAdmin && c.OrganizationID != ""
+	case "createOrganization", "listUsers", "updateUser", "changeAdministration":
+		return c.PlatformAdmin
+	case "listMembers", "addMember", "changeMember", "removeMember", "renameOrganization":
+		return c.OrganizationID != "" && c.Role == "admin"
+	}
+	if c.OrganizationID == "" {
+		return false
+	}
+	if method == "GET" || method == "HEAD" {
+		return true
+	}
+	switch id {
+	case "pauseQueue", "resumeQueue", "retryTask", "archiveTask", "deleteTask", "cancelTask", "cloneTask", "bulkAction", "saveView", "deleteView":
+		return c.Role == "admin" || c.Role == "operator"
+	}
+	return false
 }

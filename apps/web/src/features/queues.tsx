@@ -546,6 +546,8 @@ function Stats({
     </div>
   );
 }
+import { EmptyQueues } from "./deployment";
+
 export function OverviewPage() {
   const query = useQuery(getOverviewOptions());
   return (
@@ -584,6 +586,11 @@ export function OverviewPage() {
         query.data && (
           <>
             <Stale error={query.error} />
+            {query.data.queues.length === 0 && (
+              <Section>
+                <EmptyQueues />
+              </Section>
+            )}
             <Stats
               queues={query.data.queues}
               activeWorkers={query.data.active_workers}
@@ -634,7 +641,11 @@ export function QueuesPage() {
           <>
             <Stale error={query.error} />
             <Section>
-              <QueueTable data={query.data.data} />
+              {query.data.data.length ? (
+                <QueueTable data={query.data.data} />
+              ) : (
+                <EmptyQueues />
+              )}
             </Section>
           </>
         )
@@ -692,7 +703,13 @@ export function QueuePage() {
           <Button
             variant="secondary"
             onClick={() => setConfirm(true)}
-            disabled={!query.data || session.data?.role !== "admin"}
+            disabled={
+              !query.data ||
+              !(
+                session.data?.role === "admin" ||
+                session.data?.role === "operator"
+              )
+            }
           >
             {paused ? <Play size={14} /> : <Pause size={14} />}{" "}
             {paused ? "Resume" : "Pause"} queue

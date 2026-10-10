@@ -3,8 +3,25 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServers, listTasks, listViews, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
-import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
+import { addMember, archiveTask, bulkAction, cancelTask, changeAdministration, changeMember, changePassword, cloneTask, createOrganization, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listMembers, listOrganizations, listQueues, listSchedulers, listServers, listTasks, listUsers, listViews, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, removeMember, renameOrganization, resumeQueue, retryTask, saveView, setup, switchOrganization, updateOrganizationConnection, updateUser } from '../sdk.gen';
+import type { AddMemberData, AddMemberError, AddMemberResponse, ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, ChangeAdministrationData, ChangeAdministrationError, ChangeAdministrationResponse, ChangeMemberData, ChangeMemberError, ChangeMemberResponse, ChangePasswordData, ChangePasswordError, ChangePasswordResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, CreateOrganizationData, CreateOrganizationError, CreateOrganizationResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListMembersData, ListMembersError, ListMembersResponse, ListOrganizationsData, ListOrganizationsError, ListOrganizationsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListUsersData, ListUsersError, ListUsersResponse, ListViewsData, ListViewsError, ListViewsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, RemoveMemberData, RemoveMemberError, RemoveMemberResponse, RenameOrganizationData, RenameOrganizationError, RenameOrganizationResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse, SetupData, SetupError, SetupResponse, SwitchOrganizationData, SwitchOrganizationError, SwitchOrganizationResponse, UpdateOrganizationConnectionData, UpdateOrganizationConnectionError, UpdateOrganizationConnectionResponse, UpdateUserData, UpdateUserError, UpdateUserResponse } from '../types.gen';
+
+/**
+ * Change own password and revoke sessions
+ */
+export const changePasswordMutation = (options?: Partial<Options<ChangePasswordData>>): UseMutationOptions<ChangePasswordResponse, ChangePasswordError, Options<ChangePasswordData>> => {
+    const mutationOptions: UseMutationOptions<ChangePasswordResponse, ChangePasswordError, Options<ChangePasswordData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await changePassword({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -134,6 +151,75 @@ export const listErrorGroupsOptions = (options?: Options<ListErrorGroupsData>) =
     queryKey: listErrorGroupsQueryKey(options)
 });
 
+export const listMembersQueryKey = (options?: Options<ListMembersData>) => createQueryKey('listMembers', options);
+
+/**
+ * Members of the selected organization (organization administrator)
+ */
+export const listMembersOptions = (options?: Options<ListMembersData>) => queryOptions<ListMembersResponse, ListMembersError, ListMembersResponse, ReturnType<typeof listMembersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listMembers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listMembersQueryKey(options)
+});
+
+/**
+ * Create a user or add an existing user to this organization
+ */
+export const addMemberMutation = (options?: Partial<Options<AddMemberData>>): UseMutationOptions<AddMemberResponse, AddMemberError, Options<AddMemberData>> => {
+    const mutationOptions: UseMutationOptions<AddMemberResponse, AddMemberError, Options<AddMemberData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await addMember({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Remove a membership
+ */
+export const removeMemberMutation = (options?: Partial<Options<RemoveMemberData>>): UseMutationOptions<RemoveMemberResponse, RemoveMemberError, Options<RemoveMemberData>> => {
+    const mutationOptions: UseMutationOptions<RemoveMemberResponse, RemoveMemberError, Options<RemoveMemberData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await removeMember({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Change a member's organization role
+ */
+export const changeMemberMutation = (options?: Partial<Options<ChangeMemberData>>): UseMutationOptions<ChangeMemberResponse, ChangeMemberError, Options<ChangeMemberData>> => {
+    const mutationOptions: UseMutationOptions<ChangeMemberResponse, ChangeMemberError, Options<ChangeMemberData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await changeMember({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const metricsHealthQueryKey = (options?: Options<MetricsHealthData>) => createQueryKey('metricsHealth', options);
 
 /**
@@ -216,6 +302,75 @@ export const queryMetricRangeInfiniteOptions = (options: Options<QueryMetricRang
         queryKey: queryMetricRangeInfiniteQueryKey(options)
     });
     return opts as Omit<typeof opts, 'initialData'>;
+};
+
+/**
+ * Rename the selected organization
+ */
+export const renameOrganizationMutation = (options?: Partial<Options<RenameOrganizationData>>): UseMutationOptions<RenameOrganizationResponse, RenameOrganizationError, Options<RenameOrganizationData>> => {
+    const mutationOptions: UseMutationOptions<RenameOrganizationResponse, RenameOrganizationError, Options<RenameOrganizationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await renameOrganization({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Replace selected organization connection (deployment administrator)
+ */
+export const updateOrganizationConnectionMutation = (options?: Partial<Options<UpdateOrganizationConnectionData>>): UseMutationOptions<UpdateOrganizationConnectionResponse, UpdateOrganizationConnectionError, Options<UpdateOrganizationConnectionData>> => {
+    const mutationOptions: UseMutationOptions<UpdateOrganizationConnectionResponse, UpdateOrganizationConnectionError, Options<UpdateOrganizationConnectionData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateOrganizationConnection({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listOrganizationsQueryKey = (options?: Options<ListOrganizationsData>) => createQueryKey('listOrganizations', options);
+
+/**
+ * Organizations accessible to the signed-in user
+ */
+export const listOrganizationsOptions = (options?: Options<ListOrganizationsData>) => queryOptions<ListOrganizationsResponse, ListOrganizationsError, ListOrganizationsResponse, ReturnType<typeof listOrganizationsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listOrganizations({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listOrganizationsQueryKey(options)
+});
+
+/**
+ * Create an organization (deployment administrator)
+ */
+export const createOrganizationMutation = (options?: Partial<Options<CreateOrganizationData>>): UseMutationOptions<CreateOrganizationResponse, CreateOrganizationError, Options<CreateOrganizationData>> => {
+    const mutationOptions: UseMutationOptions<CreateOrganizationResponse, CreateOrganizationError, Options<CreateOrganizationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await createOrganization({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
 };
 
 export const getOverviewQueryKey = (options?: Options<GetOverviewData>) => createQueryKey('getOverview', options);
@@ -394,6 +549,58 @@ export const loginMutation = (options?: Partial<Options<LoginData>>): UseMutatio
     return mutationOptions;
 };
 
+/**
+ * Select an accessible organization
+ */
+export const switchOrganizationMutation = (options?: Partial<Options<SwitchOrganizationData>>): UseMutationOptions<SwitchOrganizationResponse, SwitchOrganizationError, Options<SwitchOrganizationData>> => {
+    const mutationOptions: UseMutationOptions<SwitchOrganizationResponse, SwitchOrganizationError, Options<SwitchOrganizationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await switchOrganization({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Create the first organization and deployment administrator
+ */
+export const setupMutation = (options?: Partial<Options<SetupData>>): UseMutationOptions<SetupResponse, SetupError, Options<SetupData>> => {
+    const mutationOptions: UseMutationOptions<SetupResponse, SetupError, Options<SetupData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await setup({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const getDeploymentStatusQueryKey = (options?: Options<GetDeploymentStatusData>) => createQueryKey('getDeploymentStatus', options);
+
+/**
+ * Deployment connection diagnostics
+ */
+export const getDeploymentStatusOptions = (options?: Options<GetDeploymentStatusData>) => queryOptions<GetDeploymentStatusResponse, GetDeploymentStatusError, GetDeploymentStatusResponse, ReturnType<typeof getDeploymentStatusQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getDeploymentStatus({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getDeploymentStatusQueryKey(options)
+});
+
 export const listTasksQueryKey = (options?: Options<ListTasksData>) => createQueryKey('listTasks', options);
 
 /**
@@ -552,6 +759,58 @@ export const retryTaskMutation = (options?: Partial<Options<RetryTaskData>>): Us
     const mutationOptions: UseMutationOptions<RetryTaskResponse, RetryTaskError, Options<RetryTaskData>> = {
         mutationFn: async (fnOptions) => {
             const { data } = await retryTask({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+export const listUsersQueryKey = (options?: Options<ListUsersData>) => createQueryKey('listUsers', options);
+
+/**
+ * Deployment accounts (deployment administrator)
+ */
+export const listUsersOptions = (options?: Options<ListUsersData>) => queryOptions<ListUsersResponse, ListUsersError, ListUsersResponse, ReturnType<typeof listUsersQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listUsers({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listUsersQueryKey(options)
+});
+
+/**
+ * Disable or reset an account (deployment administrator)
+ */
+export const updateUserMutation = (options?: Partial<Options<UpdateUserData>>): UseMutationOptions<UpdateUserResponse, UpdateUserError, Options<UpdateUserData>> => {
+    const mutationOptions: UseMutationOptions<UpdateUserResponse, UpdateUserError, Options<UpdateUserData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await updateUser({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
+/**
+ * Grant, revoke or transfer deployment administration
+ */
+export const changeAdministrationMutation = (options?: Partial<Options<ChangeAdministrationData>>): UseMutationOptions<ChangeAdministrationResponse, ChangeAdministrationError, Options<ChangeAdministrationData>> => {
+    const mutationOptions: UseMutationOptions<ChangeAdministrationResponse, ChangeAdministrationError, Options<ChangeAdministrationData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await changeAdministration({
                 ...options,
                 ...fnOptions,
                 throwOnError: true

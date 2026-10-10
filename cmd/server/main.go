@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"github.com/nanaaikinson/spool/internal/api"
 	"github.com/nanaaikinson/spool/internal/asynqadapter"
 	"github.com/nanaaikinson/spool/internal/config"
+	"github.com/nanaaikinson/spool/internal/domain"
 	"github.com/nanaaikinson/spool/internal/events"
 	"github.com/nanaaikinson/spool/internal/metrics"
 	"github.com/nanaaikinson/spool/internal/store"
@@ -25,6 +27,20 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "setup" {
+		if e := setupCLI(os.Args[2:]); e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "admin" {
+		if e := recoverAdminCLI(os.Args[2:]); e != nil {
+			fmt.Fprintln(os.Stderr, e)
+			os.Exit(1)
+		}
+		return
+	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	if e := run(log); e != nil {
 		log.Error("startup failed", "reason", e.Error())
@@ -52,6 +68,39 @@ func run(log *slog.Logger) error {
 		defer db.DB.Close()
 		source.Entries = db
 	}
+	if db != nil {
+		needed, e := db.NeedsSetup(ctx)
+		if e != nil {
+			return errors.New("could not check account configuration")
+		}
+		if !c.MultiOrg && !needed {
+			return errors.New("this database has managed organizations; start with SPOOL_MULTI_ORG=true")
+		}
+		if c.MultiOrg {
+			if needed && c.AdminUser == "" && c.SetupToken == "" {
+				return errors.New("first organization setup requires SPOOL_SETUP_TOKEN or bootstrap administrator credentials")
+			}
+			if needed && c.AdminUser != "" {
+				var viewer []domain.LoginRequest
+				if c.ViewerUser != "" {
+					viewer = append(viewer, domain.LoginRequest{Username: c.ViewerUser, Password: c.ViewerPassword})
+				}
+				_, e := db.Setup(ctx, c.DataKey, domain.SetupRequest{Username: c.AdminUser, Password: c.AdminPassword, Organization: domain.OrganizationRequest{Name: c.OrganizationName, RedisURL: c.RedisURL}}, viewer...)
+				if e != nil && !errors.Is(e, store.ErrIdentityConflict) {
+					return errors.New("could not bootstrap organization; administrator/viewer passwords must be 12–72 bytes and usernames valid")
+				}
+			}
+			orgs, e := db.Organizations(ctx, "", true)
+			if e != nil {
+				return errors.New("could not read organizations")
+			}
+			for _, org := range orgs {
+				if _, e := db.Connection(ctx, org.ID, c.DataKey); e != nil {
+					return errors.New("could not decrypt organization connections; restore the original SPOOL_DATA_KEY")
+				}
+			}
+		}
+	}
 	broker := events.New()
 	go broker.Run(ctx)
 	registry := prometheus.NewRegistry()
@@ -61,7 +110,11 @@ func run(log *slog.Logger) error {
 	)
 	inspector := asynq.NewInspector(c.Redis())
 	defer inspector.Close()
-	registry.MustRegister(native.NewQueueMetricsCollector(inspector))
+	if c.MultiOrg {
+		registry.MustRegister(&organizationCollector{Store: db, Config: c})
+	} else {
+		registry.MustRegister(native.NewQueueMetricsCollector(inspector))
+	}
 	requests := prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "spool_http_request_duration_seconds",
@@ -71,10 +124,12 @@ func run(log *slog.Logger) error {
 		[]string{"method", "route", "status"},
 	)
 	registry.MustRegister(requests)
+	provider := metrics.New(c.PrometheusURL)
+	provider.Job = c.MetricsJob
 	app := &api.API{
 		Config:   c,
 		Source:   source,
-		Metrics:  metrics.New(c.PrometheusURL),
+		Metrics:  provider,
 		Store:    db,
 		Events:   broker,
 		Log:      log,
@@ -113,7 +168,7 @@ func run(log *slog.Logger) error {
 }
 
 // checkRedis reports early whether Spool can see the Asynq data. It never stops
-// startup: Redis may come up later, and /ready reports it until then.
+// startup: Redis may come up later; organization Settings reports its status.
 func checkRedis(ctx context.Context, log *slog.Logger, c config.Config, source *asynqadapter.Adapter) {
 	check, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()

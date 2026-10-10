@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   Dialog,
   DialogContent,
@@ -14,6 +14,9 @@ import {
   AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 
+import { useSession } from "../features/session";
+import { InstanceIdentity } from "../features/deployment";
+
 // Keep operational confirmations open until the mutation succeeds or is cancelled.
 export function OperationDialog({
   open,
@@ -22,6 +25,7 @@ export function OperationDialog({
   description,
   children,
   kind = "confirm",
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -29,12 +33,20 @@ export function OperationDialog({
   description: string;
   children: ReactNode;
   kind?: "confirm" | "form";
+  finalFocus?: RefObject<HTMLElement | null>;
 }) {
+  const session = useSession();
+  const identity = (
+    <div className="border-l-2 border-amber pl-3">
+      <InstanceIdentity session={session.data} />
+    </div>
+  );
   if (kind === "form")
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent finalFocus={finalFocus}>
           <DialogHeader>
+            {identity}
             <DialogTitle>{title}</DialogTitle>
             <DialogDescription>{description}</DialogDescription>
           </DialogHeader>
@@ -44,8 +56,9 @@ export function OperationDialog({
     );
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent finalFocus={finalFocus}>
         <AlertDialogHeader>
+          {identity}
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
