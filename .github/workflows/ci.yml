@@ -32,7 +32,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: make install
-      - run: make test-install
+      - run: make test-install test-hosted
       - run: make api-check lint test build
       - run: cd apps/web && pnpm exec playwright install --with-deps chromium
       - run: cd apps/web && pnpm exec playwright test

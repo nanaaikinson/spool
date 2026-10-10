@@ -6,6 +6,8 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
+- Dedicated hosted Compose deployment for Dokploy/Coolify, per-customer credential preparation, and an operator guide.
+- Optional `SPOOL_METRICS_TOKEN` bearer authentication on `/metrics`; the hosted stack requires it and configures its private Prometheus scraper.
 - Guided self-hosted installation with generated credentials, bundled PostgreSQL and Prometheus, optional external services, and startup readiness checks.
 - Audit log pagination: `GET /api/v1/audit` takes `page` and `limit` (default 25, at most 100) and returns the total; Settings pages through it.
 - Account menu in the sidebar footer, holding Settings and Sign out.

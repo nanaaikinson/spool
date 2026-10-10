@@ -63,8 +63,15 @@ func (a *API) Handler(scrape http.Handler) http.Handler {
 		}
 		a.json(w, domain.OK{OK: true})
 	})
-	// The scrape endpoint is unauthenticated; expose it only to the monitoring network, never on public ingress.
-	r.Handle("/metrics", scrape)
+	// Without a token, keep this endpoint private at ingress.
+	r.Handle("/metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if a.Config.MetricsToken != "" && !secureEqual(r.Header.Get("Authorization"), "Bearer "+a.Config.MetricsToken) {
+			w.Header().Set("WWW-Authenticate", `Bearer realm="spool-metrics"`)
+			a.fail(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "A valid metrics scrape token is required.", nil)
+			return
+		}
+		scrape.ServeHTTP(w, r)
+	}))
 	r.Get("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(spec)

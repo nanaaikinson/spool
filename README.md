@@ -37,6 +37,12 @@ The app is published on loopback only; bundled PostgreSQL and Prometheus have no
 
 See the [deployment guide](docs/deployment.md) for upgrades, backups, connection changes, manual Compose deployments, Dokploy and Coolify.
 
+## Operate dedicated hosted instances
+
+Use [compose.hosted.yaml](compose.hosted.yaml) as a separate Dokploy or Coolify resource for each customer. It pulls a pinned Spool image, creates private PostgreSQL and Prometheus stores, requires HTTPS cookies, and authenticates Prometheus scrapes with a separate token. Customer Redis connects directly through TLS or an approved private network.
+
+Prepare each customer's runtime credentials with `python3 scripts/prepare-hosted.py CUSTOMER --image "$SPOOL_RELEASE_IMAGE"`, where the image is a tested full release tag or digest containing the hosted support. The command prompts for Redis privately and writes `deployments/CUSTOMER/.env.hosted` with owner-only permissions. Supply its values in the platform before deploying. The [hosted operator guide](docs/hosting.md) covers both platforms, onboarding, verification, backups and upgrades. This is an operator-managed dedicated offering; signup, billing and automatic provisioning are not included.
+
 ## Try the published image
 
 Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. The quickest way to try it is the published image with a Redis URL and an account (Spool always requires sign-in when it listens beyond localhost, as it does in a container):

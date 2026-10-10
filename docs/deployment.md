@@ -4,6 +4,8 @@ Spool ships as one non-root container image that serves both the UI and the API 
 
 For a Docker host you operate, start with the guided installer below. Use the manual Compose files when you need custom networks/mounts or deploy through Dokploy/Coolify. The published image runs Spool with dependencies you provision separately.
 
+For an operator-managed dedicated hosted offering, use the separate [hosted guide](hosting.md) and `compose.hosted.yaml`. That standalone template pulls a pinned image, provisions isolated customer storage and authenticates Prometheus scrapes. The source-based self-hosted files below remain available for installations you operate yourself.
+
 ## Guided installation on your own Docker host
 
 From a checkout of Spool, run `./scripts/install.sh` (or `make self-host`). You need Docker with a Compose plugin supporting `up --wait`, Bash and OpenSSL. The frontend and backend build inside Docker; local Go, Node and pnpm installations are unnecessary.
@@ -207,7 +209,9 @@ The guided installer chooses the cookie setting from your console URL. Changing 
 
 Preserve the original HTTP `Host` header so same-origin checks work. Allow streaming responses for `/api/v1/events`; do not enable proxy buffering for SSE. Serve Spool at the domain root.
 
-`/metrics` is an unauthenticated scrape endpoint. Keep it on a private monitoring path/network, or deny that exact path at public ingress. For a Traefik public router, the route rule can be ``Host(`spool.example.com`) && !Path(`/metrics`)``: apply it to the generated public router using your platform's proxy-label configuration. Keep `/api/v1/metrics` accessible; it is a separate authenticated API endpoint.
+`/metrics` is unauthenticated unless `SPOOL_METRICS_TOKEN` is configured. The self-hosted Compose files leave it unconfigured: keep it on a private monitoring path/network, or deny that exact path at public ingress. For a Traefik public router, the route rule can be ``Host(`spool.example.com`) && !Path(`/metrics`)``: apply it to the generated public router using your platform's proxy-label configuration. Keep `/api/v1/metrics` accessible; it is a separate authenticated API endpoint.
+
+For a direct image deployment, you can instead pass `SPOOL_METRICS_TOKEN` at runtime and configure Prometheus to send `Authorization: Bearer TOKEN` using an authorization credentials file. Tokens require at least 32 characters without whitespace. Console session cookies do not authorize scrapes. The dedicated hosted template passes this setting to the app and configures Prometheus automatically; setting it only on the app breaks an unconfigured scraper. Older images ignore this variable, so verify anonymous scrapes return 401 after deploying an image with token support.
 
 For example, with **Caddy installed directly on the Docker host**, this Caddyfile routes the UI/API, denies public metrics, and uses automatic HTTPS. Point the domain's DNS at the host and allow Caddy to receive traffic on ports 80 and 443:
 

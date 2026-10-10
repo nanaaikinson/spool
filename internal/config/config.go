@@ -26,6 +26,7 @@ type Config struct {
 	ViewerUser     string
 	ViewerPassword string
 	SessionKey     string
+	MetricsToken   string
 	ReadOnly       bool
 	// ReadOnlyReason says why changes are disabled: "configured" when
 	// SPOOL_READ_ONLY is set, "no_database" when there is nowhere to record
@@ -55,6 +56,7 @@ func Load() (Config, error) {
 		ViewerUser:     env.Get("SPOOL_VIEWER_USER"),
 		ViewerPassword: env.Get("SPOOL_VIEWER_PASSWORD"),
 		SessionKey:     env.Get("SPOOL_SESSION_KEY"),
+		MetricsToken:   env.Get("SPOOL_METRICS_TOKEN"),
 		ReadOnly:       env.GetBool("SPOOL_READ_ONLY", false),
 		SecureCookie:   env.GetBool("SPOOL_SECURE_COOKIE", false),
 	}
@@ -82,6 +84,9 @@ func Load() (Config, error) {
 	}
 	if _, err := asynq.ParseRedisURI(c.RedisURL); err != nil {
 		return c, fmt.Errorf("invalid REDIS_URL")
+	}
+	if c.MetricsToken != "" && (len(c.MetricsToken) < 32 || strings.ContainsAny(c.MetricsToken, " \t\r\n")) {
+		return c, fmt.Errorf("SPOOL_METRICS_TOKEN must be at least 32 characters without whitespace")
 	}
 	tlsConfig, e := redisTLS(
 		env.Get("REDIS_TLS_CA_FILE"),

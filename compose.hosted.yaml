@@ -1,0 +1,101 @@
+# One platform resource per customer. Route only app:8080 through HTTPS.
+# Pin SPOOL_IMAGE to a release built from code supporting SPOOL_METRICS_TOKEN.
+services:
+  app:
+    image: ${SPOOL_IMAGE:?Set a tested full release tag or digest}
+    restart: unless-stopped
+    stop_grace_period: 30s
+    expose: ["8080"]
+    networks: [default, storage]
+    read_only: true
+    tmpfs: [/tmp]
+    mem_limit: ${SPOOL_APP_MEMORY:-512m}
+    cpus: ${SPOOL_APP_CPUS:-1.0}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    environment:
+      SPOOL_ADDR: 0.0.0.0:8080
+      SPOOL_ENV: hosted-${SPOOL_CUSTOMER:?Set a unique customer slug}
+      REDIS_URL: ${REDIS_URL:?Set the customer's Asynq Redis URI}
+      DATABASE_URL: postgres://spool:${POSTGRES_PASSWORD:?Set a URL-safe database password}@postgres:5432/spool?sslmode=disable
+      PROMETHEUS_URL: http://prometheus:9090
+      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER:-admin}
+      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:?Set an admin password}
+      SPOOL_SESSION_KEY: ${SPOOL_SESSION_KEY:?Set a signing key}
+      SPOOL_METRICS_TOKEN: ${SPOOL_METRICS_TOKEN:?Set a metrics scrape token}
+      SPOOL_VIEWER_USER: ${SPOOL_VIEWER_USER:-}
+      SPOOL_VIEWER_PASSWORD: ${SPOOL_VIEWER_PASSWORD:-}
+      SPOOL_READ_ONLY: ${SPOOL_READ_ONLY:-false}
+      SPOOL_SECURE_COOKIE: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    stop_grace_period: 30s
+    networks: [storage]
+    mem_limit: ${SPOOL_POSTGRES_MEMORY:-512m}
+    cpus: ${SPOOL_POSTGRES_CPUS:-1.0}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    environment:
+      POSTGRES_USER: spool
+      POSTGRES_DB: spool
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a URL-safe database password}
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spool -d spool"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    restart: unless-stopped
+    stop_grace_period: 30s
+    networks: [storage]
+    mem_limit: ${SPOOL_PROMETHEUS_MEMORY:-512m}
+    cpus: ${SPOOL_PROMETHEUS_CPUS:-1.0}
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "3"}
+    environment:
+      SPOOL_METRICS_TOKEN: ${SPOOL_METRICS_TOKEN:?Set a metrics scrape token}
+    # Generate config inside the container: no repository bind mounts to survive
+    # platform re-clones, and the token stays out of the YAML and command line.
+    entrypoint: [/bin/sh, -ec]
+    command:
+      - |
+        umask 077
+        printf '%s' "$$SPOOL_METRICS_TOKEN" > /tmp/spool-metrics-token
+        cat > /tmp/spool-prometheus.yml <<'CONFIG'
+        global:
+          scrape_interval: 15s
+        scrape_configs:
+          - job_name: spool
+            authorization:
+              credentials_file: /tmp/spool-metrics-token
+            static_configs:
+              - targets: ["app:8080"]
+        CONFIG
+        exec /bin/prometheus --config.file=/tmp/spool-prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d --storage.tsdb.retention.size=2GB
+    volumes: [prometheus-data:/prometheus]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  postgres-data:
+  prometheus-data:
+networks:
+  default:
+  storage:
+    internal: true

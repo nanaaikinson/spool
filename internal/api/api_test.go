@@ -406,3 +406,47 @@ func TestStaticBrandAssets(t *testing.T) {
 		}
 	}
 }
+
+func TestMetricsScrapeToken(t *testing.T) {
+	a := testAPI(&fakeSource{})
+	a.Config.AdminUser, a.Config.AdminPassword = "admin", "secret"
+	a.Config.MetricsToken = strings.Repeat("m", 64)
+	calls := 0
+	h := a.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Write([]byte("sample_metric 1\n"))
+	}))
+	for _, authorization := range []string{"", "Bearer wrong", "Basic " + a.Config.MetricsToken, "Bearer " + a.Config.MetricsToken + "extra"} {
+		w := call(h, "GET", "/metrics", "", map[string]string{"Authorization": authorization})
+		if w.Code != 401 || w.Header().Get("WWW-Authenticate") == "" || strings.Contains(w.Body.String(), a.Config.MetricsToken) {
+			t.Fatalf("unauthorized scrape: %d %s", w.Code, w.Body.String())
+		}
+	}
+	w := call(h, "GET", "/metrics?token="+a.Config.MetricsToken, "", nil)
+	if w.Code != 401 || calls != 0 {
+		t.Fatal("unauthorized requests must not reach the collector")
+	}
+	login := call(h, "POST", "/api/v1/session", `{"username":"admin","password":"secret"}`, nil)
+	if login.Code != 200 || len(login.Result().Cookies()) == 0 {
+		t.Fatalf("login failed: %d", login.Code)
+	}
+	w = call(h, "GET", "/metrics", "", map[string]string{"Cookie": login.Result().Cookies()[0].String()})
+	if w.Code != 401 || calls != 0 {
+		t.Fatal("console cookies must not authorize metrics scrapes")
+	}
+	headers := map[string]string{"Authorization": "Bearer " + a.Config.MetricsToken}
+	w = call(h, "GET", "/metrics", "", headers)
+	if w.Code != 200 || w.Body.String() != "sample_metric 1\n" || calls != 1 {
+		t.Fatal("valid scrape token did not reach collector")
+	}
+	w = call(h, "GET", "/api/v1/queues", "", headers)
+	if w.Code != 401 {
+		t.Fatal("metrics token must not grant console API access")
+	}
+	// Existing deployments remain compatible when no token is configured.
+	a.Config.MetricsToken = ""
+	w = call(h, "GET", "/metrics", "", nil)
+	if w.Code != 200 || calls != 2 {
+		t.Fatal("unconfigured scrape endpoint must remain accessible")
+	}
+}

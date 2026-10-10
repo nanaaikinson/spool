@@ -15,7 +15,7 @@ Only the latest release receives security fixes while Spool is below 1.0.
 - Require sign-in (`SPOOL_ADMIN_USER` or `SPOOL_VIEWER_USER`) anywhere other than your own machine. Spool refuses to listen on a non-loopback address without it.
 - For remote browser access, serve Spool over HTTPS and set `SPOOL_SECURE_COOKIE=true`. The guided installer's local HTTP option disables secure cookies and binds the host port to loopback; use it on your own machine or through an SSH tunnel.
 - Use long random values for passwords and `SPOOL_SESSION_KEY` (`openssl rand -hex 32`).
-- Keep `/metrics` off public ingress; it is unauthenticated by design for Prometheus.
+- Keep `/metrics` off public ingress when no scrape token is configured. `SPOOL_METRICS_TOKEN` requires bearer authentication on that path; use an independent random token of at least 32 characters without whitespace. It does not grant access to console APIs.
 - Give Spool its own Redis and PostgreSQL credentials, and use `SPOOL_READ_ONLY=true` or a viewer account where people only need to look.
 
 ## Installation credentials and storage
@@ -24,6 +24,8 @@ The [guided installer](docs/deployment.md#guided-installation-on-your-own-docker
 
 Configuration is passed to the Go server at runtime. Keep Redis, PostgreSQL and Prometheus credentials out of frontend configuration, Docker build arguments and baked images. Settings and connection URLs remain server-side. Separate deployments are required for distinct Asynq environments.
 
-Bundled PostgreSQL and Prometheus have no published host ports and use persistent named volumes. Keep the unauthenticated `/metrics` scrape path off public ingress even when the console requires sign-in. External Prometheus must contain only the intended environment's Asynq metrics; current queries do not isolate multiple environments sharing queue names.
+Bundled PostgreSQL and Prometheus have no published host ports and use persistent named volumes. Without `SPOOL_METRICS_TOKEN`, the scrape path is unauthenticated even when the console requires sign-in. External Prometheus must contain only the intended environment's Asynq metrics; current queries do not isolate multiple environments sharing queue names.
+
+The [dedicated hosted stack](docs/hosting.md) requires a separate scrape token and configures its own private Prometheus. Each customer resource has separate accounts, secrets, storage and networks. Generated runtime files under `deployments/` are plaintext with owner-only permissions and must be handled like the self-hosted installation file. Separate containers on a shared host do not provide VM isolation; deploy to separate servers when that isolation is required. Verify anonymous `/metrics` returns 401 before onboarding: older images do not implement the token setting.
 
 After changing credentials, redeploy with the same configuration file and project name. Rotating `POSTGRES_PASSWORD` in an environment file does not change an existing PostgreSQL role: change the role's password and the application configuration together. Rotate `SPOOL_SESSION_KEY` to invalidate existing signed sessions. See [connection and account changes](docs/deployment.md#connection-and-account-changes) for the procedure.

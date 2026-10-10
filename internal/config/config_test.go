@@ -176,3 +176,17 @@ func TestRedisSentinelOptions(t *testing.T) {
 		t.Fatalf("shared password: %+v", shared)
 	}
 }
+
+func TestMetricsTokenValidation(t *testing.T) {
+	for _, token := range []string{"", strings.Repeat("a", 32), "short", strings.Repeat("a", 32) + "\n"} {
+		t.Setenv("SPOOL_METRICS_TOKEN", token)
+		c, err := Load()
+		valid := token == "" || token == strings.Repeat("a", 32)
+		if valid && (err != nil || c.MetricsToken != token) {
+			t.Fatalf("valid token configuration failed: %v", err)
+		}
+		if !valid && (err == nil || strings.Contains(err.Error(), token)) {
+			t.Fatal("invalid token must produce an error without the secret")
+		}
+	}
+}
