@@ -28,3 +28,6 @@ export const bytes = (value: number) => {
 export const plural = (n: number, unit: string, many = `${unit}s`) =>
   `${number(n)} ${n === 1 ? unit : many}`;
 export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Color hint for an environment name: red for production, amber for staging. */
+export const envTone = (env: string) =>
+  /prod/i.test(env) ? "production" : /stag/i.test(env) ? "staging" : "other";

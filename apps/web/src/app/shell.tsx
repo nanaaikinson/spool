@@ -1,22 +1,13 @@
-import { Card } from "@/components/ui/card";
-import { Field, FieldLabel, FieldError } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { useId, useEffect, useState, Suspense } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { Outlet, useNavigate } from "@tanstack/react-router";
 import { useMutation } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
-import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
-import { Spool } from "lucide-react";
-import { Button } from "../components/ui/button";
 import { DataError, Loading } from "../components/data-state";
 import { useTheme } from "./theme";
 import { useSession } from "../features/session";
 import {
-  loginMutation,
   logoutMutation,
   getSessionQueryKey,
 } from "../api/generated/@tanstack/react-query.gen";
@@ -26,89 +17,12 @@ import { nav } from "./nav";
 import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
 import { CommandPalette } from "./command-palette";
-const loginSchema = z.object({
-  username: z.string().min(1, "Enter your username."),
-  password: z.string().min(1, "Enter your password."),
-});
-function Login() {
-  const fieldsID = useId();
-  const form = useForm<z.infer<typeof loginSchema>>({
-    resolver: zodResolver(loginSchema),
-  });
-  const mutation = useMutation({
-    ...loginMutation(),
-    onSuccess: (data) => {
-      queryClient.removeQueries({
-        predicate: (q) =>
-          q.queryKey[0] !== getSessionQueryKey()[0] &&
-          !(
-            typeof q.queryKey[0] === "object" &&
-            q.queryKey[0] !== null &&
-            "_id" in q.queryKey[0] &&
-            q.queryKey[0]._id === getSessionQueryKey()[0]._id
-          ),
-      });
-      queryClient.setQueryData(getSessionQueryKey(), data);
-    },
-  });
-  return (
-    <Card className="login gap-0">
-      <div className="brand">
-        <Spool className="accent" size={30} />
-        Spool
-      </div>
-      <h1>Sign in</h1>
-      <p className="muted" style={{ marginTop: 8 }}>
-        Sign in to monitor and manage your Asynq queues.
-      </p>
-      <form
-        className="form"
-        onSubmit={form.handleSubmit((values) =>
-          mutation.mutate({ body: values }),
-        )}
-      >
-        <Field>
-          <FieldLabel htmlFor={`${fieldsID}-username`}>Username</FieldLabel>
-          <Input
-            id={`${fieldsID}-username`}
-            autoComplete="username"
-            {...form.register("username")}
-            aria-invalid={!!form.formState.errors.username}
-          />
-          {form.formState.errors.username && (
-            <FieldError className="form-error">
-              {form.formState.errors.username.message}
-            </FieldError>
-          )}
-        </Field>
-        <Field>
-          <FieldLabel htmlFor={`${fieldsID}-password`}>Password</FieldLabel>
-          <Input
-            id={`${fieldsID}-password`}
-            type="password"
-            autoComplete="current-password"
-            {...form.register("password")}
-            aria-invalid={!!form.formState.errors.password}
-          />
-          {form.formState.errors.password && (
-            <FieldError className="form-error">
-              {form.formState.errors.password.message}
-            </FieldError>
-          )}
-        </Field>
-        {mutation.error && (
-          <FieldError className="form-error" role="alert">
-            {errorMessage(mutation.error)}
-          </FieldError>
-        )}
-        <Button disabled={mutation.isPending} type="submit">
-          {mutation.isPending ? "Signing in…" : "Sign in"}
-        </Button>
-      </form>
-    </Card>
-  );
-}
+import { LoginScreen } from "./login";
 export function Shell() {
+  const session = useSession();
+  // Signed-out visitors get the sign-in screen without any of the app frame.
+  if (session.data && !session.data.authenticated)
+    return <LoginScreen session={session.data} />;
   return (
     <SidebarProvider
       defaultOpen={!document.cookie.includes("sidebar_state=false")}
@@ -222,8 +136,6 @@ function ShellContent() {
             <Loading />
           ) : session.error ? (
             <DataError error={session.error} retry={() => session.refetch()} />
-          ) : !session.data?.authenticated ? (
-            <Login />
           ) : (
             <Suspense fallback={<Loading />}>
               <Outlet />

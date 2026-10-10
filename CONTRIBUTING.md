@@ -4,11 +4,11 @@ Thanks for helping. Bug reports, fixes and focused improvements are all welcome.
 
 ## Set up
 
-You need Go 1.27+, Node 24+, pnpm (via `corepack enable`) and Docker Compose.
+You need Go 1.27+, Node 24+, pnpm 10.33 (`corepack enable` picks the version pinned in `apps/web/package.json`) and Docker Compose.
 
 ```sh
 cp .env.example .env
-pnpm --dir apps/web install --frozen-lockfile
+make install
 make infra      # Redis, PostgreSQL and Prometheus on local ports
 make run-dev    # API server and web UI together
 REDIS_URL=redis://127.0.0.1:6388/0 make demo   # optional sample traffic
@@ -20,7 +20,7 @@ Run `make` to list every target.
 
 ```sh
 make lint test api-check
-make e2e        # browser tests; needs `pnpm --dir apps/web exec playwright install chromium` once
+make e2e        # browser tests; needs `cd apps/web && pnpm exec playwright install chromium` once
 ```
 
 - **API changes:** edit the endpoint registry in `internal/api/contract.go` and the DTOs in `internal/domain`, then run `make api-client` and commit the regenerated `api/openapi.json` and `apps/web/src/api/generated`.

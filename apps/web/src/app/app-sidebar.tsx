@@ -1,6 +1,7 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Settings, Spool } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
+import { BrandMark } from "../components/brand";
 import {
   Sidebar,
   SidebarContent,
@@ -28,8 +29,7 @@ import {
 } from "../api/generated/@tanstack/react-query.gen";
 import { useSession } from "../features/session";
 import { activeNav, altLabel, compactNumber, nav, navGroups } from "./nav";
-const envTone = (env: string) =>
-  /prod/i.test(env) ? "production" : /stag/i.test(env) ? "staging" : "other";
+import { envTone } from "../lib/utils";
 export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
   const session = useSession();
   const location = useLocation();
@@ -62,7 +62,7 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
             <SidebarMenuButton size="lg" asChild tooltip="Spool">
               <Link to="/" className="sidebar-brand" onClick={close}>
                 <span className="brand-tile">
-                  <Spool size={18} />
+                  <BrandMark size={20} />
                 </span>
                 <span className="sidebar-text">
                   <strong>Spool</strong>
@@ -153,7 +153,13 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
           </span>
           <span className="sidebar-text">
             <strong>{actor}</strong>
-            <span>{readOnly ? "Read only" : "Full access"}</span>
+            <span>
+              {!session.data?.authenticated
+                ? "Not signed in"
+                : readOnly
+                  ? "Read only"
+                  : "Full access"}
+            </span>
           </span>
           {session.data?.auth_required && session.data.authenticated && (
             <Tooltip>

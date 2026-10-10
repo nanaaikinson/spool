@@ -31,6 +31,16 @@ Type uses the native system sans for interface text and native monospace for que
 
 Cards use a 12px radius and controls 8px.
 
+## Brand
+
+The Spool symbol is a spindle with a diagonal opening that suggests an unwinding thread. Brand colors are copper #B65C3A and ink #161616 on light backgrounds, and light copper #E4A07A and paper #F3EFE7 on dark ones. They belong to the logo only; operational state never uses them.
+
+- **Sidebar:** the symbol in light copper on an ink tile, matching the app icon, in both themes. It uses the kit's small-size drawing, which has broader flanges and a wider opening for 16–24px.
+- **Sign-in:** a full-screen page without the app frame. From 960px a brand panel (ink, with the dark lockup, a short pitch and a faint diagonal thread echoing the symbol) sits beside the form; on phones the form stands alone under the themed lockup. The form keeps errors inline, clears the password after a failed attempt, warns when Caps Lock is on and lets people reveal the password.
+- **Browser:** SVG and ICO favicons, an Apple touch icon, 192/512px icons and a maskable icon, declared in `index.html` and `site.webmanifest`.
+
+Brand files live in `apps/web/public` (icons) and `apps/web/src/assets/brand` (lockups), with README copies in `docs/assets`. Keep clear space of one flange thickness around the artwork, and don't recolor, stretch or rebuild the wordmark.
+
 ## Color and themes
 
 Palette: black #0a0a0a (canvas), charcoal #171717 (surface), neutral #2b2b2b (rules), white #eeeeee (text and primary actions), green #58bc92 (running, succeeded), red #ed7379 (failures), amber #e4b930 (retrying, waiting, warnings), purple #aa82ef (scheduled, paused, periodic). Light mode uses a #f7f7f7 canvas, white surfaces, #202020 text and darker semantic colors. Every surface, form, chart, popover, skeleton and toast uses the same theme tokens.

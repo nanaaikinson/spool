@@ -1,4 +1,9 @@
-# Spool
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/spool-horizontal-dark.svg">
+    <img src="docs/assets/spool-horizontal-color.svg" alt="Spool" width="260">
+  </picture>
+</p>
 
 A self-hosted observability and operations console for Asynq. React, TypeScript and Vite on the frontend; Go, Chi and the Asynq Inspector on the backend. PostgreSQL stores the audit log, saved views and periodic schedule links; it does not mirror tasks.
 
@@ -53,11 +58,11 @@ Spool is built and tested against Asynq **v0.26**. It reads Asynq's data in Redi
 
 ## Develop locally
 
-Requires Go 1.27+, Node 24+, pnpm 10.33 (pinned in `package.json`), and Docker Compose. [Air](https://github.com/air-verse/air) is optional: `make dev` uses it for live reload when installed and falls back to `go run` otherwise. With Corepack, run `corepack enable` once before installing dependencies.
+Requires Go 1.27+, Node 24+, pnpm 10.33 (pinned in `apps/web/package.json`), and Docker Compose. [Air](https://github.com/air-verse/air) is optional: `make dev` uses it for live reload when installed and falls back to `go run` otherwise. With Corepack, run `corepack enable` once; the Makefile runs pnpm inside `apps/web` so Corepack picks the pinned version.
 
 ```sh
 cp .env.example .env
-pnpm --dir apps/web install --frozen-lockfile
+make install
 make infra
 make run-dev
 ```
@@ -142,7 +147,7 @@ make lint          # go vet, ESLint, TypeScript
 make test          # Backend and frontend unit tests
 make build         # Build the web UI and the Go server and demo binaries
 make e2e           # Build the web UI and run the Playwright browser tests
-pnpm --dir apps/web exec prettier --write src e2e '*.ts'
+(cd apps/web && pnpm exec prettier --write src e2e '*.ts')
 ```
 
 Real integration tests use explicitly configured isolated services:
@@ -152,7 +157,7 @@ SPOOL_TEST_REDIS=redis://127.0.0.1:6388/15 \
 SPOOL_TEST_DATABASE='postgres://spool:spool-local@127.0.0.1:5448/spool?sslmode=disable' \
 go test -race ./internal/...
 
-pnpm --dir apps/web exec playwright install chromium
+(cd apps/web && pnpm exec playwright install chromium)
 make e2e
 ```
 

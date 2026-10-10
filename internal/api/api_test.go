@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -262,5 +263,31 @@ func TestRealHTTPMutation(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("successful audits %d", count)
+	}
+}
+
+func TestStaticBrandAssets(t *testing.T) {
+	dir := t.TempDir()
+	for name, body := range map[string]string{
+		"index.html":       "<!doctype html>",
+		"site.webmanifest": `{"name":"Spool"}`,
+		"favicon.ico":      "\x00\x00\x01\x00",
+	} {
+		if e := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o600); e != nil {
+			t.Fatal(e)
+		}
+	}
+	a := testAPI(&fakeSource{})
+	a.Config.StaticDir = dir
+	h := a.Handler(http.NotFoundHandler())
+	for path, want := range map[string]string{
+		"/site.webmanifest": "application/manifest+json",
+		"/favicon.ico":      "image/x-icon",
+		"/queues":           "text/html; charset=utf-8",
+	} {
+		w := call(h, "GET", path, "", nil)
+		if w.Code != 200 || w.Header().Get("Content-Type") != want {
+			t.Fatalf("%s: %d %q, want %q", path, w.Code, w.Header().Get("Content-Type"), want)
+		}
 	}
 }

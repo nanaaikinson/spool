@@ -1052,26 +1052,6 @@ input[type="search"]::-webkit-search-cancel-button:hover {
 .notice [data-slot="alert-description"] {
   font-size: var(--text-xs);
 }
-.login {
-  max-width: 380px;
-  margin: 10vh auto;
-  padding: var(--space-6);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-card);
-}
-.login .brand {
-  padding-left: 0;
-}
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 0 var(--space-6);
-  font-size: var(--text-xl);
-  font-weight: 680;
-  letter-spacing: -0.02em;
-}
 .dot {
   display: inline-block;
   width: 7px;
@@ -1184,18 +1164,39 @@ input[type="search"]::-webkit-search-cancel-button:hover {
 .sidebar-brand {
   gap: 10px;
 }
+/* Brand colors come from the logo kit and are reserved for identity artwork,
+   never for operational state. The tile matches the app icon: light copper on
+   ink in both themes. */
 .brand-tile {
   display: grid;
   place-items: center;
   width: 32px;
   height: 32px;
   flex: none;
-  border-radius: 9px;
-  background: var(--primary);
-  color: var(--primary-foreground);
+  border-radius: 8px;
+  background: #161616;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 1px 3px rgba(0, 0, 0, 0.25);
+}
+.brand-mark {
+  flex: none;
+  fill: #e4a07a;
+}
+.brand-logo {
+  display: inline-flex;
+}
+.brand-logo img {
+  width: auto;
+  max-width: none;
+  height: 100%;
+}
+.brand-logo .on-dark,
+.dark .brand-logo .on-light {
+  display: none;
+}
+.dark .brand-logo .on-dark {
+  display: block;
 }
 .sidebar-text {
   display: grid;
@@ -2025,4 +2026,214 @@ input[type="search"]::-webkit-search-cancel-button:hover {
 }
 .mode-banner code {
   font-size: var(--text-2xs);
+}
+
+/* Sign-in screen. One column on phones; from 960px a brand panel sits beside
+   the form. The panel uses the logo kit's ink, paper and copper in both themes. */
+.login-screen {
+  display: grid;
+  min-height: 100dvh;
+  background: var(--background);
+}
+.login-brand {
+  display: none;
+}
+.login-main {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px var(--space-4);
+}
+.login-toolbar {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+}
+.login-panel {
+  width: min(400px, 100%);
+}
+.login-mobile-logo {
+  margin-bottom: var(--space-8);
+}
+.login-panel h1 {
+  font-size: var(--text-2xl);
+}
+.login-intro {
+  margin-top: var(--space-2);
+  color: var(--muted-foreground);
+}
+.login-form {
+  display: grid;
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+.login-form [data-slot="input"] {
+  height: 40px;
+}
+.password-field {
+  position: relative;
+}
+.password-field [data-slot="input"] {
+  padding-right: 44px;
+}
+.password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  translate: 0 -50%;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted-foreground);
+}
+.password-toggle:hover {
+  background: var(--hover);
+  color: var(--foreground);
+}
+.caps-hint {
+  color: var(--amber);
+  font-size: var(--text-xs);
+}
+.login-error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: 10px var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--red) 35%, transparent);
+  border-radius: var(--radius-control);
+  background: var(--red-bg);
+  color: var(--red);
+  font-size: var(--text-sm);
+}
+.login-error svg {
+  flex: none;
+  margin-top: 2px;
+}
+.login-submit[data-slot="button"] {
+  width: 100%;
+  height: 40px;
+  margin-top: var(--space-1);
+}
+.login-help {
+  margin-top: var(--space-5);
+  color: var(--muted-foreground);
+  font-size: var(--text-xs);
+  text-wrap: pretty;
+}
+.login-meta {
+  position: absolute;
+  bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-foreground);
+  font-size: var(--text-2xs);
+}
+.env-dot[data-tone="production"] {
+  background: var(--red);
+}
+.env-dot[data-tone="staging"] {
+  background: var(--amber);
+}
+@media (min-width: 960px) {
+  .login-screen {
+    grid-template-columns: minmax(400px, 5fr) 7fr;
+  }
+  .login-brand {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: var(--space-8);
+    padding: 48px;
+    overflow: hidden;
+    background:
+      radial-gradient(
+        120% 80% at 0% 100%,
+        rgba(182, 92, 58, 0.22),
+        transparent 60%
+      ),
+      #161616;
+    color: #f3efe7;
+  }
+  /* A faint thread crossing the panel, echoing the symbol's opening. */
+  .login-brand::after {
+    content: "";
+    position: absolute;
+    inset: -20% -40%;
+    background: linear-gradient(
+      150deg,
+      transparent 49.6%,
+      rgba(228, 160, 122, 0.16) 49.8%,
+      rgba(228, 160, 122, 0.16) 50.2%,
+      transparent 50.4%
+    );
+    pointer-events: none;
+  }
+  .login-pitch {
+    position: relative;
+    z-index: 1;
+    max-width: 440px;
+  }
+  .login-tagline {
+    font-size: var(--text-3xl);
+    font-weight: 500;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+  .login-highlights {
+    display: grid;
+    gap: var(--space-5);
+    margin: var(--space-8) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+  .login-highlights li {
+    display: flex;
+    gap: var(--space-3);
+  }
+  .login-highlights strong {
+    display: block;
+    font-weight: 600;
+  }
+  .login-highlights li span:not(.login-highlight-icon) {
+    display: block;
+    margin-top: 2px;
+    color: rgba(243, 239, 231, 0.65);
+    font-size: var(--text-sm);
+  }
+  .login-highlight-icon {
+    display: grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    flex: none;
+    border: 1px solid rgba(243, 239, 231, 0.12);
+    border-radius: var(--radius-control);
+    background: rgba(243, 239, 231, 0.04);
+    color: #e4a07a;
+  }
+  .login-brand-footer {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: rgba(243, 239, 231, 0.55);
+    font-size: var(--text-xs);
+  }
+  .login-mobile-logo {
+    display: none;
+  }
+  .login-toolbar {
+    top: var(--space-5);
+    right: var(--space-5);
+  }
 }

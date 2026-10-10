@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -723,6 +724,13 @@ func (a *API) sse(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 		}
 	}
+}
+
+func init() {
+	// Icons and the web manifest aren't in Go's built-in MIME table, and the
+	// container image has no system MIME database to fall back on.
+	_ = mime.AddExtensionType(".webmanifest", "application/manifest+json")
+	_ = mime.AddExtensionType(".ico", "image/x-icon")
 }
 
 func (a *API) static(w http.ResponseWriter, r *http.Request) {

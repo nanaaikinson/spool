@@ -16,6 +16,7 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 - `REDIS_TLS_CA_FILE`, `REDIS_TLS_CERT_FILE` and `REDIS_TLS_KEY_FILE` for Redis behind a private CA or requiring client certificates.
 - Startup check that reports when Redis can't be reached or has no Asynq queues in the configured database.
 - Multi-architecture container images published to GitHub Container Registry on each release.
+- Spool logo, favicons, app icons and web manifest, and a dedicated sign-in screen.
 
 ### Fixed
 

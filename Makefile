@@ -1,4 +1,4 @@
-.PHONY: help dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
+.PHONY: help install dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
 .DEFAULT_GOAL := help
 GO ?= go
 PNPM ?= pnpm
@@ -9,6 +9,8 @@ LDFLAGS := -s -w -X github.com/nanaaikinson/spool/internal/version.Version=$(VER
 help: ## List available targets
 	@awk 'BEGIN {FS = ":.*## "} /^[a-z0-9-]+:.*## / {printf "  \033[36m%-11s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+install: ## Install web UI dependencies at the pinned pnpm version
+	cd apps/web && $(PNPM) install --frozen-lockfile
 dev: ## Run the API server, rebuilding on change with Air when installed
 	@if command -v $(AIR) >/dev/null 2>&1; then \
 		$(AIR); \
@@ -17,7 +19,7 @@ dev: ## Run the API server, rebuilding on change with Air when installed
 		$(GO) run ./cmd/server; \
 	fi
 web: ## Run the Vite dev server for the web UI
-	$(PNPM) --dir apps/web dev
+	cd apps/web && $(PNPM) dev
 run-dev: ## Run the API server and web UI together
 	$(MAKE) --no-print-directory -j2 dev web
 demo: ## Run the demo worker, which enqueues sample traffic
@@ -28,7 +30,7 @@ down: ## Stop local infrastructure, keeping its data
 	docker compose down
 
 build: ## Build the web UI and the server and demo binaries
-	$(PNPM) --dir apps/web build
+	cd apps/web && $(PNPM) build
 	mkdir -p bin
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/spool ./cmd/server
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/spool-demo ./cmd/demo
@@ -36,18 +38,18 @@ image: ## Build the Docker image locally, tagged spool:$(VERSION)
 	docker build --build-arg VERSION=$(VERSION) -t spool:$(VERSION) .
 test: ## Run backend and frontend unit tests
 	$(GO) test ./...
-	$(PNPM) --dir apps/web test
+	cd apps/web && $(PNPM) test
 e2e: ## Run browser tests against isolated test databases
-	$(PNPM) --dir apps/web build
-	$(PNPM) --dir apps/web exec playwright test
+	cd apps/web && $(PNPM) build
+	cd apps/web && $(PNPM) exec playwright test
 lint: ## Run go vet, ESLint and the TypeScript checker
 	$(GO) vet ./...
-	$(PNPM) --dir apps/web lint
-	$(PNPM) --dir apps/web typecheck
+	cd apps/web && $(PNPM) lint
+	cd apps/web && $(PNPM) typecheck
 
 openapi: ## Regenerate api/openapi.json from the endpoint registry
 	$(GO) run ./cmd/openapi
 api-client: openapi ## Regenerate OpenAPI and the TypeScript client
-	$(PNPM) --dir apps/web api:generate
+	cd apps/web && $(PNPM) api:generate
 api-check: ## Fail if the committed contract or client is out of date
 	./scripts/api-check.sh
