@@ -50,7 +50,7 @@ import { DataError, Empty, Loading, Stale } from "../components/data-state";
 import { InfoTip } from "../components/info-tip";
 import { CronChip } from "./schedules";
 import { clock, dueIn, runState, timeOfDay, useNow } from "../lib/time";
-import { queryClient } from "./queries";
+import { queryClient, queueItems } from "./queries";
 const SAMPLE_MS = 2_000;
 const UP_NEXT_MS = 5_000;
 const TAIL_LIMIT = 200;
@@ -222,13 +222,14 @@ export function LivePage() {
         actions={
           <>
             <Select
+              items={queueItems(queues.data?.data)}
               value={queue ? `queue:${queue}` : "all"}
               onValueChange={(value) =>
                 navigate({
                   to: "/live",
                   search: (old) => ({
                     ...old,
-                    queue: value === "all" ? "" : value.slice(6),
+                    queue: !value || value === "all" ? "" : value.slice(6),
                   }),
                 })
               }

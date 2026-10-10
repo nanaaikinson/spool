@@ -178,15 +178,18 @@ export const statGrid = cva(cn("grid grid-cols-2 gap-3", stack), {
  * Paired cards. `split` puts main content beside a narrower aside from
  * 1024px of content width; `even` puts two equal panels side by side from 896px.
  */
-export const cardColumns = cva("grid grid-cols-1 gap-x-4 md:gap-x-5 xl:gap-x-6", {
-  variants: {
-    layout: {
-      split: "@5xl/main:grid-cols-[minmax(0,1.8fr)_minmax(300px,1fr)]",
-      even: "@4xl/main:grid-cols-2",
+export const cardColumns = cva(
+  "grid grid-cols-1 gap-x-4 md:gap-x-5 xl:gap-x-6",
+  {
+    variants: {
+      layout: {
+        split: "@5xl/main:grid-cols-[minmax(0,1.8fr)_minmax(300px,1fr)]",
+        even: "@4xl/main:grid-cols-2",
+      },
     },
+    defaultVariants: { layout: "split" },
   },
-  defaultVariants: { layout: "split" },
-});
+);
 
 /** Positive empty state inside a Section, e.g. no issues or no errors. */
 export function AllClear({
@@ -359,7 +362,7 @@ export const tabBar = cn(
   cardX,
 );
 export const tabItem =
-  "inline-flex h-auto flex-none items-center gap-[7px] rounded-none border-0 border-b-2 border-transparent bg-transparent px-0.5 pt-3 pb-2.5 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none after:hidden hover:bg-transparent hover:text-foreground aria-[current=page]:border-foreground aria-[current=page]:text-foreground data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=on]:border-foreground data-[state=on]:bg-transparent data-[state=on]:text-foreground dark:data-[state=active]:border-foreground dark:data-[state=active]:bg-transparent";
+  "inline-flex h-auto flex-none items-center gap-[7px] rounded-none border-0 border-b-2 border-transparent bg-transparent px-0.5 pt-3 pb-2.5 text-sm font-normal whitespace-nowrap text-muted-foreground shadow-none after:hidden hover:bg-transparent hover:text-foreground aria-[current=page]:border-foreground aria-[current=page]:text-foreground data-active:border-foreground data-active:bg-transparent data-active:text-foreground data-active:shadow-none data-pressed:border-foreground data-pressed:bg-transparent data-pressed:text-foreground dark:data-active:border-foreground dark:data-active:bg-transparent";
 export function TabCount({ children }: { children: ReactNode }) {
   return (
     <span className="inline-grid min-w-[22px] place-items-center rounded-full border bg-hover px-1.5 text-2xs leading-[18px] text-muted-foreground tabular-nums">

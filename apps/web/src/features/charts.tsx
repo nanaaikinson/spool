@@ -66,13 +66,15 @@ export function TimeRange() {
         Historical time range
       </Label>
       <Select
+        items={labels}
         value={search.range}
         onValueChange={(value) =>
           navigate({
             to: ".",
             search: (old) => ({
               ...old,
-              range: value in spans ? (value as keyof typeof spans) : "1h",
+              range:
+                value && value in spans ? (value as keyof typeof spans) : "1h",
             }),
           })
         }

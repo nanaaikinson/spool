@@ -231,8 +231,12 @@ export function SchedulersPage() {
           <PeriodicTable data={query.data.data} />
         )}
       </Section>
-      <Button variant="secondary" asChild>
-        <Link to="/scheduled">Inspect scheduled tasks</Link>
+      <Button
+        variant="secondary"
+        nativeButton={false}
+        render={<Link to="/scheduled" />}
+      >
+        Inspect scheduled tasks
       </Button>
     </>
   );

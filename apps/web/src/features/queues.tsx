@@ -135,28 +135,30 @@ export function Distribution({
   const total = states.reduce((n, s) => n + queue[s], 0);
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <div
-          tabIndex={0}
-          className={cn(
-            "flex h-1.5 max-w-[190px] min-w-[100px] gap-0.5 overflow-hidden rounded-[3px] bg-hover",
-            large && "h-2.5 w-full max-w-none rounded-[5px]",
-            className,
-          )}
-          aria-label={states.map((s) => `${queue[s]} ${s}`).join(", ")}
-        >
-          {states.map(
-            (s) =>
-              queue[s] > 0 && (
-                <span
-                  key={s}
-                  data-skeleton-hide
-                  className={cn("min-w-0.5", stateFill[s])}
-                  style={{ width: `${(queue[s] / Math.max(total, 1)) * 100}%` }}
-                />
-              ),
-          )}
-        </div>
+      <TooltipTrigger
+        render={
+          <div
+            tabIndex={0}
+            className={cn(
+              "flex h-1.5 max-w-[190px] min-w-[100px] gap-0.5 overflow-hidden rounded-[3px] bg-hover",
+              large && "h-2.5 w-full max-w-none rounded-[5px]",
+              className,
+            )}
+            aria-label={states.map((s) => `${queue[s]} ${s}`).join(", ")}
+          />
+        }
+      >
+        {states.map(
+          (s) =>
+            queue[s] > 0 && (
+              <span
+                key={s}
+                data-skeleton-hide
+                className={cn("min-w-0.5", stateFill[s])}
+                style={{ width: `${(queue[s] / Math.max(total, 1)) * 100}%` }}
+              />
+            ),
+        )}
       </TooltipTrigger>
       <TooltipContent>
         {states.map((s) => `${number(queue[s])} ${s}`).join(" · ")}
@@ -309,9 +311,9 @@ export function QueueTable({ data }: { data: Queue[] }) {
   return (
     <>
       <ToggleGroup
-        type="single"
-        value={search.queue_status}
-        onValueChange={(value) => {
+        value={[search.queue_status]}
+        onValueChange={([value]) => {
+          // Pressing the current tab again would clear the group; keep it.
           if (value)
             navigate({
               to: ".",

@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, type ReactElement, type ReactNode } from "react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { Moon, Search, Sun } from "lucide-react";
 import {
@@ -22,7 +22,7 @@ import { StatusDot } from "@/components/page";
 import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
 import { activeNav, modLabel } from "./nav";
-type Crumb = { label: ReactNode; link?: ReactNode };
+type Crumb = { label: ReactNode; link?: ReactElement };
 /** Long queue names and task IDs in the trail are cut short. */
 const mono =
   "inline-block max-w-[18ch] truncate align-bottom font-mono md:max-w-[26ch]";
@@ -93,9 +93,9 @@ export function Topbar({
     <header className="sticky top-0 z-20 flex h-[52px] items-center justify-between gap-2 border-b bg-[color-mix(in_srgb,var(--background)_82%,transparent)] pr-3 pl-2 [backdrop-filter:saturate(1.4)_blur(10px)] md:h-14 md:gap-3 md:pr-6 md:pl-3 xl:pr-8">
       <div className="flex min-w-0 items-center gap-2">
         <Tooltip>
-          <TooltipTrigger asChild>
-            <SidebarTrigger aria-label="Toggle navigation" />
-          </TooltipTrigger>
+          <TooltipTrigger
+            render={<SidebarTrigger aria-label="Toggle navigation" />}
+          />
           <TooltipContent>
             Toggle navigation <Kbd>{modLabel} B</Kbd>
           </TooltipContent>
@@ -117,9 +117,7 @@ export function Topbar({
                   )}
                 >
                   {c.link ? (
-                    <BreadcrumbLink asChild className={crumb}>
-                      {c.link}
-                    </BreadcrumbLink>
+                    <BreadcrumbLink className={crumb} render={c.link} />
                   ) : (
                     <BreadcrumbPage className={cn(crumb, "font-medium")}>
                       {c.label}
@@ -147,16 +145,18 @@ export function Topbar({
           </KbdGroup>
         </Button>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <span
-              className="inline-flex h-7 items-center gap-[7px] rounded-full border bg-surface px-2.5 text-xs/normal text-muted-foreground"
-              data-live={live}
-              tabIndex={0}
-            >
-              <StatusDot tone={live ? "green" : "amber"} pulse={live} />
-              <span className="hidden md:inline">
-                {live ? "Live" : "Connecting"}
-              </span>
+          <TooltipTrigger
+            render={
+              <span
+                className="inline-flex h-7 items-center gap-[7px] rounded-full border bg-surface px-2.5 text-xs/normal text-muted-foreground"
+                data-live={live}
+                tabIndex={0}
+              />
+            }
+          >
+            <StatusDot tone={live ? "green" : "amber"} pulse={live} />
+            <span className="hidden md:inline">
+              {live ? "Live" : "Connecting"}
             </span>
           </TooltipTrigger>
           <TooltipContent>
@@ -166,16 +166,18 @@ export function Topbar({
           </TooltipContent>
         </Tooltip>
         <Tooltip>
-          <TooltipTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="size-8"
-              onClick={toggle}
-              aria-label={`Switch to ${next} mode`}
-            >
-              {theme === "dark" ? <Sun /> : <Moon />}
-            </Button>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-8"
+                onClick={toggle}
+                aria-label={`Switch to ${next} mode`}
+              />
+            }
+          >
+            {theme === "dark" ? <Sun /> : <Moon />}
           </TooltipTrigger>
           <TooltipContent>Switch to {next} mode</TooltipContent>
         </Tooltip>

@@ -164,7 +164,29 @@ func (l *loginLimiter) allow(r *http.Request) bool {
 	return true
 }
 
-func (a *API) login(w http.ResponseWriter, r *http.Request) {
+func (a *API) getSession(w http.ResponseWriter, r *http.Request, _ params) {
+	a.json(w, a.session(r))
+}
+
+func (a *API) logout(w http.ResponseWriter, r *http.Request, _ params) {
+	if !a.confirmed(w, r) {
+		return
+	}
+	http.SetCookie(
+		w,
+		&http.Cookie{
+			Name:     "spool_session",
+			Path:     "/",
+			MaxAge:   -1,
+			HttpOnly: true,
+			Secure:   a.Config.SecureCookie,
+			SameSite: http.SameSiteStrictMode,
+		},
+	)
+	a.json(w, domain.OK{OK: true})
+}
+
+func (a *API) login(w http.ResponseWriter, r *http.Request, _ params) {
 	if !a.logins.allow(r) {
 		a.fail(w, r, 429, "RATE_LIMITED", "Too many sign-in attempts. Try again in a minute.", nil)
 		return

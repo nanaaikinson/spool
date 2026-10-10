@@ -29,12 +29,12 @@ test("dark default, persisted light, queue inspection and confirmed archive/retr
     path: "test-results/queues-light.png",
     fullPage: true,
   });
-  await page.getByRole("radio", { name: /^Paused/ }).click();
+  await page.getByRole("button", { name: /^Paused/ }).click();
   await expect(page).toHaveURL(/queue_status=paused/);
   await expect(
     page.getByRole("heading", { name: "No matching queues" }),
   ).toBeVisible();
-  await page.getByRole("radio", { name: /^All/ }).click();
+  await page.getByRole("button", { name: /^All/ }).click();
   await page.getByRole("link", { name: "spool-e2e", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "spool-e2e", exact: true }),

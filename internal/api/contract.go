@@ -2,7 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"net/http"
+	"net/url"
 	"reflect"
+	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,6 +32,8 @@ type Endpoint struct {
 	Request    any
 	Parameters []Parameter
 	Public     bool
+	// Handle runs once the path identifiers and Parameters have been validated.
+	Handle func(*API, http.ResponseWriter, *http.Request, params)
 }
 
 func q(name, description string) Parameter {
@@ -38,14 +44,78 @@ func n(name, description string, min, max int) Parameter {
 	return Parameter{Name: name, Type: "integer", Description: description, Minimum: &min, Maximum: &max}
 }
 
+// parseQuery checks v against ps and returns the integers it parsed. Empty values count as absent.
+func parseQuery(ps []Parameter, v url.Values) (map[string]int, *domain.FieldError) {
+	ints := map[string]int{}
+	for _, p := range ps {
+		raw := v.Get(p.Name)
+		if raw == "" {
+			if p.Required {
+				return nil, invalidParam(p.Name, "is required")
+			}
+			continue
+		}
+		if len(p.Enum) > 0 && !slices.Contains(p.Enum, raw) {
+			return nil, invalidParam(p.Name, "must be one of "+oneOf(p.Enum))
+		}
+		if p.Type == "integer" {
+			i, e := strconv.Atoi(raw)
+			if e != nil || (p.Minimum != nil && i < *p.Minimum) || (p.Maximum != nil && i > *p.Maximum) {
+				return nil, invalidParam(p.Name, "must be a whole number"+bounds(p))
+			}
+			ints[p.Name] = i
+		}
+	}
+	return ints, nil
+}
+
+func invalidParam(name, problem string) *domain.FieldError {
+	return &domain.FieldError{Field: name, Reasons: []string{name + " " + problem + "."}}
+}
+
+func bounds(p Parameter) string {
+	switch {
+	case p.Minimum != nil && p.Maximum != nil:
+		return " from " + thousands(*p.Minimum) + " to " + thousands(*p.Maximum)
+	case p.Minimum != nil:
+		return " of " + thousands(*p.Minimum) + " or more"
+	case p.Maximum != nil:
+		return " of " + thousands(*p.Maximum) + " or fewer"
+	}
+	return ""
+}
+
+func oneOf(values []string) string {
+	switch len(values) {
+	case 1:
+		return values[0]
+	case 2:
+		return values[0] + " or " + values[1]
+	}
+	return strings.Join(values[:len(values)-1], ", ") + ", or " + values[len(values)-1]
+}
+
+func thousands(n int) string {
+	s, sign := strconv.Itoa(n), ""
+	if n < 0 {
+		s, sign = s[1:], "-"
+	}
+	for i := len(s) - 3; i > 0; i -= 3 {
+		s = s[:i] + "," + s[i:]
+	}
+	return sign + s
+}
+
+var metricNames = []string{"depth", "pending", "active", "retry", "archived", "latency", "processed", "failed"}
+
 func Endpoints() []Endpoint {
 	return []Endpoint{
-		{"GET", "/session", "getSession", "Session and environment", domain.Session{}, nil, nil, true},
-		{"POST", "/session", "login", "Sign in", domain.Session{}, domain.LoginRequest{}, nil, true},
-		{"DELETE", "/session", "logout", "Sign out", domain.OK{}, domain.ActionRequest{}, nil, false},
-		{"GET", "/overview", "getOverview", "Current Asynq overview", domain.Overview{}, nil, nil, false},
-		{"GET", "/queues", "listQueues", "List current queues", domain.QueueList{}, nil, nil, false},
-		{"GET", "/queues/{queue}", "getQueue", "Inspect a queue", domain.Queue{}, nil, nil, false},
+		{"GET", "/session", "getSession", "Session and environment", domain.Session{}, nil, nil, true, (*API).getSession},
+		{"POST", "/session", "login", "Sign in", domain.Session{}, domain.LoginRequest{}, nil, true, (*API).login},
+		{"DELETE", "/session", "logout", "Sign out", domain.OK{}, domain.ActionRequest{}, nil, false, (*API).logout},
+		{"GET", "/overview", "getOverview", "Current Asynq overview", domain.Overview{}, nil, nil, false, (*API).getOverview},
+		{"GET", "/queues", "listQueues", "List current queues", domain.QueueList{}, nil, nil, false, (*API).listQueues},
+		{"GET", "/queues/{queue}", "getQueue", "Inspect a queue", domain.Queue{}, nil, nil, false, (*API).getQueue},
 		{
 			"POST",
 			"/queues/{queue}/pause",
@@ -55,6 +125,7 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).pauseQueue,
 		},
 		{
 			"POST",
@@ -65,6 +136,7 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).resumeQueue,
 		},
 		{
 			"GET",
@@ -90,6 +162,7 @@ func Endpoints() []Endpoint {
 				n("limit", "Native page size", 1, 100),
 			},
 			false,
+			(*API).listTasks,
 		},
 		{
 			"GET",
@@ -100,6 +173,7 @@ func Endpoints() []Endpoint {
 			nil,
 			nil,
 			false,
+			(*API).getTask,
 		},
 		{
 			"POST",
@@ -110,6 +184,7 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).retryTask,
 		},
 		{
 			"POST",
@@ -120,6 +195,7 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).archiveTask,
 		},
 		{
 			"DELETE",
@@ -130,6 +206,7 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).deleteTask,
 		},
 		{
 			"POST",
@@ -140,6 +217,7 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).cancelTask,
 		},
 		{
 			"POST",
@@ -150,6 +228,7 @@ func Endpoints() []Endpoint {
 			domain.CloneRequest{},
 			nil,
 			false,
+			(*API).cloneTask,
 		},
 		{
 			"POST",
@@ -160,6 +239,7 @@ func Endpoints() []Endpoint {
 			domain.BulkRequest{},
 			nil,
 			false,
+			(*API).bulkAction,
 		},
 		{
 			"GET",
@@ -173,6 +253,7 @@ func Endpoints() []Endpoint {
 				n("limit", "Failures to sample, newest first, split across queues and states", 50, 1000),
 			},
 			false,
+			(*API).listErrorGroups,
 		},
 		{
 			"GET",
@@ -183,6 +264,7 @@ func Endpoints() []Endpoint {
 			nil,
 			nil,
 			false,
+			(*API).listServers,
 		},
 		{
 			"GET",
@@ -193,6 +275,7 @@ func Endpoints() []Endpoint {
 			nil,
 			nil,
 			false,
+			(*API).listSchedulers,
 		},
 		{
 			"GET",
@@ -203,6 +286,7 @@ func Endpoints() []Endpoint {
 			nil,
 			nil,
 			false,
+			(*API).metricsHealth,
 		},
 		{
 			"GET",
@@ -216,11 +300,12 @@ func Endpoints() []Endpoint {
 					Name:     "metric",
 					Type:     "string",
 					Required: true,
-					Enum:     []string{"depth", "pending", "active", "retry", "archived", "latency", "processed", "failed"},
+					Enum:     metricNames,
 				},
 				q("queue", "Optional queue scope"),
 			},
 			false,
+			(*API).queryMetric,
 		},
 		{
 			"GET",
@@ -234,7 +319,7 @@ func Endpoints() []Endpoint {
 					Name:     "metric",
 					Type:     "string",
 					Required: true,
-					Enum:     []string{"depth", "pending", "active", "retry", "archived", "latency", "processed", "failed"},
+					Enum:     metricNames,
 				},
 				q("queue", "Optional queue scope"),
 				{Name: "start", Type: "string", Required: true, Description: "RFC3339 start"},
@@ -242,6 +327,7 @@ func Endpoints() []Endpoint {
 				n("step", "Seconds between points; at most 1500 points", 15, 3600),
 			},
 			false,
+			(*API).queryMetricRange,
 		},
 		{
 			"GET",
@@ -255,8 +341,9 @@ func Endpoints() []Endpoint {
 				n("limit", "Records per page", 1, 100),
 			},
 			false,
+			(*API).listAudit,
 		},
-		{"GET", "/views", "listViews", "Current actor's saved views", domain.ViewList{}, nil, nil, false},
+		{"GET", "/views", "listViews", "Current actor's saved views", domain.ViewList{}, nil, nil, false, (*API).listViews},
 		{
 			"POST",
 			"/views",
@@ -266,6 +353,7 @@ func Endpoints() []Endpoint {
 			domain.ViewRequest{},
 			nil,
 			false,
+			(*API).saveView,
 		},
 		{
 			"DELETE",
@@ -276,8 +364,9 @@ func Endpoints() []Endpoint {
 			domain.ActionRequest{},
 			nil,
 			false,
+			(*API).deleteView,
 		},
-		{"GET", "/events", "events", "Server-sent query invalidations", nil, nil, nil, false},
+		{"GET", "/events", "events", "Server-sent query invalidations", nil, nil, nil, false, (*API).events},
 	}
 }
 

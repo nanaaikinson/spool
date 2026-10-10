@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@aejkatappaja/phantom-ui": "1.6.1",
+    "@base-ui/react": "1.8.0",
     "@hookform/resolvers": "5.9.1",
     "@tanstack/react-query": "5.104.0",
     "@tanstack/react-router": "1.170.41",
@@ -23,7 +24,6 @@
     "clsx": "2.1.1",
     "cmdk": "1.1.1",
     "lucide-react": "1.49.0",
-    "radix-ui": "1.6.7",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-hook-form": "7.89.0",

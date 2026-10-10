@@ -51,3 +51,12 @@ export function invalidateOperational() {
     },
   });
 }
+
+/**
+ * Options for a queue filter. Queue values are prefixed so a queue named
+ * "all" stays distinct from the "All queues" option.
+ */
+export const queueItems = (queues: { name: string }[] = []) => [
+  { value: "all", label: "All queues" },
+  ...queues.map((q) => ({ value: `queue:${q.name}`, label: q.name })),
+];

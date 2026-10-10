@@ -4,9 +4,16 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ## Unreleased
 
+### Added
+
+- Audit log pagination: `GET /api/v1/audit` takes `page` and `limit` (default 25, at most 100) and returns the total; Settings pages through it.
+- Account menu in the sidebar footer, holding Settings and Sign out.
+
 ### Changed
 
 - Loading states use structure-aware shimmer skeletons (phantom-ui) that match the Dashboard figures, Queues table, task tables and queue page.
+- The web UI uses Tailwind utilities and shared page components instead of a custom stylesheet, and Base UI instead of Radix for its primitives.
+- Query parameters are validated against the API contract, so out-of-range or malformed values return `422 VALIDATION_ERROR` naming the parameter. Invalid metric `step`, `start` or `end` values now return `VALIDATION_ERROR` instead of `INVALID_RANGE`.
 
 ## 0.1.0 (2026-10-10)
 

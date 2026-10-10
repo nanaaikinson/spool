@@ -22,7 +22,6 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -36,7 +35,7 @@ import { envTone, versionLabel } from "../lib/utils";
 import { cn } from "@/lib/utils";
 
 const navLink =
-  "h-9 gap-2.5 text-muted-foreground data-[active=true]:bg-surface data-[active=true]:shadow-[0_0_0_1px_var(--border),0_1px_2px_rgba(0,0,0,0.06)]";
+  "h-9 gap-2.5 text-muted-foreground data-active:bg-surface data-active:shadow-[0_0_0_1px_var(--border),0_1px_2px_rgba(0,0,0,0.06)]";
 const navBadge =
   "right-1.5 h-[18px] -translate-y-1/2 rounded-full px-1.5 text-2xs font-semibold peer-data-[size=default]/menu-button:top-1/2";
 const envDot: Record<string, string> = {
@@ -80,23 +79,21 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
           <SidebarMenuItem>
             <SidebarMenuButton
               size="lg"
-              asChild
               tooltip="Spool"
               className="gap-2.5"
+              render={<Link to="/" onClick={close} />}
             >
-              <Link to="/" onClick={close}>
-                <span className="grid size-8 flex-none place-items-center rounded-lg bg-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.25)]">
-                  <BrandMark size={20} />
+              <span className="grid size-8 flex-none place-items-center rounded-lg bg-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.25)]">
+                <BrandMark size={20} />
+              </span>
+              <span className="grid min-w-0 flex-1 leading-[1.3]">
+                <strong className="truncate text-md/[1.3] font-[650] tracking-[-0.02em] text-foreground">
+                  Spool
+                </strong>
+                <span className="truncate text-2xs/[1.3] text-muted-foreground">
+                  Asynq console
                 </span>
-                <span className="grid min-w-0 flex-1 leading-[1.3]">
-                  <strong className="truncate text-md/[1.3] font-[650] tracking-[-0.02em] text-foreground">
-                    Spool
-                  </strong>
-                  <span className="truncate text-2xs/[1.3] text-muted-foreground">
-                    Asynq console
-                  </span>
-                </span>
-              </Link>
+              </span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -116,25 +113,25 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
                     return (
                       <SidebarMenuItem key={n.to}>
                         <SidebarMenuButton
-                          asChild
                           isActive={isActive}
                           tooltip={`${n.label} · ${altLabel}${shortcut}`}
                           className={navLink}
+                          render={
+                            <Link
+                              to={n.to}
+                              aria-current={isActive ? "page" : undefined}
+                              onClick={close}
+                            />
+                          }
                         >
-                          <Link
-                            to={n.to}
-                            aria-current={isActive ? "page" : undefined}
-                            onClick={close}
-                          >
-                            <n.icon />
-                            <span>{n.label}</span>
-                          </Link>
+                          <n.icon />
+                          <span>{n.label}</span>
                         </SidebarMenuButton>
                         {n.to === "/failures" && !!failures && (
                           <SidebarMenuBadge
                             className={cn(
                               navBadge,
-                              "bg-red-bg text-red peer-hover/menu-button:text-red peer-data-[active=true]/menu-button:text-red",
+                              "bg-red-bg text-red peer-hover/menu-button:text-red peer-data-active/menu-button:text-red",
                             )}
                             title={`${failures.toLocaleString()} retained failures`}
                           >
@@ -145,7 +142,7 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
                           <SidebarMenuBadge
                             className={cn(
                               navBadge,
-                              "bg-green-bg text-green peer-hover/menu-button:text-green peer-data-[active=true]/menu-button:text-green",
+                              "bg-green-bg text-green peer-hover/menu-button:text-green peer-data-active/menu-button:text-green",
                             )}
                             title={`${running} tasks running`}
                           >
@@ -165,68 +162,68 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              asChild
               isActive={location.pathname === "/settings"}
               tooltip="Settings"
               className={navLink}
+              render={
+                <Link
+                  to="/settings"
+                  aria-current={
+                    location.pathname === "/settings" ? "page" : undefined
+                  }
+                  onClick={close}
+                />
+              }
             >
-              <Link
-                to="/settings"
-                aria-current={
-                  location.pathname === "/settings" ? "page" : undefined
-                }
-                onClick={close}
-              >
-                <Settings />
-                <span>Settings</span>
-              </Link>
+              <Settings />
+              <span>Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
         <SidebarMenu>
           <SidebarMenuItem>
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <SidebarMenuButton
-                  size="lg"
-                  tooltip={actor}
-                  aria-label={`${actor}, account menu`}
-                  className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
-                >
-                  <AccountIdentity actor={actor} access={access} />
-                  <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
-                </SidebarMenuButton>
+              <DropdownMenuTrigger
+                render={
+                  <SidebarMenuButton
+                    size="lg"
+                    tooltip={actor}
+                    aria-label={`${actor}, account menu`}
+                    className="gap-2.5 data-popup-open:bg-sidebar-accent data-popup-open:text-sidebar-accent-foreground"
+                  />
+                }
+              >
+                <AccountIdentity actor={actor} access={access} />
+                <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
               </DropdownMenuTrigger>
               <DropdownMenuContent
-                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                className="min-w-56 rounded-lg"
                 side={isMobile ? "bottom" : "right"}
                 align="end"
                 sideOffset={4}
               >
-                <DropdownMenuLabel className="p-0 font-normal">
-                  <div className="flex items-center gap-2.5 px-1.5 py-1.5">
-                    <AccountIdentity actor={actor} access={access} />
-                  </div>
-                </DropdownMenuLabel>
+                <div className="flex items-center gap-2.5 px-1.5 py-1.5">
+                  <AccountIdentity actor={actor} access={access} />
+                </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuGroup>
-                  <DropdownMenuItem asChild>
-                    <Link to="/settings" onClick={close}>
-                      <Settings />
-                      Settings &amp; audit
-                    </Link>
+                  <DropdownMenuItem
+                    render={<Link to="/settings" onClick={close} />}
+                  >
+                    <Settings />
+                    Settings &amp; audit
                   </DropdownMenuItem>
                 </DropdownMenuGroup>
                 <DropdownMenuSeparator />
                 {session.data?.auth_required && session.data.authenticated ? (
-                  <DropdownMenuItem onSelect={onSignOut}>
+                  <DropdownMenuItem onClick={onSignOut}>
                     <LogOut />
                     Sign out
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
                     Sign-in is off on this server.
-                  </DropdownMenuLabel>
+                  </p>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>

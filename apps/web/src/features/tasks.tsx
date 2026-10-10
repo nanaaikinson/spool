@@ -109,7 +109,7 @@ import {
 } from "../components/page";
 import { cn, date, duration, number, plural, capitalize } from "../lib/utils";
 import { errorCode, errorMessage } from "../api/client";
-import { invalidateOperational, queryClient } from "./queries";
+import { invalidateOperational, queryClient, queueItems } from "./queries";
 import { useSession } from "./session";
 import { LIVE_TASK_STATES, TaskStatus, useTaskWorker } from "./task-status";
 import { CronChip, PeriodicTable, TaskSchedule } from "./schedules";
@@ -138,6 +138,10 @@ const states = [
   "completed",
   "aggregating",
 ] as const;
+const stateItems = [
+  { value: "all", label: "All states" },
+  ...[...states, "failed"].map((s) => ({ value: s, label: s })),
+];
 /**
  * Attempts made so far. Asynq counts failed attempts in `retried`, except the
  * final one before archiving; add the run in progress, completed or exhausted.
@@ -470,45 +474,68 @@ export function TasksPage({
         <TabsList variant="line" className={tabBar} aria-label="Task views">
           {preset === "scheduled" ? (
             <>
-              <TabsTrigger asChild className={tabItem} value="scheduled">
-                <Link to="/scheduled" search={{ queue }} aria-current="page">
-                  Scheduled tasks{" "}
-                  <TabCount>{number(stateCount("scheduled"))}</TabCount>
-                </Link>
+              <TabsTrigger
+                className={tabItem}
+                value="scheduled"
+                render={
+                  <Link
+                    to="/scheduled"
+                    search={{ queue }}
+                    aria-current="page"
+                  />
+                }
+              >
+                Scheduled tasks{" "}
+                <TabCount>{number(stateCount("scheduled"))}</TabCount>
               </TabsTrigger>
-              <TabsTrigger asChild className={tabItem} value="periodic">
-                <Link to="/schedulers">
-                  Periodic schedules{" "}
-                  <TabCount>
-                    {number(schedules.data?.data.length ?? 0)}
-                  </TabCount>
-                </Link>
+              <TabsTrigger
+                nativeButton={false}
+                className={tabItem}
+                value="periodic"
+                render={<Link to="/schedulers" />}
+              >
+                Periodic schedules{" "}
+                <TabCount>{number(schedules.data?.data.length ?? 0)}</TabCount>
               </TabsTrigger>
-              <TabsTrigger asChild className={tabItem} value="retry">
-                <Link to="/tasks" search={{ queue, state: "retry" }}>
-                  Retrying <TabCount>{number(stateCount("retry"))}</TabCount>
-                </Link>
+              <TabsTrigger
+                nativeButton={false}
+                className={tabItem}
+                value="retry"
+                render={<Link to="/tasks" search={{ queue, state: "retry" }} />}
+              >
+                Retrying <TabCount>{number(stateCount("retry"))}</TabCount>
               </TabsTrigger>
             </>
           ) : preset === "failed" ? (
             <>
-              <TabsTrigger asChild className={tabItem} value="failed">
-                <Link to="/failures" search={{ queue }} aria-current="page">
-                  All failures{" "}
-                  <TabCount>
-                    {number(stateCount("retry") + stateCount("archived"))}
-                  </TabCount>
-                </Link>
+              <TabsTrigger
+                className={tabItem}
+                value="failed"
+                render={
+                  <Link to="/failures" search={{ queue }} aria-current="page" />
+                }
+              >
+                All failures{" "}
+                <TabCount>
+                  {number(stateCount("retry") + stateCount("archived"))}
+                </TabCount>
               </TabsTrigger>
-              <TabsTrigger asChild className={tabItem} value="retry">
-                <Link to="/tasks" search={{ queue, state: "retry" }}>
-                  Retrying <TabCount>{number(stateCount("retry"))}</TabCount>
-                </Link>
+              <TabsTrigger
+                nativeButton={false}
+                className={tabItem}
+                value="retry"
+                render={<Link to="/tasks" search={{ queue, state: "retry" }} />}
+              >
+                Retrying <TabCount>{number(stateCount("retry"))}</TabCount>
               </TabsTrigger>
-              <TabsTrigger asChild className={tabItem} value="archived">
-                <Link to="/tasks" search={{ queue, state: "archived" }}>
-                  Archived <TabCount>{number(stateCount("archived"))}</TabCount>
-                </Link>
+              <TabsTrigger
+                className={tabItem}
+                value="archived"
+                render={
+                  <Link to="/tasks" search={{ queue, state: "archived" }} />
+                }
+              >
+                Archived <TabCount>{number(stateCount("archived"))}</TabCount>
               </TabsTrigger>
             </>
           ) : (
@@ -561,190 +588,193 @@ export function TasksPage({
             advanced || state === "aggregating" || !!form.formState.errors.group
           }
           onOpenChange={setAdvanced}
-          asChild
-        >
-          <form
-            className={cn(
-              "flex flex-wrap items-end gap-3 border-b py-3",
-              cardX,
-            )}
-            onSubmit={form.handleSubmit((values) =>
-              navigate({
-                to: ".",
-                search: (old) => ({ ...old, ...values, cursor: "" }),
-              }),
-            )}
-          >
-            {!scopedQueue && (
-              <Field className={filterField}>
-                <Label htmlFor={`${filtersID}-queue`} className={filterLabel}>
-                  Queue
-                </Label>
-                <Controller
-                  name="queue"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value ? `queue:${field.value}` : "all"}
-                      onValueChange={(value) =>
-                        field.onChange(value === "all" ? "" : value.slice(6))
-                      }
-                    >
-                      <SelectTrigger
-                        id={`${filtersID}-queue`}
-                        className="@2xl/main:min-w-40"
-                        ref={field.ref}
-                        onBlur={field.onBlur}
-                      >
-                        <SelectValue placeholder="All queues" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All queues</SelectItem>
-                        {queues.data?.data.map((q) => (
-                          <SelectItem key={q.name} value={`queue:${q.name}`}>
-                            {q.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-            )}
-            {!preset && (
-              <Field className={filterField}>
-                <Label htmlFor={`${filtersID}-state`} className={filterLabel}>
-                  State
-                </Label>
-                <Controller
-                  name="state"
-                  control={form.control}
-                  render={({ field }) => (
-                    <Select
-                      value={field.value || "all"}
-                      onValueChange={(value) =>
-                        field.onChange(value === "all" ? "" : value)
-                      }
-                    >
-                      <SelectTrigger
-                        id={`${filtersID}-state`}
-                        className="@2xl/main:min-w-40"
-                        ref={field.ref}
-                        onBlur={field.onBlur}
-                      >
-                        <SelectValue placeholder="All states" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All states</SelectItem>
-                        {[...states, "failed"].map((state) => (
-                          <SelectItem key={state} value={state}>
-                            {state}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
-              </Field>
-            )}
-            <Field className={cn(filterField, "max-w-full @2xl/main:w-80")}>
-              <FieldLabel htmlFor={`${filtersID}-type`} className={filterLabel}>
-                Task type
-              </FieldLabel>
-              <InputGroup>
-                <InputGroupAddon>
-                  <Search aria-hidden="true" />
-                </InputGroupAddon>
-                <InputGroupInput
-                  id={`${filtersID}-type`}
-                  type="search"
-                  placeholder="Filter task type…"
-                  {...form.register("type")}
-                />
-              </InputGroup>
-            </Field>
-            <Button variant="secondary" type="submit" className="self-end">
-              Apply filters
-            </Button>
-            <CollapsibleTrigger asChild>
-              <Button variant="secondary" type="button" className="ml-auto">
-                <SlidersHorizontal size={15} />
-                Filter
-                {(search.id ||
-                  search.group ||
-                  search.min_retry ||
-                  search.failed_after) && <StatusDot tone="green" />}
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-1 flex w-full flex-wrap items-end gap-3 border-t pt-4">
-              <Field className={filterField}>
-                <FieldLabel htmlFor={`${filtersID}-id`} className={filterLabel}>
-                  Task ID
-                </FieldLabel>
-                <Input
-                  id={`${filtersID}-id`}
-                  placeholder="Exact task ID"
-                  {...form.register("id")}
-                />
-              </Field>
-              <Field className={filterField}>
-                <FieldLabel
-                  htmlFor={`${filtersID}-min_retry`}
-                  className={filterLabel}
-                >
-                  Minimum retries
-                </FieldLabel>
-                <Input
-                  id={`${filtersID}-min_retry`}
-                  type="number"
-                  min={0}
-                  max={100000}
-                  className="max-w-[100px]"
-                  {...form.register("min_retry", { valueAsNumber: true })}
-                />
-              </Field>
-              <Field className={filterField}>
-                <FieldLabel
-                  htmlFor={`${filtersID}-group`}
-                  className={filterLabel}
-                >
-                  Group
-                </FieldLabel>
-                <Input
-                  id={`${filtersID}-group`}
-                  placeholder="For aggregating tasks"
-                  aria-invalid={!!form.formState.errors.group}
-                  aria-describedby={
-                    form.formState.errors.group
-                      ? `${filtersID}-group-error`
-                      : undefined
-                  }
-                  {...form.register("group")}
-                />
-              </Field>
-              {form.formState.errors.group && (
-                <FieldError
-                  id={`${filtersID}-group-error`}
-                  className={formError}
-                >
-                  {form.formState.errors.group.message}
-                </FieldError>
+          render={
+            <form
+              className={cn(
+                "flex flex-wrap items-end gap-3 border-b py-3",
+                cardX,
               )}
-              <Field className={filterField}>
-                <FieldLabel
-                  htmlFor={`${filtersID}-failed_after`}
-                  className={filterLabel}
-                >
-                  Failed after
-                </FieldLabel>
-                <Input
-                  id={`${filtersID}-failed_after`}
-                  placeholder="2026-10-02T12:00:00Z"
-                  {...form.register("failed_after")}
-                />
-              </Field>
-            </CollapsibleContent>
-          </form>
+              onSubmit={form.handleSubmit((values) =>
+                navigate({
+                  to: ".",
+                  search: (old) => ({ ...old, ...values, cursor: "" }),
+                }),
+              )}
+            />
+          }
+        >
+          {!scopedQueue && (
+            <Field className={filterField}>
+              <Label htmlFor={`${filtersID}-queue`} className={filterLabel}>
+                Queue
+              </Label>
+              <Controller
+                name="queue"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    items={queueItems(queues.data?.data)}
+                    value={field.value ? `queue:${field.value}` : "all"}
+                    onValueChange={(value) =>
+                      field.onChange(
+                        !value || value === "all" ? "" : value.slice(6),
+                      )
+                    }
+                  >
+                    <SelectTrigger
+                      id={`${filtersID}-queue`}
+                      className="@2xl/main:min-w-40"
+                      ref={field.ref}
+                      onBlur={field.onBlur}
+                    >
+                      <SelectValue placeholder="All queues" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All queues</SelectItem>
+                      {queues.data?.data.map((q) => (
+                        <SelectItem key={q.name} value={`queue:${q.name}`}>
+                          {q.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </Field>
+          )}
+          {!preset && (
+            <Field className={filterField}>
+              <Label htmlFor={`${filtersID}-state`} className={filterLabel}>
+                State
+              </Label>
+              <Controller
+                name="state"
+                control={form.control}
+                render={({ field }) => (
+                  <Select
+                    items={stateItems}
+                    value={field.value || "all"}
+                    onValueChange={(value) =>
+                      field.onChange(!value || value === "all" ? "" : value)
+                    }
+                  >
+                    <SelectTrigger
+                      id={`${filtersID}-state`}
+                      className="@2xl/main:min-w-40"
+                      ref={field.ref}
+                      onBlur={field.onBlur}
+                    >
+                      <SelectValue placeholder="All states" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All states</SelectItem>
+                      {[...states, "failed"].map((state) => (
+                        <SelectItem key={state} value={state}>
+                          {state}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </Field>
+          )}
+          <Field className={cn(filterField, "max-w-full @2xl/main:w-80")}>
+            <FieldLabel htmlFor={`${filtersID}-type`} className={filterLabel}>
+              Task type
+            </FieldLabel>
+            <InputGroup>
+              <InputGroupAddon>
+                <Search aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
+                id={`${filtersID}-type`}
+                type="search"
+                placeholder="Filter task type…"
+                {...form.register("type")}
+              />
+            </InputGroup>
+          </Field>
+          <Button variant="secondary" type="submit" className="self-end">
+            Apply filters
+          </Button>
+          <CollapsibleTrigger
+            render={
+              <Button variant="secondary" type="button" className="ml-auto" />
+            }
+          >
+            <SlidersHorizontal size={15} />
+            Filter
+            {(search.id ||
+              search.group ||
+              search.min_retry ||
+              search.failed_after) && <StatusDot tone="green" />}
+          </CollapsibleTrigger>
+          <CollapsibleContent className="mt-1 flex w-full flex-wrap items-end gap-3 border-t pt-4">
+            <Field className={filterField}>
+              <FieldLabel htmlFor={`${filtersID}-id`} className={filterLabel}>
+                Task ID
+              </FieldLabel>
+              <Input
+                id={`${filtersID}-id`}
+                placeholder="Exact task ID"
+                {...form.register("id")}
+              />
+            </Field>
+            <Field className={filterField}>
+              <FieldLabel
+                htmlFor={`${filtersID}-min_retry`}
+                className={filterLabel}
+              >
+                Minimum retries
+              </FieldLabel>
+              <Input
+                id={`${filtersID}-min_retry`}
+                type="number"
+                min={0}
+                max={100000}
+                className="max-w-[100px]"
+                {...form.register("min_retry", { valueAsNumber: true })}
+              />
+            </Field>
+            <Field className={filterField}>
+              <FieldLabel
+                htmlFor={`${filtersID}-group`}
+                className={filterLabel}
+              >
+                Group
+              </FieldLabel>
+              <Input
+                id={`${filtersID}-group`}
+                placeholder="For aggregating tasks"
+                aria-invalid={!!form.formState.errors.group}
+                aria-describedby={
+                  form.formState.errors.group
+                    ? `${filtersID}-group-error`
+                    : undefined
+                }
+                {...form.register("group")}
+              />
+            </Field>
+            {form.formState.errors.group && (
+              <FieldError id={`${filtersID}-group-error`} className={formError}>
+                {form.formState.errors.group.message}
+              </FieldError>
+            )}
+            <Field className={filterField}>
+              <FieldLabel
+                htmlFor={`${filtersID}-failed_after`}
+                className={filterLabel}
+              >
+                Failed after
+              </FieldLabel>
+              <Input
+                id={`${filtersID}-failed_after`}
+                placeholder="2026-10-02T12:00:00Z"
+                {...form.register("failed_after")}
+              />
+            </Field>
+          </CollapsibleContent>
         </Collapsible>
         {selected.length > 0 && (
           <FilterBar>
@@ -901,8 +931,12 @@ export function TasksPage({
           actions={
             <>
               {preset === "scheduled" && (
-                <Button asChild variant="secondary">
-                  <Link to="/schedulers">Periodic schedules</Link>
+                <Button
+                  variant="secondary"
+                  nativeButton={false}
+                  render={<Link to="/schedulers" />}
+                >
+                  Periodic schedules
                 </Button>
               )}
               <Button

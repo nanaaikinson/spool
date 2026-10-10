@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,6 +30,12 @@ type fakeSource struct {
 	writes      int
 	groupQueue  string
 	groupSample int
+	filter      domain.TaskFilter
+}
+
+func (f *fakeSource) Tasks(_ context.Context, filter domain.TaskFilter) (domain.TaskList, error) {
+	f.filter = filter
+	return domain.TaskList{}, nil
 }
 
 func (f *fakeSource) QueueAction(context.Context, string, string) error {
@@ -204,6 +211,104 @@ func TestContractAndFilters(t *testing.T) {
 	}
 }
 
+func TestEndpointHandlers(t *testing.T) {
+	ids := map[string]bool{}
+	for _, ep := range Endpoints() {
+		if ep.Handle == nil {
+			t.Errorf("%s %s has no handler", ep.Method, ep.Path)
+		}
+		if ids[ep.ID] {
+			t.Errorf("duplicate endpoint ID %s", ep.ID)
+		}
+		ids[ep.ID] = true
+	}
+}
+
+func TestParseQuery(t *testing.T) {
+	ps := []Parameter{
+		{Name: "metric", Type: "string", Required: true, Enum: []string{"depth", "latency", "failed"}},
+		n("limit", "", 1, 100),
+		n("page", "", 1, 1000000),
+		{Name: "min", Type: "integer", Minimum: new(0)},
+	}
+	for query, want := range map[string]string{
+		"":                           "metric is required.",
+		"metric=bogus":               "metric must be one of depth, latency, or failed.",
+		"metric=depth&limit=0":       "limit must be a whole number from 1 to 100.",
+		"metric=depth&limit=101":     "limit must be a whole number from 1 to 100.",
+		"metric=depth&limit=ten":     "limit must be a whole number from 1 to 100.",
+		"metric=depth&limit=1.5":     "limit must be a whole number from 1 to 100.",
+		"metric=depth&page=1000001":  "page must be a whole number from 1 to 1,000,000.",
+		"metric=depth&min=-1":        "min must be a whole number of 0 or more.",
+		"metric=depth&limit=5&min=x": "min must be a whole number of 0 or more.",
+	} {
+		v, _ := url.ParseQuery(query)
+		_, f := parseQuery(ps, v)
+		if f == nil || len(f.Reasons) != 1 || f.Reasons[0] != want {
+			t.Errorf("%q: got %+v, want %q", query, f, want)
+		}
+	}
+	v, _ := url.ParseQuery("metric=latency&limit=100&page=&other=x")
+	ints, f := parseQuery(ps, v)
+	if f != nil || len(ints) != 1 || ints["limit"] != 100 {
+		t.Fatalf("valid query: %v %+v", ints, f)
+	}
+	if p := (params{ints: ints}); p.int("limit", 5) != 100 || p.int("page", 7) != 7 {
+		t.Fatal("params fallback")
+	}
+}
+
+func TestQueryValidation(t *testing.T) {
+	s := &fakeSource{}
+	h := testAPI(s).Handler(http.NotFoundHandler())
+	for path, field := range map[string]string{
+		"/api/v1/tasks?limit=0":                                          "limit",
+		"/api/v1/tasks?limit=abc":                                        "limit",
+		"/api/v1/tasks?min_retry=100001":                                 "min_retry",
+		"/api/v1/tasks?state=done":                                       "state",
+		"/api/v1/failures/groups?limit=1001":                             "limit",
+		"/api/v1/failures/groups?limit=5e2":                              "limit",
+		"/api/v1/audit?page=0":                                           "page",
+		"/api/v1/audit?limit=101":                                        "limit",
+		"/api/v1/audit?page=two":                                         "page",
+		"/api/v1/metrics/query":                                          "metric",
+		"/api/v1/metrics/query?metric=cpu":                               "metric",
+		"/api/v1/metrics/query-range?metric=depth":                       "start",
+		"/api/v1/metrics/query-range?metric=depth&start=a&end=b&step=14": "step",
+	} {
+		w := call(h, "GET", path, "", nil)
+		var e domain.Error
+		if w.Code != 422 || json.Unmarshal(w.Body.Bytes(), &e) != nil || e.Code != "VALIDATION_ERROR" ||
+			len(e.Details.Fields) != 1 || e.Details.Fields[0].Field != field ||
+			!strings.HasPrefix(e.Message, field+" ") || w.Header().Get("Content-Type") != "application/json" {
+			t.Errorf("%s: %d %s", path, w.Code, w.Body.String())
+		}
+	}
+	w := call(h, "GET", "/api/v1/tasks?limit=100&min_retry=3&state=failed", "", nil)
+	if w.Code != 200 || s.filter.Limit != 100 || s.filter.MinRetry != 3 || s.filter.State != "failed" {
+		t.Fatalf("valid tasks: %d %s %+v", w.Code, w.Body.String(), s.filter)
+	}
+	if w = call(h, "GET", "/api/v1/tasks", "", nil); w.Code != 200 || s.filter.Limit != 50 || s.filter.MinRetry != 0 {
+		t.Fatalf("task defaults: %d %+v", w.Code, s.filter)
+	}
+	if w = call(h, "GET", "/api/v1/failures/groups?limit=50", "", nil); w.Code != 200 || s.groupSample != 50 {
+		t.Fatalf("valid groups: %d %s", w.Code, w.Body.String())
+	}
+	// Valid parameters reach the handler, which then reports the missing dependency.
+	for _, path := range []string{
+		"/api/v1/audit?page=2&limit=100",
+		"/api/v1/metrics/query?metric=depth",
+		"/api/v1/metrics/query-range?metric=depth&start=2026-01-01T00:00:00Z&end=2026-01-01T01:00:00Z&step=15",
+	} {
+		if w = call(h, "GET", path, "", nil); w.Code != 503 {
+			t.Errorf("%s: %d %s", path, w.Code, w.Body.String())
+		}
+	}
+	if w = call(h, "GET", "/api/v1/metrics/query-range?metric=depth&start=2026-01-02T00:00:00Z&end=2026-01-01T00:00:00Z", "", nil); w.Code != 422 {
+		t.Errorf("inverted range: %d", w.Code)
+	}
+}
+
 func TestRealHTTPMutation(t *testing.T) {
 	address, dsn := os.Getenv("SPOOL_TEST_REDIS"), os.Getenv("SPOOL_TEST_DATABASE")
 	if address == "" || dsn == "" {
@@ -263,6 +368,16 @@ func TestRealHTTPMutation(t *testing.T) {
 	}
 	if count != 2 {
 		t.Fatalf("successful audits %d", count)
+	}
+	for path, want := range map[string]int{"/api/v1/audit?page=1&limit=100": 200, "/api/v1/audit?limit=101": 422} {
+		res, e := http.Get(server.URL + path)
+		if e != nil {
+			t.Fatal(e)
+		}
+		res.Body.Close()
+		if res.StatusCode != want {
+			t.Fatalf("%s: %d want %d", path, res.StatusCode, want)
+		}
 	}
 }
 
