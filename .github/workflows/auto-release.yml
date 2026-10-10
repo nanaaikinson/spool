@@ -24,9 +24,10 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
+      # Check out main as it is now, not the commit that was checked: the
+      # script reads history for any commit, but older commits may predate it.
       - uses: actions/checkout@v7
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
       - id: tag
         env:
