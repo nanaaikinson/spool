@@ -15,9 +15,11 @@ The wizard asks for:
 1. Your existing Asynq Redis URL, including the database index your workers use. Secret URLs are hidden when entered in a terminal.
 2. Bundled PostgreSQL (default), or an external PostgreSQL URL containing an existing database.
 3. Bundled Prometheus (default), or an external Prometheus URL whose scraper collects Spool's metrics.
-4. An administrator username, the loopback host port, and the console URL. Local access defaults to `http://localhost:8080`; for a remote server, enter your HTTPS proxy's origin.
+4. An administrator username, the loopback host port, console URL, and organization name. Local access defaults to `http://localhost:8080`; for a remote server, enter your HTTPS proxy's origin.
 
-The installer generates separate random administrator, PostgreSQL and session secrets and saves them in `.env.installation` with permissions `600`. Read `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` in that file to sign in; you can set your own administrator password there before startup. Keep it private and backed up alongside your database. It is a **Compose dotenv file**, with literal single-quoted values; do not source it or use it with `docker run --env-file`.
+The installer generates separate random administrator, PostgreSQL, session, data-encryption, setup and scrape secrets and saves them in `.env.installation` with permissions `600`. Read `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` in that file to sign in; you can set your own administrator password there before startup. Keep it private and backed up alongside your database. It is a **Compose dotenv file**, with literal single-quoted values; do not source it or use it with `docker run --env-file`.
+
+Add `--browser-setup` to choose the first organization name and administrator in the UI using the private `SPOOL_SETUP_TOKEN`. Otherwise the wizard’s organization and account are bootstrapped once at startup. See [organization setup and RBAC](organizations.md).
 
 Use `./scripts/install.sh --configure-only` to save and validate configuration before starting. The installer never replaces an existing configuration file or regenerates secrets on reruns. A file created outside the wizard is left untouched; use `--env-file PATH` to choose a different file. Cancelled or incomplete prompts do not save configuration. Re-running without `--configure-only` builds and starts services, waits for Redis and PostgreSQL readiness, and checks that bundled Prometheus can scrape Spool (or that an external Prometheus responds to a query). Historical charts fill as samples accumulate.
 
@@ -52,7 +54,7 @@ The generated file also contains these deployment settings:
 
 Server settings such as `REDIS_URL`, account credentials and `SPOOL_SECURE_COOKIE` are described in the [README configuration reference](../README.md#configuration).
 
-For private CAs or client certificates, configure the necessary read-only mounts and `REDIS_TLS_*` environment entries through an additional Compose override before starting; see [connection values](#connection-values). The wizard handles TCP Redis, TLS Redis and Sentinel URLs; Unix socket Redis requires a manual socket mount and deployment configuration. A container's `localhost` refers to that container; use a reachable private host or shared Docker network for external services.
+For private CAs or client certificates, configure the necessary read-only mounts and `REDIS_TLS_*` environment entries through an additional Compose override before starting; see [connection values](#connection-values). The wizard handles TCP Redis, TLS Redis and Sentinel URLs; Unix socket Redis requires legacy mode (`SPOOL_MULTI_ORG=false`), a manual socket mount and deployment configuration. A container's `localhost` refers to that container; use a reachable private host or shared Docker network for external services.
 
 ## Published image
 
@@ -106,7 +108,7 @@ The name, environment, deployment mode and support link appear before sign-in. U
 
 Settings shows live connection checks for Redis, PostgreSQL and Prometheus, with manual refresh and 30-second polling. Authenticated `GET /api/v1/status` returns each check independently, including failures, with an HTTP response deadline of five seconds. It is a console diagnostic endpoint; `/ready` remains the deployment readiness probe.
 
-Metrics diagnostics validate the Prometheus response and check active targets matching the configured job. They distinguish missing targets, pending collection, failed scrapes and unavailable target inspection. The UI reports first-sample collection only after a healthy scrape and fewer than two successful samples in the last two minutes. Rate charts require multiple samples; missing data in an older range is not reconstructed. If the target API is unavailable, scrape health remains unverified even when queries work. External Prometheus must still be scoped to the intended Asynq environment: changing the diagnostic job does not scope chart queries.
+Metrics diagnostics validate the Prometheus response and check active targets matching the configured job. They distinguish missing targets, pending collection, failed scrapes and unavailable target inspection. The UI reports first-sample collection only after a healthy scrape and fewer than two successful samples in the last two minutes. Rate charts require multiple samples; missing data in an older range is not reconstructed. If the target API is unavailable, scrape health remains unverified even when queries work. Legacy chart queries require Prometheus to contain only the intended Asynq environment. Organization mode scopes every chart expression to both the deployment job and organization ID; native scrapes carry an `organization` label.
 
 An empty queue list may be valid for a new environment. Dashboard and Queues guide users to verify the Redis database rather than labelling every empty deployment as a connection failure.
 
@@ -129,7 +131,7 @@ DATABASE_URL=postgres://spool:URL_ENCODED_PASSWORD@postgres.example.com:5432/spo
 
 Percent-encode special characters in URI usernames/passwords, including `@`, `:`, `/`, `#`, and `%`. Use your provider's endpoint and TLS settings. Publicly trusted TLS certificates work with the image's CA bundle; a private PostgreSQL CA requires a read-only certificate mount and `sslrootcert=/path/in/container/ca.pem` in `DATABASE_URL`. For Redis behind a private CA, mount the CA file read-only and set `REDIS_TLS_CA_FILE` to its path; for mutual TLS also set `REDIS_TLS_CERT_FILE` and `REDIS_TLS_KEY_FILE`. These apply to `rediss://` and `redis-sentinel://` URLs. Redis Cluster is not supported yet.
 
-External PostgreSQL must already contain the database named in `DATABASE_URL`. Give the application role permission to create its tables/indexes and read/write them. Spool runs its own migrations on startup; no separate migration command is needed. PostgreSQL holds the audit log, saved views and the links between tasks and the periodic schedules that enqueued them. Tasks remain in your Asynq Redis.
+External PostgreSQL must already contain the database named in `DATABASE_URL`. Give the application role permission to create its tables/indexes and read/write them. Spool runs its own migrations on startup; no separate migration command is needed. PostgreSQL holds accounts, organizations, encrypted connection settings, the audit log, saved views and the links between tasks and the periodic schedules that enqueued them. Tasks remain in your Asynq Redis.
 
 Generate a different random value for each secret:
 
@@ -149,7 +151,7 @@ Containers have their own loopback interface. A URL containing `localhost` or `1
 4. In **Domains**, target service `app`, path `/`, container port **8080**, and enable HTTPS with your certificate provider. Point your domain's DNS at the server.
 5. Preview the generated Compose definition. Keep `app` and `postgres` on their shared `default` network; Dokploy also connects `app` to its proxy network. Deploy after domain changes.
 
-For bundled metrics, merge the Prometheus override into the Compose definition selected by the resource and keep service `prometheus` without a domain. Copy `deploy/prometheus.production.yml` into a managed File Mount under **Advanced → Mounts**, target `/etc/prometheus/prometheus.yml`, and replace its repository-relative bind mount with the managed source. This keeps the configuration available when AutoDeploy replaces the checkout. Do not add the host-port override; the platform proxy connects to the app's internal port. Dokploy adds the proxy labels. Leave PostgreSQL without a domain or published port. See the official [Compose guide](https://docs.dokploy.com/docs/core/docker-compose) and [Compose domains guide](https://docs.dokploy.com/docs/core/docker-compose/domains).
+For bundled metrics, merge the Prometheus override into the Compose definition selected by the resource and keep service `prometheus` without a domain. The override generates its configuration inside the container and uses a private credentials file when `SPOOL_METRICS_TOKEN` is set; no repository bind mount or File Mount is required. Do not add the host-port override; the platform proxy connects to the app's internal port. Dokploy adds the proxy labels. Leave PostgreSQL without a domain or published port. See the official [Compose guide](https://docs.dokploy.com/docs/core/docker-compose) and [Compose domains guide](https://docs.dokploy.com/docs/core/docker-compose/domains).
 
 ## Coolify
 
@@ -159,7 +161,7 @@ For bundled metrics, merge the Prometheus override into the Compose definition s
 4. Set service `app`'s domain to `https://spool.example.com:8080`. The suffix selects the internal container port; visitors use ordinary HTTPS on 443.
 5. Keep **Raw Compose Deployment** disabled and deploy. Image-defined health checks apply to Compose deployments.
 
-For bundled metrics, merge the Prometheus override into the Compose file selected by the resource and keep service `prometheus` without a domain. Enable **Preserve repository during deployment** under **General → Build pipeline** so the `deploy/prometheus.production.yml` bind source remains available. Do not add the host-port override. If connecting to another Coolify database resource, enable **Connect To Predefined Network** and use its actual internal hostname. The bundled PostgreSQL already shares this resource's network. See the official [Compose guide](https://coolify.io/docs/applications/builds/docker-compose).
+For bundled metrics, merge the Prometheus override into the Compose file selected by the resource and keep service `prometheus` without a domain. The override generates its configuration and optional scrape credentials file inside the container, so no repository-preservation setting is required for metrics. Do not add the host-port override. If connecting to another Coolify database resource, enable **Connect To Predefined Network** and use its actual internal hostname. The bundled PostgreSQL already shares this resource's network. See the official [Compose guide](https://coolify.io/docs/applications/builds/docker-compose).
 
 ## Dockerfile deployment on either platform
 
@@ -229,9 +231,9 @@ The guided installer chooses the cookie setting from your console URL. Changing 
 
 Preserve the original HTTP `Host` header so same-origin checks work. Allow streaming responses for `/api/v1/events`; do not enable proxy buffering for SSE. Serve Spool at the domain root.
 
-`/metrics` is unauthenticated unless `SPOOL_METRICS_TOKEN` is configured. The self-hosted Compose files leave it unconfigured: keep it on a private monitoring path/network, or deny that exact path at public ingress. For a Traefik public router, the route rule can be ``Host(`spool.example.com`) && !Path(`/metrics`)``: apply it to the generated public router using your platform's proxy-label configuration. Keep `/api/v1/metrics` accessible; it is a separate authenticated API endpoint.
+`/metrics` requires a separate token in organization mode; new guided installs generate it and configure bundled Prometheus automatically. Legacy mode can omit `SPOOL_METRICS_TOKEN`, making its scrape path unauthenticated: keep it on a private monitoring path/network, or deny that exact path at public ingress. For a Traefik public router, the route rule can be ``Host(`spool.example.com`) && !Path(`/metrics`)``: apply it to the generated public router using your platform's proxy-label configuration. Keep `/api/v1/metrics` accessible; it is a separate authenticated API endpoint.
 
-For a direct image deployment, you can instead pass `SPOOL_METRICS_TOKEN` at runtime and configure Prometheus to send `Authorization: Bearer TOKEN` using an authorization credentials file. Tokens require at least 32 characters without whitespace. Console session cookies do not authorize scrapes. The dedicated hosted template passes this setting to the app and configures Prometheus automatically; setting it only on the app breaks an unconfigured scraper. Older images ignore this variable, so verify anonymous scrapes return 401 after deploying an image with token support.
+For a direct image deployment, you can instead pass `SPOOL_METRICS_TOKEN` at runtime and configure Prometheus to send `Authorization: Bearer TOKEN` using an authorization credentials file. Tokens require at least 32 characters without whitespace. Console session cookies do not authorize scrapes. The dedicated hosted template and bundled production metrics override pass this setting to the app and configure Prometheus automatically; setting it only on the app breaks an unconfigured scraper. Older images ignore this variable, so verify anonymous scrapes return 401 after deploying an image with token support.
 
 For example, with **Caddy installed directly on the Docker host**, this Caddyfile routes the UI/API, denies public metrics, and uses automatic HTTPS. Point the domain's DNS at the host and allow Caddy to receive traffic on ports 80 and 443:
 
@@ -253,11 +255,11 @@ Caddy preserves Host for this HTTP upstream and streams SSE responses. See its [
 
 Set `PROMETHEUS_URL` only if you have Prometheus. Its scrape target should reach this app's internal `:8080/metrics`; for a shared Docker network, use `app:8080`. Without Prometheus, queues, tasks, live activity and the dashboard checks still work, but the charts, the Metrics page and the archive-growth check have no data.
 
-The optional `compose.production.prometheus.yaml` already configures this target and persistent storage. On Dokploy/Coolify, merge it into the selected deployment definition and follow the platform-specific configuration-mount instructions above; keep that service private without a domain. With external Prometheus, restrict its Spool queries/scrape targets to the intended Asynq environment; the current metric expressions do not distinguish multiple environments sharing queue names.
+The optional `compose.production.prometheus.yaml` already configures this target and persistent storage. On Dokploy/Coolify, merge it into the selected deployment definition and follow the platform-specific configuration-mount instructions above; keep that service private without a domain. With external Prometheus, restrict its Spool queries/scrape targets to the intended Asynq environment; legacy metric expressions do not distinguish multiple environments sharing queue names. Organization mode requires the `organization` label and filters by it and `SPOOL_METRICS_JOB`.
 
-Back up the bundled PostgreSQL database and keep its named volume. Keep the same Compose project name/resource across redeployments. Do not use `docker compose down -v` unless you intend to delete the audit log, saved views and periodic schedule links. Changing `POSTGRES_PASSWORD` in the environment does not change a password in an already initialized PostgreSQL volume: rotate the database role's password and update the app together. Keep PostgreSQL on major version 17 until you perform a planned database upgrade.
+Back up the bundled PostgreSQL database and keep its named volume. Keep the same Compose project name/resource and the original `SPOOL_DATA_KEY` across redeployments; back up the key separately from PostgreSQL. Do not use `docker compose down -v` unless you intend to delete the audit log, saved views and periodic schedule links. Changing `POSTGRES_PASSWORD` in the environment does not change a password in an already initialized PostgreSQL volume: rotate the database role's password and update the app together. Keep PostgreSQL on major version 17 until you perform a planned database upgrade.
 
-After updates, rebuild/redeploy and verify `/ready` and the HTTPS login. `/health` only confirms the process is running; `/ready` checks Redis and PostgreSQL connectivity. If startup fails, inspect logs for database reachability, credentials, migration permissions, or an invalid session key.
+After updates, rebuild/redeploy and verify `/ready` and the HTTPS login. `/health` only confirms the process is running; `/ready` checks Redis and PostgreSQL in legacy mode, or PostgreSQL in organization mode. Check each organization’s Redis in Settings. If startup fails, inspect logs for database reachability, credentials, migration permissions, or an invalid session key.
 
 ### Backups
 
@@ -270,9 +272,11 @@ docker compose --env-file .env.installation exec -T postgres \
   pg_dump -U spool -d spool > "$HOME/spool-backups/spool-$(date +%Y%m%d-%H%M%S).sql"
 ```
 
-Check the command's exit status and restore backups into an isolated empty database periodically. A PostgreSQL backup covers the audit log, saved views and schedule links. Back up `.env.installation` separately to retain credentials and project settings. Metrics history lives in the separate Prometheus volume; preserving that volume is necessary to retain it through updates. Tasks remain in your existing Redis and follow that service's backup policy. Use your provider's backup procedure for external PostgreSQL or Prometheus.
+Check the command's exit status and restore backups into an isolated empty database periodically. A PostgreSQL backup covers accounts, organizations, encrypted connection settings, audit logs, saved views and schedule links; preserve the original `SPOOL_DATA_KEY` separately to decrypt restored connections. Back up `.env.installation` separately to retain credentials and project settings. Metrics history lives in the separate Prometheus volume; preserving that volume is necessary to retain it through updates. Tasks remain in your existing Redis and follow that service's backup policy. Use your provider's backup procedure for external PostgreSQL or Prometheus.
 
 ## Connection and account changes
+
+In organization mode, use Settings for account passwords, disabling, membership roles and connection replacement. Environment account variables are bootstrap-only and never reset existing database accounts. Keep `SPOOL_DATA_KEY` unchanged; see [migration and recovery](organizations.md#upgrading-an-existing-installation). The environment rotation procedure below applies to legacy accounts and infrastructure services.
 
 Edit the saved runtime configuration, then rerun the installer with the same `--env-file` to recreate services and recheck readiness. For manual deployments, repeat your original Compose command with the same file list and project name; for hosting platforms, update runtime variables and redeploy.
 

@@ -7,12 +7,26 @@ services:
     image: prom/prometheus:v3.5.0
     restart: unless-stopped
     stop_grace_period: 30s
+    environment:
+      SPOOL_METRICS_TOKEN: ${SPOOL_METRICS_TOKEN:-}
+    # The token stays out of the config and command line; legacy mode can omit it.
+    entrypoint: [/bin/sh, -ec]
     command:
-      - --config.file=/etc/prometheus/prometheus.yml
-      - --storage.tsdb.path=/prometheus
-      - --storage.tsdb.retention.time=15d
+      - |
+        umask 077
+        cat > /tmp/spool-prometheus.yml <<'CONFIG'
+        global:
+          scrape_interval: 15s
+        scrape_configs:
+          - job_name: spool
+        CONFIG
+        if [ -n "$$SPOOL_METRICS_TOKEN" ]; then
+          printf '%s' "$$SPOOL_METRICS_TOKEN" > /tmp/spool-metrics-token
+          printf '    authorization:\n      credentials_file: /tmp/spool-metrics-token\n' >> /tmp/spool-prometheus.yml
+        fi
+        printf '    static_configs:\n      - targets: ["app:8080"]\n' >> /tmp/spool-prometheus.yml
+        exec /bin/prometheus --config.file=/tmp/spool-prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d
     volumes:
-      - ./deploy/prometheus.production.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     healthcheck:
       test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:9090/-/ready]

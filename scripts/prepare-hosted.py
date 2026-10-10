@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("customer", help="unique lowercase customer slug")
+    parser.add_argument("--browser-setup", action="store_true", help="create the first organization and administrator in the browser")
+    parser.add_argument("--organization-name", help="initial organization name (defaults to instance name)")
     parser.add_argument("--instance-name", help="friendly public instance name (defaults to customer slug)")
     parser.add_argument("--environment", default="production", help="environment label, such as production or staging")
     parser.add_argument("--support-url", default="", help="public HTTPS or mailto support link")
@@ -29,7 +31,8 @@ def main():
     if not re.fullmatch(r"[a-zA-Z0-9./_-]+(?::[0-9]+)?/[a-zA-Z0-9./_-]+(?:@sha256:[a-f0-9]{64}|:[0-9]+\.[0-9]+\.[0-9]+(?:[-.][a-zA-Z0-9.-]+)?)", args.image):
         parser.error("image must include a registry/repository and a full version tag or sha256 digest")
     name = args.instance_name or args.customer
-    if any(len(value) > 80 or not value or any(c in value for c in "'\\\r\n") for value in (name, args.environment)):
+    organization = args.organization_name or name
+    if any(len(value) > 80 or not value or any(c in value for c in "'\\\r\n") for value in (name, args.environment, organization)):
         parser.error("instance name and environment must be 1–80 characters without quotes, backslashes or line breaks")
     try:
         support = urlsplit(args.support_url)
@@ -65,8 +68,12 @@ def main():
         "SPOOL_IMAGE": args.image,
         "REDIS_URL": uri,
         "POSTGRES_PASSWORD": secrets.token_hex(32),
-        "SPOOL_ADMIN_USER": "admin",
-        "SPOOL_ADMIN_PASSWORD": secrets.token_hex(32),
+        "SPOOL_MULTI_ORG": "true",
+        "SPOOL_ORGANIZATION_NAME": organization,
+        "SPOOL_DATA_KEY": secrets.token_hex(32),
+        "SPOOL_SETUP_TOKEN": secrets.token_hex(32),
+        "SPOOL_ADMIN_USER": "" if args.browser_setup else "admin",
+        "SPOOL_ADMIN_PASSWORD": "" if args.browser_setup else secrets.token_hex(32),
         "SPOOL_SESSION_KEY": secrets.token_hex(32),
         "SPOOL_METRICS_TOKEN": secrets.token_hex(32),
         "SPOOL_READ_ONLY": "false",

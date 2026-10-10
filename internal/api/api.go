@@ -51,9 +51,11 @@ func (a *API) Handler(scrape http.Handler) http.Handler {
 	r.Get("/ready", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 3*time.Second)
 		defer cancel()
-		if _, e := a.Source.Queues(ctx); e != nil {
-			a.fail(w, r, 503, "NOT_READY", "Cannot reach Redis. Check REDIS_URL and that Redis is running.", e)
-			return
+		if !a.Config.MultiOrg {
+			if _, e := a.Source.Queues(ctx); e != nil {
+				a.fail(w, r, 503, "NOT_READY", "Cannot reach Redis. Check REDIS_URL and that Redis is running.", e)
+				return
+			}
 		}
 		if a.Store != nil {
 			if e := a.Store.Ping(ctx); e != nil {
@@ -65,6 +67,10 @@ func (a *API) Handler(scrape http.Handler) http.Handler {
 	})
 	// Without a token, keep this endpoint private at ingress.
 	r.Handle("/metrics", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if a.Config.MultiOrg && a.Config.MetricsToken == "" {
+			a.fail(w, r, 503, "METRICS_TOKEN_REQUIRED", "Configure a separate scrape token for organization metrics.", nil)
+			return
+		}
 		if a.Config.MetricsToken != "" && !secureEqual(r.Header.Get("Authorization"), "Bearer "+a.Config.MetricsToken) {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="spool-metrics"`)
 			a.fail(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "A valid metrics scrape token is required.", nil)
@@ -112,10 +118,36 @@ func (a *API) route(ep Endpoint) http.Handler {
 			return
 		}
 		p.ints = ints
-		ep.Handle(a, w, r, p)
+		target := a
+		if a.Config.MultiOrg && !ep.Public {
+			c, _ := r.Context().Value(authKey{}).(claims)
+			target = &API{Config: a.Config, Store: a.Store.Scoped(c.OrganizationID), Source: a.Source, Metrics: a.Metrics, Events: a.Events, Log: a.Log, Requests: a.Requests}
+			if operational(ep.ID) {
+				in, e := a.Store.Connection(r.Context(), c.OrganizationID, a.Config.DataKey)
+				if e != nil {
+					a.failure(w, r, e)
+					return
+				}
+				cfg := a.Config
+				cfg.RedisURL = in.RedisURL
+				source := asynqadapter.New(cfg.Redis())
+				source.Entries = target.Store
+				defer source.Close()
+				target.Source = source
+				if in.PrometheusURL != "" {
+					cfg.PrometheusURL = in.PrometheusURL
+				}
+				provider := metrics.New(cfg.PrometheusURL)
+				provider.Job = cfg.MetricsJob
+				provider.Organization = c.OrganizationID
+				target.Metrics = provider
+				target.Config = cfg
+			}
+		}
+		ep.Handle(target, w, r, p)
 	}))
 	if !ep.Public {
-		h = a.protect(h)
+		h = a.protect(h, ep)
 	}
 	return h
 }
@@ -169,6 +201,14 @@ var errAuditOutcome = errors.New("audit outcome unknown")
 
 func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 	switch {
+	case errors.Is(e, store.ErrIdentityInvalid):
+		a.fail(w, r, 422, "VALIDATION_ERROR", "Use a valid name, username, role and connection URL. New passwords must be 12–72 bytes.", nil)
+	case errors.Is(e, store.ErrLastAdmin):
+		a.fail(w, r, 409, "LAST_ADMIN", "Keep at least one active administrator for every organization and the deployment.", nil)
+	case errors.Is(e, store.ErrIdentityConflict):
+		a.fail(w, r, 409, "IDENTITY_CONFLICT", "Setup is complete, this membership already exists, or this username belongs to an existing user. Leave the password empty when adding an existing user.", nil)
+	case errors.Is(e, store.ErrIdentityNotFound):
+		a.fail(w, r, 404, "USER_NOT_FOUND", "The user was not found or the current password is incorrect.", nil)
 	case errors.Is(e, errAuditOutcome):
 		a.fail(
 			w,
@@ -295,7 +335,19 @@ func (a *API) audited(r *http.Request, action, q, id string, run func() error) e
 		return fmt.Errorf("%w: %v", errAuditOutcome, finishErr)
 	}
 	if e == nil {
-		a.Events.Publish("changed")
+		event := "changed"
+		if a.Config.MultiOrg {
+			event += ":" + a.Store.OrganizationID
+		}
+		a.Events.Publish(event)
 	}
 	return e
+}
+
+func operational(id string) bool {
+	switch id {
+	case "logout", "listOrganizations", "switchOrganization", "createOrganization", "renameOrganization", "updateOrganizationConnection", "listMembers", "addMember", "changeMember", "removeMember", "listUsers", "updateUser", "changePassword", "listAudit", "listViews", "saveView", "deleteView", "events":
+		return false
+	}
+	return true
 }

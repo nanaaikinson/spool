@@ -110,6 +110,19 @@ var metricNames = []string{"depth", "pending", "active", "retry", "archived", "l
 
 func Endpoints() []Endpoint {
 	return []Endpoint{
+		{"POST", "/setup", "setup", "Create the first organization and deployment administrator", domain.Organization{}, domain.SetupRequest{}, nil, true, (*API).setup},
+		{"GET", "/organizations", "listOrganizations", "Organizations accessible to the signed-in user", domain.OrganizationList{}, nil, nil, false, (*API).listOrganizations},
+		{"POST", "/organizations", "createOrganization", "Create an organization (deployment administrator)", domain.Organization{}, domain.OrganizationRequest{}, nil, false, (*API).createOrganization},
+		{"POST", "/session/organization", "switchOrganization", "Select an accessible organization", domain.Session{}, domain.SwitchOrganizationRequest{}, nil, false, (*API).switchOrganization},
+		{"PATCH", "/organization", "renameOrganization", "Rename the selected organization", domain.OK{}, domain.OrganizationNameRequest{}, nil, false, (*API).renameOrganization},
+		{"PUT", "/organization/connection", "updateOrganizationConnection", "Replace selected organization connection (deployment administrator)", domain.OK{}, domain.OrganizationRequest{}, nil, false, (*API).updateOrganizationConnection},
+		{"GET", "/members", "listMembers", "Members of the selected organization (organization administrator)", domain.MemberList{}, nil, nil, false, (*API).listMembers},
+		{"POST", "/members", "addMember", "Create a user or add an existing user to this organization", domain.OK{}, domain.MemberRequest{}, nil, false, (*API).addMember},
+		{"PATCH", "/members/{id}", "changeMember", "Change a member's organization role", domain.OK{}, domain.MemberRoleRequest{}, nil, false, (*API).changeMember},
+		{"DELETE", "/members/{id}", "removeMember", "Remove a membership", domain.OK{}, domain.ActionRequest{}, nil, false, (*API).removeMember},
+		{"GET", "/users", "listUsers", "Deployment accounts (deployment administrator)", domain.UserList{}, nil, nil, false, (*API).listUsers},
+		{"PATCH", "/users/{id}", "updateUser", "Disable or reset an account (deployment administrator)", domain.OK{}, domain.UserUpdateRequest{}, nil, false, (*API).updateUser},
+		{"POST", "/account/password", "changePassword", "Change own password and revoke sessions", domain.OK{}, domain.PasswordRequest{}, nil, false, (*API).changePassword},
 		{"GET", "/session", "getSession", "Session and environment", domain.Session{}, nil, nil, true, (*API).getSession},
 		{"POST", "/session", "login", "Sign in", domain.Session{}, domain.LoginRequest{}, nil, true, (*API).login},
 		{"DELETE", "/session", "logout", "Sign out", domain.OK{}, domain.ActionRequest{}, nil, false, (*API).logout},
@@ -367,7 +380,7 @@ func Endpoints() []Endpoint {
 			false,
 			(*API).deleteView,
 		},
-		{"GET", "/events", "events", "Server-sent query invalidations", nil, nil, nil, false, (*API).events},
+		{"GET", "/events", "events", "Server-sent query invalidations", nil, nil, []Parameter{q("organization", "Organization ID for EventSource clients; membership is verified on every stream update")}, false, (*API).events},
 	}
 }
 
@@ -444,6 +457,9 @@ func OpenAPI() ([]byte, error) {
 			paths[path] = item
 		}
 		parameters := []any{}
+		if !e.Public {
+			parameters = append(parameters, map[string]any{"name": "X-Spool-Organization", "in": "header", "required": false, "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.", "schema": map[string]any{"type": "string"}})
+		}
 		for _, part := range strings.Split(e.Path, "/") {
 			if strings.HasPrefix(part, "{") {
 				name := strings.Trim(part, "{}")
@@ -548,6 +564,9 @@ func OpenAPI() ([]byte, error) {
 			value[k] = v
 		}
 	}
+	for _, field := range []struct{ name, field string }{{"SetupRequest", "token"}, {"SetupRequest", "password"}, {"LoginRequest", "password"}, {"MemberRequest", "password"}, {"PasswordRequest", "password"}, {"PasswordRequest", "current_password"}, {"UserUpdateRequest", "password"}, {"OrganizationRequest", "redis_url"}, {"OrganizationRequest", "prometheus_url"}} {
+		constrain(field.name, field.field, map[string]any{"writeOnly": true})
+	}
 	for _, name := range []string{"ActionRequest", "BulkRequest", "CloneRequest"} {
 		constrain(name, "confirm", map[string]any{"const": true})
 	}
@@ -583,7 +602,10 @@ func OpenAPI() ([]byte, error) {
 		},
 	)
 	constrain("Payload", "encoding", map[string]any{"enum": []string{"json", "utf8", "base64"}})
-	constrain("Session", "role", map[string]any{"enum": []string{"admin", "viewer", ""}})
+	for _, name := range []string{"Member", "MemberRequest", "MemberRoleRequest"} {
+		constrain(name, "role", map[string]any{"enum": []string{"admin", "operator", "viewer"}})
+	}
+	constrain("Session", "role", map[string]any{"enum": []string{"admin", "operator", "viewer", ""}})
 	constrain("Audit", "status", map[string]any{"enum": []string{"pending", "succeeded", "failed"}})
 	constrain(
 		"Task",

@@ -70,6 +70,17 @@ class HostedTests(unittest.TestCase):
         self.assertNotEqual(models[0]["volumes"], models[1]["volumes"])
         self.assertNotEqual(models[0]["networks"], models[1]["networks"])
 
+    def test_browser_setup_and_organization_name(self):
+        result = self.prepare(extra=("--browser-setup", "--organization-name", "Acme team"))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        app = self.model("acme")["services"]["app"]["environment"]
+        self.assertEqual(app["SPOOL_MULTI_ORG"], "true")
+        self.assertEqual(app["SPOOL_ORGANIZATION_NAME"], "Acme team")
+        self.assertEqual(app["SPOOL_ADMIN_USER"], "")
+        self.assertEqual(app["SPOOL_ADMIN_PASSWORD"], "")
+        self.assertNotEqual(app["SPOOL_SETUP_TOKEN"], app["SPOOL_DATA_KEY"])
+        self.assertNotIn(app["SPOOL_SETUP_TOKEN"], result.stdout + result.stderr)
+
     def test_existing_credentials_are_never_replaced(self):
         self.assertEqual(self.prepare().returncode, 0)
         path = self.directory / "acme/.env.hosted"
