@@ -10,9 +10,9 @@ require (
 	github.com/hibiken/asynq/x v0.0.0-20260612090333-d135f1439bee
 	github.com/nanaaikinson/chandlery v0.5.1
 	github.com/prometheus/client_golang v1.24.1
-	github.com/uptrace/bun v1.2.18
-	github.com/uptrace/bun/dialect/pgdialect v1.2.18
-	github.com/uptrace/bun/driver/pgdriver v1.2.18
+	github.com/uptrace/bun v1.3.0
+	github.com/uptrace/bun/dialect/pgdialect v1.3.0
+	github.com/uptrace/bun/driver/pgdriver v1.3.0
 )
 
 require (
