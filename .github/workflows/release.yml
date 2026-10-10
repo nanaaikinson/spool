@@ -1,20 +1,33 @@
 name: Release
-# Push a tag such as v0.1.0 to publish. Tags with a suffix (v0.2.0-rc.1) are
-# released as prereleases and don't move the major/minor or latest image tags.
+# Pushes to main are released automatically by auto-release.yml, which calls
+# this workflow with the new tag. Pushing a tag such as v0.2.0-rc.1 by hand also
+# publishes; tags with a suffix are prereleases and don't move the major/minor
+# or latest image tags.
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag that already exists on the remote, such as v0.2.0
+        type: string
+        required: true
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: release-${{ inputs.tag || github.ref_name }}
   cancel-in-progress: false
+env:
+  TAG: ${{ inputs.tag || github.ref_name }}
 jobs:
+  # auto-release.yml only calls this after Check passed on the same commit.
   check:
+    if: github.event_name == 'push'
     uses: ./.github/workflows/ci.yml
 
   image:
     needs: check
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -24,7 +37,8 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with: {ref: "${{ env.TAG }}"}
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v4
@@ -36,10 +50,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/${{ github.repository }}
+          # The tag is passed explicitly: when called from auto-release.yml the
+          # workflow runs on main, not on the tag ref.
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref_name, 'v0.') }}
+            type=semver,pattern={{version}},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
+            type=semver,pattern={{major}},value=${{ env.TAG }},enable=${{ !startsWith(env.TAG, 'v0.') }}
+          flavor: latest=${{ !contains(env.TAG, '-') }}
           labels: |
             org.opencontainers.image.title=Spool
             org.opencontainers.image.description=Observability console for Asynq task queues
@@ -64,22 +81,39 @@ jobs:
 
   release:
     needs: image
+    if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
+        with: {ref: "${{ env.TAG }}", fetch-depth: 0}
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
           IMAGE: ghcr.io/${{ github.repository }}:${{ needs.image.outputs.version }}
         run: |
           prerelease=""
           case "$TAG" in *-*) prerelease="--prerelease" ;; esac
+          # Notes list the commits since the previous release, grouped by type,
+          # because direct pushes to main have no pull requests to summarise.
+          previous=$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude '*-*' "$TAG^" 2>/dev/null || true)
+          range=${previous:+$previous..}$TAG
+          section() {
+            lines=$(git log --no-merges --format='- %s (%h)' "$range" | grep -E "$2" || true)
+            [ -n "$lines" ] && printf '### %s\n\n%s\n\n' "$1" "$lines"
+            return 0
+          }
           {
             echo "Container image: \`$IMAGE\` (linux/amd64, linux/arm64)"
             echo
             echo "See the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/deployment.md) to run it against your Asynq Redis."
+            echo
+            section "Breaking changes" '^- [a-z]+(\([^)]*\))?!:'
+            section "Features" '^- feat(\([^)]*\))?:'
+            section "Fixes" '^- (fix|perf)(\([^)]*\))?:'
+            if [ -n "$previous" ]; then
+              echo "**Full changelog:** https://github.com/$GITHUB_REPOSITORY/compare/$previous...$TAG"
+            fi
           } > notes.md
-          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md --generate-notes $prerelease
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file notes.md $prerelease

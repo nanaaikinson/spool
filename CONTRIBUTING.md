@@ -30,6 +30,17 @@ make e2e        # browser tests; needs `cd apps/web && pnpm exec playwright inst
 
 Keep pull requests focused, and explain the problem and how you verified the fix. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/) style (`fix:`, `feat:`, `docs:`).
 
+## Releases
+
+Every push to `main` that passes the checks is released automatically. The commit types since the last release decide the version:
+
+- `feat:` releases a new minor version.
+- `fix:` or `perf:` releases a patch version.
+- `feat!:` (any type with `!`) or a `BREAKING CHANGE:` footer releases a new major version, or a minor version while Spool is below 1.0.
+- `docs:`, `chore:`, `ci:`, `test:`, `refactor:`, `style:` and `build:` don't release on their own.
+
+Run `scripts/next-version.sh` to see what the next release would be. The release workflow tags the commit, publishes the container image to GHCR and writes release notes from the commit subjects, so make the subject readable on its own. To publish a prerelease, push a tag such as `v0.3.0-rc.1` by hand.
+
 ## Reporting security issues
 
 Don't open public issues for vulnerabilities. See [SECURITY.md](SECURITY.md).

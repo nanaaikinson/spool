@@ -1,0 +1,68 @@
+name: Auto release
+# Releases main after Check passes on a push. scripts/next-version.sh picks the
+# version from Conventional Commits since the last release: feat bumps the
+# minor version, fix and perf the patch version, and ! or BREAKING CHANGE the
+# major version (the minor version while below 1.0). Pushes containing only
+# docs, chore, ci, test or refactor commits don't release.
+on:
+  workflow_run:
+    workflows: [Check]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+# One release at a time, in the order pushes finished checking.
+concurrency:
+  group: auto-release
+  cancel-in-progress: false
+jobs:
+  version:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+      - id: tag
+        env:
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          # A later push may already have released this commit.
+          if git tag --contains "$SHA" --list 'v*' | grep -qv -- '-'; then
+            echo "::notice::$SHA is already part of a release."
+            exit 0
+          fi
+          tag=$(scripts/next-version.sh "$SHA")
+          if [ -z "$tag" ]; then
+            echo "::notice::No feat, fix, perf or breaking commits since the last release."
+            exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
+            echo "::notice::$tag already exists."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$tag" -m "$tag" "$SHA"
+          git push origin "refs/tags/$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "::notice::Tagged $tag."
+
+  # A tag pushed with GITHUB_TOKEN doesn't start other workflows, so the
+  # release is run here rather than by release.yml's tag trigger.
+  publish:
+    needs: version
+    if: needs.version.outputs.tag != ''
+    uses: ./.github/workflows/release.yml
+    with:
+      tag: ${{ needs.version.outputs.tag }}
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write

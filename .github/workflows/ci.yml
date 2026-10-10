@@ -19,7 +19,7 @@ jobs:
       SPOOL_TEST_REDIS: redis://localhost:6379/15
       SPOOL_TEST_DATABASE: postgres://spool:spool-local@localhost:5448/spool?sslmode=disable
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with: {go-version-file: go.mod}
       # Installs the pnpm version pinned in apps/web/package.json. Corepack run
