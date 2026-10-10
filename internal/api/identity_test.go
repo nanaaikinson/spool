@@ -151,6 +151,39 @@ func TestManagedOrganizationsAndRBAC(t *testing.T) {
 	v, _ := db.Authenticate(ctx, "viewer", "long-viewer-password")
 	request("PATCH", "/api/v1/users/"+v.ID, domain.UserUpdateRequest{Disabled: new(true)}, root, "", 200)
 	request("GET", "/api/v1/queues", nil, viewer, "", 401)
+	// Deployment authority needs both an authorized session and password verification.
+	organizationAdmin, _ := db.Authenticate(ctx, "admin", "long-admin-password")
+	endpoint := "/api/v1/users/" + organizationAdmin.ID + "/administration"
+	change := domain.AdministrationRequest{Action: "grant", CurrentPassword: setup.Password, Confirm: true}
+	request("POST", endpoint, change, admin, "", 403)
+	change.Confirm = false
+	request("POST", endpoint, change, root, "", 422)
+	change.Confirm = true
+	change.CurrentPassword = "wrong-password"
+	request("POST", endpoint, change, root, "", 403)
+	change.CurrentPassword = setup.Password
+	a.Config.ReadOnly = true
+	request("POST", endpoint, change, root, "", 403)
+	a.Config.ReadOnly = false
+	request("POST", endpoint, change, root, "", 200)
+	request("GET", "/api/v1/users", nil, admin, "", 401)
+	admin = login("admin", "long-admin-password")
+	request("GET", "/api/v1/users", nil, admin, "", 200)
+	change.Action = "revoke"
+	request("POST", endpoint, change, root, "", 200)
+	request("GET", "/api/v1/users", nil, admin, "", 401)
+	change.Action = "transfer"
+	request("POST", endpoint, change, root, "", 200)
+	request("GET", "/api/v1/users", nil, root, "", 401)
+	admin = login("admin", "long-admin-password")
+	request("GET", "/api/v1/users", nil, admin, "", 200)
+	// Recovery is local-only, and revokes the recovered account's API sessions.
+	if e := db.RecoverAdministrator(ctx, "admin", "recovered-admin-password"); e != nil {
+		t.Fatal(e)
+	}
+	request("GET", "/api/v1/users", nil, admin, "", 401)
+	root = login("root", setup.Password)
+	request("GET", "/api/v1/users", nil, root, "", 403)
 	request("POST", "/api/v1/account/password", domain.PasswordRequest{CurrentPassword: setup.Password, Password: "changed-root-password"}, root, "", 200)
 	request("GET", "/api/v1/users", nil, root, "", 401)
 	raw = request("GET", "/api/v1/session", nil, "", "", 200)
@@ -173,7 +206,7 @@ func TestRolePermissions(t *testing.T) {
 		if allowed("addMember", "POST", c, false) != (role == "admin") {
 			t.Fatal("membership role mismatch", role)
 		}
-		if allowed("createOrganization", "POST", c, false) || allowed("listUsers", "GET", c, false) {
+		if allowed("createOrganization", "POST", c, false) || allowed("listUsers", "GET", c, false) || allowed("changeAdministration", "POST", c, false) {
 			t.Fatal("organization role gained deployment access", role)
 		}
 		if allowed("pauseQueue", "POST", c, true) {

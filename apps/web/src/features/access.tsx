@@ -19,6 +19,7 @@ import {
 import {
   addMember,
   changeMember,
+  changeAdministration,
   changePassword,
   createOrganization,
   logout,
@@ -397,13 +398,19 @@ function MemberRow({
     </div>
   );
 }
+type AdministrationAction = "grant" | "revoke" | "transfer";
+
 function UserRow({
   user,
+  administration,
+  actor,
   confirm,
   reset,
   disabled,
 }: {
   user: User;
+  actor: string;
+  administration: (user: User, action: AdministrationAction) => void;
   confirm: (v: Confirmation) => void;
   reset: (u: User) => void;
   disabled: boolean;
@@ -417,7 +424,27 @@ function UserRow({
           {user.disabled ? "Disabled" : "Active"}
         </p>
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex min-w-0 max-w-full flex-wrap gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={disabled || (user.disabled && !user.platform_admin)}
+          onClick={() =>
+            administration(user, user.platform_admin ? "revoke" : "grant")
+          }
+        >
+          {user.platform_admin ? "Remove administrator" : "Make administrator"}
+        </Button>
+        {user.username !== actor && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={disabled || user.disabled}
+            onClick={() => administration(user, "transfer")}
+          >
+            Transfer administration
+          </Button>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -457,6 +484,10 @@ export function AccessSettings() {
   const s = session.data;
   const accessRef = useRef<HTMLDivElement>(null);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [administration, setAdministration] = useState<{
+    user: User;
+    action: AdministrationAction;
+  } | null>(null);
   const [resetUser, setResetUser] = useState<User | null>(null);
   const [connectionOpen, setConnectionOpen] = useState(false);
   const members = useQuery({
@@ -580,7 +611,7 @@ export function AccessSettings() {
         <Section>
           <SectionHeader
             title="Deployment accounts"
-            description="Account disabling and password resets affect all organizations."
+            description="Deployment administrators can access every organization. Administration changes require your current password."
           />
           <SectionBody>
             {users.isPending ? (
@@ -592,6 +623,10 @@ export function AccessSettings() {
                 <UserRow
                   key={user.id}
                   user={user}
+                  actor={s.actor}
+                  administration={(user, action) =>
+                    setAdministration({ user, action })
+                  }
                   confirm={setConfirmation}
                   reset={setResetUser}
                   disabled={s.read_only}
@@ -667,6 +702,61 @@ export function AccessSettings() {
         value={confirmation}
         close={() => setConfirmation(null)}
       />
+      <OperationDialog
+        kind="form"
+        finalFocus={accessRef}
+        open={!!administration}
+        onOpenChange={(open) => {
+          if (!open) setAdministration(null);
+        }}
+        title={
+          administration?.action === "grant"
+            ? `Make ${administration.user.username} a deployment administrator?`
+            : administration?.action === "revoke"
+              ? `Remove ${administration.user.username}’s deployment administration?`
+              : `Transfer administration to ${administration?.user.username ?? "account"}?`
+        }
+        description={
+          administration?.action === "transfer"
+            ? "This account gains access to every organization and deployment account. You lose deployment administration. Existing membership roles are retained, and both accounts must sign in again."
+            : administration?.action === "grant"
+              ? "This account will access every organization, manage accounts and replace connections. Its existing sessions will be revoked."
+              : "This account will keep its organization membership roles. Its existing sessions will be revoked. At least one active deployment administrator must remain."
+        }
+      >
+        {administration && (
+          <ActionForm
+            key={`${administration.user.id}-${administration.action}`}
+            fields={[
+              {
+                name: "current_password",
+                label: "Your current password",
+                type: "password",
+              },
+            ]}
+            action={
+              administration.action === "transfer"
+                ? "Transfer administration"
+                : administration.action === "grant"
+                  ? "Make administrator"
+                  : "Remove administrator"
+            }
+            run={(v) =>
+              changeAdministration({
+                path: { id: administration.user.id },
+                body: {
+                  action: administration.action,
+                  current_password: v.current_password,
+                  confirm: true,
+                },
+                headers: { "X-Spool-Action": "confirmed" },
+                throwOnError: true,
+              })
+            }
+            onSuccess={() => window.location.assign("/settings")}
+          />
+        )}
+      </OperationDialog>
       <OperationDialog
         kind="form"
         open={!!resetUser}

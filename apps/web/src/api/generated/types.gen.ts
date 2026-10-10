@@ -16,6 +16,11 @@ export type ActionResult = {
     success: boolean;
 };
 
+export type AdministrationRequest = {
+    action: 'grant' | 'revoke' | 'transfer';
+    confirm: true;
+};
+
 export type Audit = {
     action: string;
     actor: string;
@@ -373,6 +378,12 @@ export type Worker = {
     started: string;
     task_id: string;
     task_type: string;
+};
+
+export type AdministrationRequestWritable = {
+    action: 'grant' | 'revoke' | 'transfer';
+    confirm: true;
+    current_password: string;
 };
 
 export type LoginRequestWritable = {
@@ -2968,6 +2979,75 @@ export type UpdateUserResponses = {
 };
 
 export type UpdateUserResponse = UpdateUserResponses[keyof UpdateUserResponses];
+
+export type ChangeAdministrationData = {
+    body: AdministrationRequestWritable;
+    headers: {
+        /**
+         * Organization ID; defaults to the signed session selection. Membership is checked on every request.
+         */
+        'X-Spool-Organization'?: string;
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/api/v1/users/{id}/administration';
+};
+
+export type ChangeAdministrationErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ChangeAdministrationError = ChangeAdministrationErrors[keyof ChangeAdministrationErrors];
+
+export type ChangeAdministrationResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type ChangeAdministrationResponse = ChangeAdministrationResponses[keyof ChangeAdministrationResponses];
 
 export type ListViewsData = {
     body?: never;

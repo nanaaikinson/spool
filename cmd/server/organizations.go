@@ -103,3 +103,56 @@ func setupCLI(args []string) error {
 	fmt.Printf("Created organization %s (%s). Sign in to the console.\n", org.Name, org.ID)
 	return nil
 }
+
+// Recovery needs operator database access, independent of Redis, signing or data keys.
+func recoverAdminCLI(args []string) error {
+	if len(args) == 0 || args[0] != "recover" {
+		return errors.New("usage: spool admin recover --username USER --confirm < private-recovery.json")
+	}
+	flags := flag.NewFlagSet("admin recover", flag.ContinueOnError)
+	username := flags.String("username", "", "Existing deployment administrator username")
+	confirmed := flags.Bool("confirm", false, "Confirm password reset, account re-enabling and session revocation")
+	if e := flags.Parse(args[1:]); e != nil {
+		if errors.Is(e, flag.ErrHelp) {
+			return nil
+		}
+		return e
+	}
+	if flags.NArg() != 0 || !*confirmed || !store.ValidUsername(*username) {
+		return errors.New("provide --username and --confirm; supply the new password as JSON on stdin")
+	}
+	dsn := os.Getenv("DATABASE_URL")
+	if dsn == "" {
+		return errors.New("set DATABASE_URL in the process environment; run recovery inside the app container or through your secret manager")
+	}
+	var input struct {
+		Password string `json:"password"`
+	}
+	raw, e := io.ReadAll(io.LimitReader(os.Stdin, 1025))
+	if e != nil || len(raw) > 1024 {
+		return errors.New("recovery input must be at most 1024 bytes")
+	}
+	d := json.NewDecoder(bytes.NewReader(raw))
+	d.DisallowUnknownFields()
+	if d.Decode(&input) != nil || d.Decode(&struct{}{}) != io.EOF {
+		return errors.New("provide one JSON object containing password on stdin")
+	}
+	if len(input.Password) < 12 || len(input.Password) > 72 {
+		return errors.New("the new password must be 12–72 bytes")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	db, e := store.Open(ctx, dsn)
+	if e != nil {
+		return errors.New("could not connect to PostgreSQL or apply migrations; check DATABASE_URL")
+	}
+	defer db.DB.Close()
+	if e := db.RecoverAdministrator(ctx, *username, input.Password); e != nil {
+		if errors.Is(e, store.ErrIdentityNotFound) {
+			return errors.New("recovery requires an existing deployment administrator; ordinary accounts cannot be promoted")
+		}
+		return errors.New("administrator recovery failed; no changes were committed")
+	}
+	fmt.Printf("Recovered deployment administrator %s. Existing sessions were revoked. Sign in with the new password.\n", *username)
+	return nil
+}

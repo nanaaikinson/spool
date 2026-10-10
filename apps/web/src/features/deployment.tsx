@@ -61,7 +61,9 @@ export function DeploymentHelp({
       .
       {account &&
         !hosted &&
-        " If you installed Spool, use the account saved in your private installation configuration."}
+        (session?.managed
+          ? " A deployment administrator can reset your password. If you operate this deployment and cannot sign in, use administrator recovery from the host."
+          : " If you installed Spool, use the account saved in your private installation configuration.")}
     </span>
   );
 }

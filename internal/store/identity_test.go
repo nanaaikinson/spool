@@ -324,3 +324,162 @@ func TestUpgradeWithRetainedScheduleLinks(t *testing.T) {
 	}
 	_ = again.DB.Close()
 }
+
+func TestAdministrationTransferAndRecovery(t *testing.T) {
+	s := identityStore(t)
+	ctx := context.Background()
+	key := strings.Repeat("k", 32)
+	org, e := s.Setup(ctx, key, domain.SetupRequest{Username: "owner", Password: "long-owner-password", Organization: domain.OrganizationRequest{Name: "Alpha", RedisURL: "redis://alpha:6379/0"}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	owner, _ := s.Authenticate(ctx, "owner", "long-owner-password")
+	beta, e := s.CreateOrganization(ctx, key, owner.ID, "owner", domain.OrganizationRequest{Name: "Beta", RedisURL: "redis://beta:6379/0"})
+	if e != nil {
+		t.Fatal(e)
+	}
+	alpha := s.Scoped(org.ID)
+	if e := alpha.AddMember(ctx, "owner", domain.MemberRequest{Username: "next", Password: "long-next-password", Role: "viewer"}); e != nil {
+		t.Fatal(e)
+	}
+	next, _ := s.Authenticate(ctx, "next", "long-next-password")
+	change := domain.AdministrationRequest{Action: "grant", CurrentPassword: "wrong-password", Confirm: true}
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, change); !errors.Is(e, ErrAdministrationDenied) {
+		t.Fatal("wrong password granted authority", e)
+	}
+	if e := s.RecoverAdministrator(ctx, "next", "recovered-next-password"); !errors.Is(e, ErrIdentityNotFound) {
+		t.Fatal("recovery promoted an ordinary account", e)
+	}
+	change.CurrentPassword = "long-owner-password"
+	change.Action = "revoke"
+	if e := s.ChangeAdministration(ctx, owner.ID, owner.ID, change); !errors.Is(e, ErrLastAdmin) {
+		t.Fatal("removed last administrator", e)
+	}
+	change.Action = "grant"
+	change.Confirm = false
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, change); !errors.Is(e, ErrIdentityInvalid) {
+		t.Fatal("unconfirmed authority change", e)
+	}
+	change.Confirm = true
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, change); e != nil {
+		t.Fatal(e)
+	}
+	promoted, _ := s.Account(ctx, next.ID)
+	if !promoted.PlatformAdmin || promoted.AuthVersion == next.AuthVersion {
+		t.Fatal("promotion did not grant authority and revoke sessions")
+	}
+	orgs, _ := s.Organizations(ctx, next.ID, promoted.PlatformAdmin)
+	if len(orgs) != 2 {
+		t.Fatal("promoted administrator cannot see all organizations")
+	}
+	change.Action = "revoke"
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, change); e != nil {
+		t.Fatal(e)
+	}
+	revoked, _ := s.Account(ctx, next.ID)
+	if revoked.PlatformAdmin || revoked.AuthVersion == promoted.AuthVersion {
+		t.Fatal("revocation did not remove authority and sessions")
+	}
+	change.Action = "transfer"
+	if e := s.ChangeAdministration(ctx, owner.ID, owner.ID, change); !errors.Is(e, ErrIdentityInvalid) {
+		t.Fatal("self-transfer accepted", e)
+	}
+	if _, e := s.DB.ExecContext(ctx, "UPDATE users SET disabled=true WHERE id=?", next.ID); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, change); !errors.Is(e, ErrIdentityInvalid) {
+		t.Fatal("transferred to disabled account", e)
+	}
+	stillOwner, _ := s.Account(ctx, owner.ID)
+	if !stillOwner.PlatformAdmin {
+		t.Fatal("failed transfer removed owner")
+	}
+	if _, e := s.DB.ExecContext(ctx, "UPDATE users SET disabled=false WHERE id=?", next.ID); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, change); e != nil {
+		t.Fatal(e)
+	}
+	former, _ := s.Account(ctx, owner.ID)
+	successor, _ := s.Account(ctx, next.ID)
+	if former.PlatformAdmin || !successor.PlatformAdmin || former.AuthVersion == owner.AuthVersion || successor.AuthVersion == revoked.AuthVersion {
+		t.Fatal("transfer was incomplete")
+	}
+	membership, _ := s.Organization(ctx, org.ID, owner.ID, false)
+	if membership.Role != "admin" {
+		t.Fatal("transfer changed organization membership")
+	}
+	if e := s.ChangeAdministration(ctx, owner.ID, next.ID, domain.AdministrationRequest{Action: "revoke", CurrentPassword: "long-owner-password", Confirm: true}); !errors.Is(e, ErrAdministrationDenied) {
+		t.Fatal("former owner retained authority", e)
+	}
+	if e := s.RecoverAdministrator(ctx, "owner", "recovered-owner-password"); !errors.Is(e, ErrIdentityNotFound) {
+		t.Fatal("recovery restored transferred authority", e)
+	}
+	if _, e := s.DB.ExecContext(ctx, "UPDATE users SET disabled=true WHERE id=?", next.ID); e != nil {
+		t.Fatal(e)
+	}
+	if e := s.RecoverAdministrator(ctx, "next", "recovered-next-password"); e != nil {
+		t.Fatal(e)
+	}
+	recovered, e := s.Authenticate(ctx, "next", "recovered-next-password")
+	if e != nil || recovered.Disabled || recovered.AuthVersion == successor.AuthVersion {
+		t.Fatal("recovery failed to re-enable and revoke sessions", e)
+	}
+	if _, e := s.Authenticate(ctx, "next", "long-next-password"); e == nil {
+		t.Fatal("old password survived recovery")
+	}
+	for _, id := range []string{org.ID, beta.ID} {
+		audits, e := s.Scoped(id).Audits(ctx, 1, 100)
+		if e != nil {
+			t.Fatal(e)
+		}
+		actions := map[string]bool{}
+		for _, a := range audits.Data {
+			actions[a.Action] = true
+		}
+		for _, action := range []string{"administration.grant", "administration.revoke", "administration.transfer", "administration.recover"} {
+			if !actions[action] {
+				t.Fatal("missing administration audit", id, action)
+			}
+		}
+	}
+}
+
+func TestConcurrentAdministratorRevocation(t *testing.T) {
+	s := identityStore(t)
+	ctx := context.Background()
+	org, e := s.Setup(ctx, strings.Repeat("k", 32), domain.SetupRequest{Username: "first", Password: "long-first-password", Organization: domain.OrganizationRequest{Name: "Alpha", RedisURL: "redis://alpha:6379/0"}})
+	if e != nil {
+		t.Fatal(e)
+	}
+	first, _ := s.Authenticate(ctx, "first", "long-first-password")
+	if e := s.Scoped(org.ID).AddMember(ctx, "first", domain.MemberRequest{Username: "second", Password: "long-second-password", Role: "viewer"}); e != nil {
+		t.Fatal(e)
+	}
+	second, _ := s.Authenticate(ctx, "second", "long-second-password")
+	if e := s.ChangeAdministration(ctx, first.ID, second.ID, domain.AdministrationRequest{Action: "grant", CurrentPassword: "long-first-password", Confirm: true}); e != nil {
+		t.Fatal(e)
+	}
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, account := range []struct{ id, password string }{{first.ID, "long-first-password"}, {second.ID, "long-second-password"}} {
+		wg.Add(1)
+		go func(id, password string) {
+			defer wg.Done()
+			results <- s.ChangeAdministration(ctx, id, id, domain.AdministrationRequest{Action: "revoke", CurrentPassword: password, Confirm: true})
+		}(account.id, account.password)
+	}
+	wg.Wait()
+	close(results)
+	successes := 0
+	for e := range results {
+		if e == nil {
+			successes++
+		} else if !errors.Is(e, ErrLastAdmin) {
+			t.Fatal(e)
+		}
+	}
+	if successes != 1 {
+		t.Fatal("concurrent revocation lost last administrator")
+	}
+}

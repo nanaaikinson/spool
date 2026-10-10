@@ -21,10 +21,11 @@ import (
 )
 
 var (
-	ErrIdentityConflict = errors.New("identity conflict")
-	ErrIdentityInvalid  = errors.New("invalid identity input")
-	ErrLastAdmin        = errors.New("last active administrator")
-	ErrIdentityNotFound = errors.New("identity not found")
+	ErrIdentityConflict     = errors.New("identity conflict")
+	ErrIdentityInvalid      = errors.New("invalid identity input")
+	ErrLastAdmin            = errors.New("last active administrator")
+	ErrIdentityNotFound     = errors.New("identity not found")
+	ErrAdministrationDenied = errors.New("administrator verification failed")
 )
 var usernamePattern = regexp.MustCompile(`^[a-zA-Z0-9_.@-]{1,80}$`)
 
@@ -497,5 +498,87 @@ func (s *Store) ChangePassword(ctx context.Context, id, current, password string
 			return e
 		}
 		return identityAudit(ctx, tx, s.OrganizationID, actor, "user.password", id)
+	})
+}
+
+// Changes to deployment authority are visible in every organization's audit log.
+func administrationAudit(ctx context.Context, tx bun.Tx, actor, action, target string) error {
+	var ids []string
+	if e := tx.NewSelect().Table("organizations").Column("id").Scan(ctx, &ids); e != nil {
+		return e
+	}
+	for _, id := range ids {
+		if e := identityAudit(ctx, tx, id, actor, action, target); e != nil {
+			return e
+		}
+	}
+	return nil
+}
+
+func (s *Store) ChangeAdministration(ctx context.Context, actorID, targetID string, in domain.AdministrationRequest) error {
+	if !in.Confirm || (in.Action != "grant" && in.Action != "revoke" && in.Action != "transfer") || (in.Action == "transfer" && actorID == targetID) {
+		return ErrIdentityInvalid
+	}
+	return s.identityTx(ctx, func(tx bun.Tx) error {
+		var actor, hash string
+		var active bool
+		if e := tx.QueryRowContext(ctx, "SELECT username, password_hash, platform_admin AND NOT disabled FROM users WHERE id=?", actorID).Scan(&actor, &hash, &active); e != nil {
+			return e
+		}
+		// Recheck authority inside the write lock; a concurrent transfer may have revoked it.
+		if !active || bcrypt.CompareHashAndPassword([]byte(hash), []byte(in.CurrentPassword)) != nil {
+			return ErrAdministrationDenied
+		}
+		var disabled, platform bool
+		if e := tx.QueryRowContext(ctx, "SELECT disabled, platform_admin FROM users WHERE id=?", targetID).Scan(&disabled, &platform); errors.Is(e, sql.ErrNoRows) {
+			return ErrIdentityNotFound
+		} else if e != nil {
+			return e
+		}
+		if in.Action != "revoke" && disabled {
+			return ErrIdentityInvalid
+		}
+		if in.Action == "revoke" && platform && !disabled {
+			var n int
+			if e := tx.QueryRowContext(ctx, "SELECT count(*) FROM users WHERE platform_admin AND NOT disabled AND id<>?", targetID).Scan(&n); e != nil {
+				return e
+			}
+			if n == 0 {
+				return ErrLastAdmin
+			}
+		}
+		if _, e := tx.ExecContext(ctx, "UPDATE users SET platform_admin=?, auth_version=auth_version+1 WHERE id=?", in.Action != "revoke", targetID); e != nil {
+			return e
+		}
+		if in.Action == "transfer" {
+			if _, e := tx.ExecContext(ctx, "UPDATE users SET platform_admin=false, auth_version=auth_version+1 WHERE id=?", actorID); e != nil {
+				return e
+			}
+		}
+		return administrationAudit(ctx, tx, actor, "administration."+in.Action, targetID)
+	})
+}
+
+// RecoverAdministrator is only called by the local operator CLI, never a public API.
+// It cannot create accounts or promote ordinary members.
+func (s *Store) RecoverAdministrator(ctx context.Context, username, password string) error {
+	if !ValidUsername(username) {
+		return ErrIdentityInvalid
+	}
+	hash, e := HashPassword(password)
+	if e != nil {
+		return e
+	}
+	return s.identityTx(ctx, func(tx bun.Tx) error {
+		var id string
+		if e := tx.QueryRowContext(ctx, "SELECT id FROM users WHERE username=? AND platform_admin", username).Scan(&id); errors.Is(e, sql.ErrNoRows) {
+			return ErrIdentityNotFound
+		} else if e != nil {
+			return e
+		}
+		if _, e := tx.ExecContext(ctx, "UPDATE users SET disabled=false, password_hash=?, auth_version=auth_version+1 WHERE id=?", hash, id); e != nil {
+			return e
+		}
+		return administrationAudit(ctx, tx, "operator-cli", "administration.recover", id)
 	})
 }

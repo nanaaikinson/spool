@@ -73,7 +73,7 @@ Images are published for linux/amd64 and linux/arm64. Pin a version tag such as 
 
 ### Organizations and user management
 
-New guided and hosted installations enable organization management. Each organization has its own Redis connection, members, roles, audit log, saved views and schedule links. Settings manages members, roles and accounts; the sidebar switches organizations. The first administrator can create additional organizations and manage deployment-wide accounts.
+New guided and hosted installations enable organization management. Each organization has its own Redis connection, members, roles, audit log, saved views and schedule links. Settings manages members, roles and accounts; the sidebar switches organizations. The first administrator can create additional organizations and manage deployment-wide accounts. Settings supports administrator grants and ownership transfer with password verification; `spool admin recover` restores an existing administrator through operator PostgreSQL access.
 
 Use `./scripts/install.sh --browser-setup` to create the first organization and administrator in the UI with the generated private setup token. For terminal setup, the normal wizard collects the organization name and creates the account at startup. The same setup API is available through `spool setup --url ORIGIN < private-setup.json`. Existing manual installations can enable this mode without replacing task storage; see the [organization setup, migration and RBAC guide](docs/organizations.md).
 

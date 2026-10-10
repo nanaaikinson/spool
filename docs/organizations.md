@@ -71,11 +71,51 @@ Blank connection fields use the deployment defaults. The client accepts HTTPS or
 | List all accounts, disable/enable accounts, reset others’ passwords | No | No | No | Yes |
 | Change own password | Yes | Yes | Yes | Yes |
 
-The first account is the deployment administrator. This is deployment-wide authority, separate from membership roles; changing its membership does not remove deployment authority. New accounts created through membership forms receive only their organization role. There is no public registration, SSO, invitation email or billing workflow.
+The first account is the deployment administrator. This is deployment-wide authority, separate from membership roles; changing its membership does not remove deployment authority. Deployment administrators can grant, remove or transfer that authority in Settings. New accounts created through membership forms receive only their organization role. There is no public registration, SSO, invitation email or billing workflow.
 
 In Settings → Organization members, add a username and role. Supply a password to create a new account; leave it empty to add an existing user. Adding an existing user never changes their password. Roles can differ between organizations. Role changes and removals take effect on subsequent API requests; action requests already running may finish. At least one active member with the admin role must remain in each organization.
 
 Deployment accounts lists global accounts. Disable an account to revoke all its sessions and prevent sign-in across organizations; enable it to restore sign-in. Resetting a password also revokes all sessions. The last active deployment administrator cannot be disabled. Ordinary users change their own password with their current password and are returned to sign-in. Account and membership changes are audited transactionally without storing passwords or hashes in the audit log.
+
+### Deployment administration and handover
+
+In Settings → Deployment accounts, **Make administrator** grants an active existing account access to every organization, account and connection. **Remove administrator** removes deployment authority while retaining existing organization memberships. At least one active deployment administrator must remain. To create a successor account, first add it through Organization members; it can initially have any organization role.
+
+**Transfer administration** grants the selected active account deployment authority and removes yours in one transaction. Other deployment administrators, if present, keep their authority. Both accounts’ existing sessions are revoked, and you are returned to sign-in. Organization membership roles are preserved: the former administrator may still have admin access to its own organizations, but loses deployment-wide access. Review memberships separately if handing over all access. Changing administration requires your current password and confirmation; organization administrators cannot perform these actions. Read-only mode blocks them. Password verification attempts are rate limited, and grants, removals, transfers and recovery appear in every organization’s audit log.
+
+### Recover a deployment administrator
+
+Recovery is an operator command with direct PostgreSQL access. There is no public recovery endpoint, and the setup token cannot recover a configured deployment. The command resets an **existing deployment administrator’s** password, re-enables that account if disabled, and revokes all its sessions. It cannot create accounts, promote ordinary users, or restore authority removed during a transfer.
+
+Create an owner-only `private-recovery.json` file in your editor:
+
+```json
+{"password": "NEW_PRIVATE_PASSWORD_12_TO_72_BYTES"}
+```
+
+For a guided installation, run:
+
+```sh
+chmod 600 private-recovery.json
+docker compose --env-file .env.installation exec -T app \
+  /app/spool admin recover --username admin --confirm < private-recovery.json
+```
+
+For Dokploy/Coolify, run the same command in the app container with Docker exec, using the platform’s actual container identity:
+
+```sh
+docker exec -i YOUR_APP_CONTAINER /app/spool admin recover \
+  --username admin --confirm < private-recovery.json
+```
+
+For a native binary:
+
+```sh
+# Inject DATABASE_URL into the process environment through your secret manager.
+bin/spool admin recover --username admin --confirm < private-recovery.json
+```
+
+Replace `admin` with the existing deployment administrator’s case-sensitive username. Recovery reads `DATABASE_URL` from the process environment; unlike server startup, it does not load `.env`. It does not require Redis, Prometheus, the signing key, or the data-encryption key, and does not change stored connections. It can run while the app is stopped or read-only. Treat Docker/host/database access as operator access, protect the input file and share the replacement password privately. Recovery does not use or display the password in command-line arguments or output. Sign in with the new password and review the `administration.recover` audit entries.
 
 Use the sidebar organization selector to switch. The UI navigates to the dashboard, clearing prior caches, pending requests, drafts and live subscriptions. Selection is stored per tab and explicitly attached to API and event-stream requests; changing another tab’s shared session cookie cannot redirect this tab’s task actions. Users with no memberships can sign in to request access and change their password, but cannot inspect operational data.
 

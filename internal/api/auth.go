@@ -130,6 +130,10 @@ func (a *API) protect(next http.Handler, ep Endpoint) http.Handler {
 			a.fail(w, r, 403, "FORBIDDEN", "Your role does not allow this action in this organization.", nil)
 			return
 		}
+		if ep.ID == "changeAdministration" && !a.administrationAttempts.allow(r) {
+			a.fail(w, r, 429, "RATE_LIMITED", "Too many administrator verification attempts. Try again in a minute.", nil)
+			return
+		}
 		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), authKey{}, c)))
 	})
 }
@@ -320,7 +324,7 @@ func allowed(id, method string, c claims, readOnly bool) bool {
 		return true
 	case "updateOrganizationConnection":
 		return c.PlatformAdmin && c.OrganizationID != ""
-	case "createOrganization", "listUsers", "updateUser":
+	case "createOrganization", "listUsers", "updateUser", "changeAdministration":
 		return c.PlatformAdmin
 	case "listMembers", "addMember", "changeMember", "removeMember", "renameOrganization":
 		return c.OrganizationID != "" && c.Role == "admin"

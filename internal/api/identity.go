@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/nanaaikinson/spool/internal/domain"
+	"github.com/nanaaikinson/spool/internal/store"
 )
 
 func (a *API) managed(w http.ResponseWriter, r *http.Request) bool {
@@ -203,6 +204,38 @@ func (a *API) changePassword(w http.ResponseWriter, r *http.Request, _ params) {
 	}
 	c, _ := r.Context().Value(authKey{}).(claims)
 	if e := a.Store.ChangePassword(r.Context(), c.UserID, in.CurrentPassword, in.Password); e != nil {
+		a.failure(w, r, e)
+		return
+	}
+	a.json(w, domain.OK{OK: true})
+}
+
+func (a *API) changeAdministration(w http.ResponseWriter, r *http.Request, p params) {
+	if !a.managed(w, r) {
+		return
+	}
+	var in domain.AdministrationRequest
+	if !a.decode(w, r, &in) {
+		return
+	}
+	if !in.Confirm {
+		a.fail(w, r, 422, "CONFIRM_REQUIRED", "Confirm the deployment administration change.", nil)
+		return
+	}
+	if in.Action != "grant" && in.Action != "revoke" && in.Action != "transfer" {
+		a.invalid(w, "Choose grant, revoke or transfer.", []domain.FieldError{{Field: "action", Reasons: []string{"Choose grant, revoke or transfer."}}})
+		return
+	}
+	c, _ := r.Context().Value(authKey{}).(claims)
+	if e := a.Store.ChangeAdministration(r.Context(), c.UserID, p.id, in); e != nil {
+		if e == store.ErrAdministrationDenied {
+			a.fail(w, r, 403, "ADMINISTRATION_REJECTED", "Verify your current password and deployment administrator access.", nil)
+			return
+		}
+		if e == store.ErrIdentityInvalid {
+			a.fail(w, r, 422, "VALIDATION_ERROR", "Choose an active account other than yourself for a transfer.", nil)
+			return
+		}
 		a.failure(w, r, e)
 		return
 	}

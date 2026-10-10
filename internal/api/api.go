@@ -27,14 +27,15 @@ import (
 )
 
 type API struct {
-	Config   config.Config
-	Source   asynqadapter.Source
-	Metrics  metrics.Provider
-	Store    *store.Store
-	Events   *events.Broker
-	Log      *slog.Logger
-	Requests *prometheus.HistogramVec
-	logins   loginLimiter
+	Config                 config.Config
+	Source                 asynqadapter.Source
+	Metrics                metrics.Provider
+	Store                  *store.Store
+	Events                 *events.Broker
+	Log                    *slog.Logger
+	Requests               *prometheus.HistogramVec
+	logins                 loginLimiter
+	administrationAttempts loginLimiter
 }
 
 // Handler panics if the OpenAPI document cannot be built, so a broken contract stops startup.
@@ -346,7 +347,7 @@ func (a *API) audited(r *http.Request, action, q, id string, run func() error) e
 
 func operational(id string) bool {
 	switch id {
-	case "logout", "listOrganizations", "switchOrganization", "createOrganization", "renameOrganization", "updateOrganizationConnection", "listMembers", "addMember", "changeMember", "removeMember", "listUsers", "updateUser", "changePassword", "listAudit", "listViews", "saveView", "deleteView", "events":
+	case "logout", "listOrganizations", "switchOrganization", "createOrganization", "renameOrganization", "updateOrganizationConnection", "listMembers", "addMember", "changeMember", "removeMember", "listUsers", "updateUser", "changeAdministration", "changePassword", "listAudit", "listViews", "saveView", "deleteView", "events":
 		return false
 	}
 	return true

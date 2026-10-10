@@ -68,3 +68,10 @@ type PasswordRequest struct {
 	CurrentPassword string `json:"current_password"`
 	Password        string `json:"password"`
 }
+
+// AdministrationRequest changes deployment-wide authority after password verification.
+type AdministrationRequest struct {
+	Action          string `json:"action"` // grant, revoke, or transfer (demotes the acting administrator).
+	CurrentPassword string `json:"current_password"`
+	Confirm         bool   `json:"confirm"`
+}

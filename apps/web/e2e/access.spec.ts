@@ -153,11 +153,25 @@ test("browser setup, organization switching, member roles and account revocation
     path: "test-results/access-settings-mobile.png",
     fullPage: true,
   });
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-  ).toBe(true);
+  const sizing = await page.evaluate(() => ({
+    width: innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    overflowing: [...document.querySelectorAll("body *")]
+      .filter(
+        (el) =>
+          el.getBoundingClientRect().right > innerWidth &&
+          getComputedStyle(el).position !== "fixed",
+      )
+      .slice(0, 12)
+      .map((el) => ({
+        tag: el.tagName,
+        classes: el.className,
+        right: el.getBoundingClientRect().right,
+      })),
+  }));
+  expect(sizing.scrollWidth, JSON.stringify(sizing)).toBeLessThanOrEqual(
+    sizing.width,
+  );
   await page.setViewportSize({ width: 1440, height: 960 });
   const csrf = { "X-Spool-Action": "confirmed" };
   await page.request.delete(`${origin}/api/v1/session`, {
@@ -200,5 +214,122 @@ test("browser setup, organization switching, member roles and account revocation
   await expect(
     page.getByRole("heading", { name: "Sign in", exact: true }),
   ).toBeVisible();
+  // Deployment administration is distinct from this account's organization role.
+  await page.getByLabel("Username", { exact: true }).fill("owner");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("long-owner-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).not.toBeVisible();
+  await page.goto(`${origin}/settings`);
+  const accounts = page.locator('[data-slot="card"]').filter({
+    has: page.getByRole("heading", {
+      name: "Deployment accounts",
+      exact: true,
+    }),
+  });
+  const observerAccount = accounts
+    .getByText("observer", { exact: true })
+    .locator("..")
+    .locator("..");
+  const ownerAccount = accounts
+    .getByText("owner", { exact: true })
+    .locator("..")
+    .locator("..");
+  await observerAccount
+    .getByRole("button", { name: "Make administrator", exact: true })
+    .click();
+  let dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("every organization");
+  await dialog.getByLabel("Your current password").fill("wrong-password");
+  await dialog
+    .getByRole("button", { name: "Make administrator", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Verify your current password",
+  );
+  await dialog.getByLabel("Your current password").fill("long-owner-password");
+  await dialog
+    .getByRole("button", { name: "Make administrator", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(observerAccount).toContainText("Deployment administrator");
+  await observerAccount
+    .getByRole("button", { name: "Remove administrator", exact: true })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Your current password").fill("long-owner-password");
+  await dialog
+    .getByRole("button", { name: "Remove administrator", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(observerAccount).not.toContainText("Deployment administrator");
+  await ownerAccount
+    .getByRole("button", { name: "Remove administrator", exact: true })
+    .click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Your current password").fill("long-owner-password");
+  await dialog
+    .getByRole("button", { name: "Remove administrator", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "at least one active administrator",
+  );
+  await dialog.getByRole("button", { name: "Close", exact: true }).click();
+  await observerAccount
+    .getByRole("button", { name: "Transfer administration", exact: true })
+    .click();
+  dialog = page.getByRole("dialog");
+  await expect(dialog).toContainText("You lose deployment administration");
+  await dialog.getByLabel("Your current password").fill("long-owner-password");
+  await page.screenshot({
+    path: "test-results/administration-transfer-dark.png",
+    fullPage: true,
+  });
+  await dialog
+    .getByRole("button", { name: "Transfer administration", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).toBeVisible();
+  await page.getByLabel("Username", { exact: true }).fill("owner");
+  await page
+    .getByLabel("Password", { exact: true })
+    .fill("long-owner-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Sign in", exact: true }),
+  ).not.toBeVisible();
+  await page.goto(`${origin}/settings`);
+  await expect(
+    page.getByRole("heading", { name: "Deployment accounts", exact: true }),
+  ).toHaveCount(0);
+  // The successor sees all organizations after signing in, despite its viewer membership.
+  const successorContext = await browser.newContext();
+  const successorPage = await successorContext.newPage();
+  await successorPage.goto(origin);
+  await successorPage.getByLabel("Username", { exact: true }).fill("observer");
+  await successorPage
+    .getByLabel("Password", { exact: true })
+    .fill("changed-observer-password");
+  await successorPage
+    .getByRole("button", { name: "Sign in", exact: true })
+    .click();
+  await expect(
+    successorPage.getByLabel("Organization", { exact: true }),
+  ).toContainText("Alpha team");
+  await expect(
+    successorPage.getByLabel("Organization", { exact: true }),
+  ).toContainText("Beta team");
+  await successorPage.goto(`${origin}/settings`);
+  await expect(
+    successorPage.getByRole("heading", {
+      name: "Deployment accounts",
+      exact: true,
+    }),
+  ).toBeVisible();
+  await successorContext.close();
   expect(errors).toEqual([]);
 });

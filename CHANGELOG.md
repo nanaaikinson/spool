@@ -6,6 +6,9 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
+- Deployment administrator grants, revocation and atomic handover with current-password verification, session revocation and organization audit entries.
+- Operator-only `spool admin recover` for an existing administrator’s password recovery, without Redis or public recovery endpoints.
+
 - Multiple organizations with separate Redis connections, encrypted connection settings, organization-scoped persistence and historical metrics.
 - PostgreSQL-backed accounts, admin/operator/viewer RBAC, membership management, account disabling, password resets and session revocation.
 - Organization setup in the guided installer, protected browser onboarding and `spool setup` CLI.

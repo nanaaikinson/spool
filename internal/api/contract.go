@@ -122,6 +122,7 @@ func Endpoints() []Endpoint {
 		{"DELETE", "/members/{id}", "removeMember", "Remove a membership", domain.OK{}, domain.ActionRequest{}, nil, false, (*API).removeMember},
 		{"GET", "/users", "listUsers", "Deployment accounts (deployment administrator)", domain.UserList{}, nil, nil, false, (*API).listUsers},
 		{"PATCH", "/users/{id}", "updateUser", "Disable or reset an account (deployment administrator)", domain.OK{}, domain.UserUpdateRequest{}, nil, false, (*API).updateUser},
+		{"POST", "/users/{id}/administration", "changeAdministration", "Grant, revoke or transfer deployment administration", domain.OK{}, domain.AdministrationRequest{}, nil, false, (*API).changeAdministration},
 		{"POST", "/account/password", "changePassword", "Change own password and revoke sessions", domain.OK{}, domain.PasswordRequest{}, nil, false, (*API).changePassword},
 		{"GET", "/session", "getSession", "Session and environment", domain.Session{}, nil, nil, true, (*API).getSession},
 		{"POST", "/session", "login", "Sign in", domain.Session{}, domain.LoginRequest{}, nil, true, (*API).login},
@@ -564,7 +565,9 @@ func OpenAPI() ([]byte, error) {
 			value[k] = v
 		}
 	}
-	for _, field := range []struct{ name, field string }{{"SetupRequest", "token"}, {"SetupRequest", "password"}, {"LoginRequest", "password"}, {"MemberRequest", "password"}, {"PasswordRequest", "password"}, {"PasswordRequest", "current_password"}, {"UserUpdateRequest", "password"}, {"OrganizationRequest", "redis_url"}, {"OrganizationRequest", "prometheus_url"}} {
+	constrain("AdministrationRequest", "action", map[string]any{"enum": []string{"grant", "revoke", "transfer"}})
+	constrain("AdministrationRequest", "confirm", map[string]any{"enum": []bool{true}})
+	for _, field := range []struct{ name, field string }{{"SetupRequest", "token"}, {"SetupRequest", "password"}, {"LoginRequest", "password"}, {"MemberRequest", "password"}, {"PasswordRequest", "password"}, {"PasswordRequest", "current_password"}, {"AdministrationRequest", "current_password"}, {"UserUpdateRequest", "password"}, {"OrganizationRequest", "redis_url"}, {"OrganizationRequest", "prometheus_url"}} {
 		constrain(field.name, field.field, map[string]any{"writeOnly": true})
 	}
 	for _, name := range []string{"ActionRequest", "BulkRequest", "CloneRequest"} {

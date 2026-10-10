@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddMemberData, AddMemberErrors, AddMemberResponses, ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, ChangeMemberData, ChangeMemberErrors, ChangeMemberResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListOrganizationsData, ListOrganizationsErrors, ListOrganizationsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListUsersData, ListUsersErrors, ListUsersResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RenameOrganizationData, RenameOrganizationErrors, RenameOrganizationResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses, SetupData, SetupErrors, SetupResponses, SwitchOrganizationData, SwitchOrganizationErrors, SwitchOrganizationResponses, UpdateOrganizationConnectionData, UpdateOrganizationConnectionErrors, UpdateOrganizationConnectionResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses } from './types.gen';
+import type { AddMemberData, AddMemberErrors, AddMemberResponses, ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, ChangeAdministrationData, ChangeAdministrationErrors, ChangeAdministrationResponses, ChangeMemberData, ChangeMemberErrors, ChangeMemberResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListOrganizationsData, ListOrganizationsErrors, ListOrganizationsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListUsersData, ListUsersErrors, ListUsersResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RenameOrganizationData, RenameOrganizationErrors, RenameOrganizationResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses, SetupData, SetupErrors, SetupResponses, SwitchOrganizationData, SwitchOrganizationErrors, SwitchOrganizationResponses, UpdateOrganizationConnectionData, UpdateOrganizationConnectionErrors, UpdateOrganizationConnectionResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -567,6 +567,23 @@ export const updateUser = <ThrowOnError extends boolean = false>(options: Option
             type: 'apiKey'
         }],
     url: '/api/v1/users/{id}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Grant, revoke or transfer deployment administration
+ */
+export const changeAdministration = <ThrowOnError extends boolean = false>(options: Options<ChangeAdministrationData, ThrowOnError>): RequestResult<ChangeAdministrationResponses, ChangeAdministrationErrors, ThrowOnError> => (options.client ?? client).post<ChangeAdministrationResponses, ChangeAdministrationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/users/{id}/administration',
     ...options,
     headers: {
         'Content-Type': 'application/json',
