@@ -1,0 +1,36 @@
+# Local-only override for .env.rbac.example. All data belongs to spool-rbac.
+services:
+  app:
+    environment:
+      SPOOL_ENV: development
+      SPOOL_INSTANCE_NAME: Local RBAC
+    depends_on:
+      redis-alpha: {condition: service_healthy}
+  redis-alpha:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis-alpha-data:/data]
+    healthcheck: {test: [CMD, redis-cli, ping], interval: 2s, timeout: 3s, retries: 15}
+  redis-beta:
+    image: redis:7.4-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [redis-beta-data:/data]
+    healthcheck: {test: [CMD, redis-cli, ping], interval: 2s, timeout: 3s, retries: 15}
+  demo-alpha:
+    build: .
+    entrypoint: [/app/spool-demo]
+    # The shared image's /ready healthcheck belongs to the API, not a worker.
+    healthcheck: {disable: true}
+    environment: {REDIS_URL: "redis://redis-alpha:6379/0", SPOOL_ADDR: "127.0.0.1:8088"}
+    depends_on: {redis-alpha: {condition: service_healthy}}
+    profiles: [demo]
+  demo-beta:
+    build: .
+    entrypoint: [/app/spool-demo]
+    healthcheck: {disable: true}
+    environment: {REDIS_URL: "redis://redis-beta:6379/0", SPOOL_ADDR: "127.0.0.1:8088"}
+    depends_on: {redis-beta: {condition: service_healthy}}
+    profiles: [demo]
+volumes:
+  redis-alpha-data:
+  redis-beta-data:

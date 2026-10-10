@@ -81,6 +81,8 @@ New guided and hosted installations enable organization management. Each organiz
 
 Use `./scripts/install.sh --browser-setup` to create the first organization and administrator in the UI with the generated private setup token. For terminal setup, the normal wizard collects the organization name and creates the account at startup. The same setup API is available through `spool setup --url ORIGIN < private-setup.json`. Existing manual installations can enable this mode without replacing task storage; see the [organization setup, migration and RBAC guide](docs/organizations.md).
 
+To test locally, copy `.env.rbac.example` to `.env.rbac` and run `docker compose --env-file .env.rbac --profile demo up -d --build --wait`. Open http://localhost:8098 with `admin` / `local-admin-password`. This separate test project includes two private Redis instances and managed accounts. Follow the [organization/RBAC walkthrough](docs/testing.md); live Dokploy/Coolify validation is tracked in the [backlog](docs/backlog.md).
+
 ## Connecting to Redis
 
 - **Use the same database number as your workers.** `redis://host:6379/2` reads database 2. If Spool starts but shows no queues, its log says so; the database number is the usual cause.

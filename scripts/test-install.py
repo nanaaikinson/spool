@@ -132,6 +132,37 @@ class InstallationTest(unittest.TestCase):
         self.install("redis://redis.example:6379/0\n\nexternal\nhttp://metrics.example:9090\n" + "\n" * 4)
         self.assertEqual(set(self.model()["services"]), {"app", "postgres"})
 
+    def test_local_rbac_stack_is_managed_and_private(self):
+        environment = {key: value for key, value in os.environ.items()
+                       if not key.startswith(("SPOOL_", "COMPOSE_"))
+                       and key not in {"REDIS_URL", "DATABASE_URL", "PROMETHEUS_URL", "POSTGRES_PASSWORD"}}
+        result = subprocess.run(
+            [DOCKER, "compose", "--env-file", str(ROOT / ".env.rbac.example"), "--profile", "demo",
+             "config", "--format", "json"], cwd=ROOT, env=environment,
+            capture_output=True, text=True, check=True,
+        )
+        model = json.loads(result.stdout)
+        self.assertEqual(model["name"], "spool-rbac")
+        services = model["services"]
+        self.assertEqual(set(services), {"app", "postgres", "prometheus", "redis-alpha", "redis-beta", "demo-alpha", "demo-beta"})
+        app = services["app"]["environment"]
+        self.assertEqual(app["SPOOL_MULTI_ORG"], "true")
+        self.assertEqual(app["SPOOL_ORGANIZATION_NAME"], "Alpha")
+        self.assertEqual(app["SPOOL_SECURE_COOKIE"], "false")
+        self.assertEqual(app["REDIS_URL"], "redis://redis-alpha:6379/0")
+        self.assertEqual(app["SPOOL_METRICS_TOKEN"], services["prometheus"]["environment"]["SPOOL_METRICS_TOKEN"])
+        for name, service in services.items():
+            if name == "app":
+                self.assertEqual(service["ports"][0]["host_ip"], "127.0.0.1")
+                self.assertEqual(service["ports"][0]["published"], "8098")
+            else:
+                self.assertFalse(service.get("ports"))
+        for organization in ("alpha", "beta"):
+            self.assertEqual(services[f"demo-{organization}"]["environment"]["REDIS_URL"], f"redis://redis-{organization}:6379/0")
+            self.assertTrue(services[f"demo-{organization}"]["healthcheck"]["disable"])
+            self.assertEqual(services[f"demo-{organization}"]["environment"]["SPOOL_ADDR"], "127.0.0.1:8088")
+        self.assertTrue(all(volume["name"].startswith("spool-rbac_") for volume in model["volumes"].values()))
+
     def test_remote_http_and_incomplete_input_do_not_save(self):
         self.install("redis://redis.example:6379/0\n\n\n\n\nhttp://spool.example\n", success=False)
         self.assertFalse(self.config.exists())

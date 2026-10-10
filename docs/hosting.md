@@ -4,6 +4,8 @@ Dokploy and Coolify can operate the first hosted offering. Deploy one `compose.h
 
 This repository provides the deployment and operating procedures. It does not yet provide a signup portal, billing, automated platform provisioning, SSO or a customer-side connector. New prepared resources enable PostgreSQL-backed accounts and admin/operator/viewer organization roles. A resource can host multiple organizations; its first account is a deployment administrator. A marketing site or billing service can be added without changing how tasks are read.
 
+Live Dokploy/Coolify validation is tracked in the [backlog](backlog.md). Until a destination is available, use the hosted rehearsal below or the [local organization/RBAC stack](testing.md).
+
 ## Isolation and prerequisites
 
 | Resource | Per customer |

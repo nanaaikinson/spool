@@ -6,6 +6,8 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
+- Isolated local organization/RBAC Compose setup with two Redis instances, demo workers and a manual permission-testing guide; track live Dokploy/Coolify validation in the backlog.
+
 - Hosted pilot rehearsal for HTTPS, Redis TLS, redeployment, database restore and administrator recovery, plus a deployed-console verification command and CI coverage.
 - Operator PostgreSQL backup command with exact customer-container selection, private files, checksums and removal of failed partial dumps; the hosted rehearsal restores its output.
 

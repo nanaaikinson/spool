@@ -4,6 +4,8 @@ An organization connects to one Asynq Redis database. A deployment can contain m
 
 ## First setup
 
+For a disposable local stack with two Redis instances and a role-testing checklist, see [local organization/RBAC testing](testing.md).
+
 The normal `./scripts/install.sh` wizard asks for an organization name and administrator username, generates a password, and enables `SPOOL_MULTI_ORG=true`. At startup, Spool creates that organization and account only if the database has no users. Read the generated credentials privately from `.env.installation`, then sign in. The organization’s initial Redis URL comes from the installer.
 
 For browser onboarding, run:
