@@ -92,10 +92,22 @@
               "$ref": "#/components/schemas/Audit"
             },
             "type": "array"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "page": {
+            "type": "integer"
+          },
+          "total": {
+            "type": "integer"
           }
         },
         "required": [
-          "data"
+          "data",
+          "page",
+          "limit",
+          "total"
         ],
         "type": "object"
       },
@@ -1205,7 +1217,30 @@
     "/api/v1/audit": {
       "get": {
         "operationId": "listAudit",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Page number, starting at 1",
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "maximum": 1000000,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Records per page",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1308,7 +1343,7 @@
             "description": "Dependency unavailable"
           }
         },
-        "summary": "Last 100 administrative audit intents",
+        "summary": "Administrative audit intents, newest first",
         "tags": [
           "audit"
         ]

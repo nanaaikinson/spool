@@ -31,3 +31,6 @@ export const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 /** Color hint for an environment name: red for production, amber for staging. */
 export const envTone = (env: string) =>
   /prod/i.test(env) ? "production" : /stag/i.test(env) ? "staging" : "other";
+/** "v0.1.0" for release builds; development builds keep their label, e.g. "dev". */
+export const versionLabel = (version: string) =>
+  /^\d/.test(version) ? `v${version}` : version;

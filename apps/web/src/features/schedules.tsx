@@ -21,13 +21,17 @@ import {
   useClock,
   useNow,
 } from "../lib/time";
-import { date } from "../lib/utils";
+import { cn, date } from "../lib/utils";
+const specCode =
+  "justify-self-start rounded-[5px] border bg-hover px-1.5 py-px font-mono text-xs";
 export function ScheduleSpec({ spec }: { spec: string }) {
   const text = describeCron(spec);
   return (
-    <div className="schedule-spec">
-      <code>{spec}</code>
-      <span>{text ?? "Custom cron expression"}</span>
+    <div className="grid gap-[3px]">
+      <code className={specCode}>{spec}</code>
+      <span className="text-xs text-muted-foreground">
+        {text ?? "Custom cron expression"}
+      </span>
     </div>
   );
 }
@@ -39,9 +43,11 @@ export function TaskSchedule({ task }: { task: TaskSummary }) {
   const now = useClock();
   if (task.schedule) return <ScheduleSpec spec={task.schedule.spec} />;
   return (
-    <div className="schedule-spec">
-      <code className="once">one-off</code>
-      <span>
+    <div className="grid gap-[3px]">
+      <code className={cn(specCode, "text-muted-foreground italic")}>
+        one-off
+      </code>
+      <span className="text-xs text-muted-foreground">
         {task.next_process_at
           ? `Runs once, ${relative(task.next_process_at, now)}`
           : "Runs once"}
@@ -54,13 +60,15 @@ export function CronChip({ schedule }: { schedule: ScheduleRef }) {
   const text = describeCron(schedule.spec);
   return (
     <span
-      className="cron-chip"
+      className="mt-1.5 inline-flex max-w-full items-center gap-1.5 text-2xs text-purple"
       title={text ?? "Custom cron expression"}
       aria-label={`Periodic task, ${schedule.spec}${text ? `, ${text.toLowerCase()}` : ""}`}
     >
       <Repeat size={11} aria-hidden="true" />
-      <code>{schedule.spec}</code>
-      {text && <span>{text}</span>}
+      <code className="rounded-sm bg-purple-bg px-[5px] font-mono">
+        {schedule.spec}
+      </code>
+      {text && <span className="truncate text-muted-foreground">{text}</span>}
     </span>
   );
 }
@@ -68,49 +76,51 @@ export function CronChip({ schedule }: { schedule: ScheduleRef }) {
 export function PeriodicTable({ data }: { data: Scheduler[] }) {
   const now = useNow(false);
   return (
-    <div className="table-wrap">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Task type</TableHead>
-            <TableHead>Schedule</TableHead>
-            <TableHead>Next run</TableHead>
-            <TableHead>Last run</TableHead>
-            <TableHead>Entry ID</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {[...data]
-            .sort((a, b) => a.next.localeCompare(b.next))
-            .map((s) => (
-              <TableRow key={s.id}>
-                <TableCell className="mono">{s.type}</TableCell>
-                <TableCell>
-                  <ScheduleSpec spec={s.spec} />
-                </TableCell>
-                <TableCell title={date(s.next)}>
-                  <div className="tabular">{dueIn(s.next, now)}</div>
-                  <div className="muted small">{timeOfDay(s.next)}</div>
-                </TableCell>
-                <TableCell title={date(s.previous)}>
-                  {s.previous ? (
-                    <>
-                      <div className="tabular">
-                        {clock(now - Date.parse(s.previous))} ago
-                      </div>
-                      <div className="muted small">{timeOfDay(s.previous)}</div>
-                    </>
-                  ) : (
-                    <span className="muted">Not yet</span>
-                  )}
-                </TableCell>
-                <TableCell className="mono muted small entry-id">
-                  {s.id}
-                </TableCell>
-              </TableRow>
-            ))}
-        </TableBody>
-      </Table>
-    </div>
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Task type</TableHead>
+          <TableHead>Schedule</TableHead>
+          <TableHead>Next run</TableHead>
+          <TableHead>Last run</TableHead>
+          <TableHead>Entry ID</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {[...data]
+          .sort((a, b) => a.next.localeCompare(b.next))
+          .map((s) => (
+            <TableRow key={s.id}>
+              <TableCell className="font-mono">{s.type}</TableCell>
+              <TableCell>
+                <ScheduleSpec spec={s.spec} />
+              </TableCell>
+              <TableCell title={date(s.next)}>
+                <div className="tabular-nums">{dueIn(s.next, now)}</div>
+                <div className="text-muted-foreground text-xs">
+                  {timeOfDay(s.next)}
+                </div>
+              </TableCell>
+              <TableCell title={date(s.previous)}>
+                {s.previous ? (
+                  <>
+                    <div className="tabular-nums">
+                      {clock(now - Date.parse(s.previous))} ago
+                    </div>
+                    <div className="text-muted-foreground text-xs">
+                      {timeOfDay(s.previous)}
+                    </div>
+                  </>
+                ) : (
+                  <span className="text-muted-foreground">Not yet</span>
+                )}
+              </TableCell>
+              <TableCell className="max-w-40 truncate font-mono text-xs text-muted-foreground">
+                {s.id}
+              </TableCell>
+            </TableRow>
+          ))}
+      </TableBody>
+    </Table>
   );
 }

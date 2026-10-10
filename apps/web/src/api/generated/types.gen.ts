@@ -28,6 +28,9 @@ export type Audit = {
 
 export type AuditList = {
     data: Array<Audit>;
+    limit: number;
+    page: number;
+    total: number;
 };
 
 export type BulkRequest = {
@@ -284,7 +287,16 @@ export type Worker = {
 export type ListAuditData = {
     body?: never;
     path?: never;
-    query?: never;
+    query?: {
+        /**
+         * Page number, starting at 1
+         */
+        page?: number;
+        /**
+         * Records per page
+         */
+        limit?: number;
+    };
     url: '/api/v1/audit';
 };
 

@@ -3,9 +3,10 @@ import type { ReactNode } from "react";
 import { errorMessage } from "../api/client";
 import { Button } from "./ui/button";
 import { Alert, AlertDescription } from "./ui/alert";
-import { Badge as UiBadge } from "./ui/badge";
 import { Card } from "./ui/card";
 import { Phantom } from "./phantom";
+import { cardX, stack, StateBadge } from "./page";
+import { cn } from "@/lib/utils";
 import {
   Empty as UiEmpty,
   EmptyHeader,
@@ -17,9 +18,14 @@ const widths = ["40%", "18%", "14%", "20%"];
 /** Generic table-shaped skeleton for places without a structure-aware one. */
 export function Loading({ rows = 5 }: { rows?: number }) {
   return (
-    <Card className="section">
+    <Card className={cn("gap-0 overflow-hidden py-0", stack)}>
       <Phantom loading count={rows} label="Loading data">
-        <div className="skeleton-row">
+        <div
+          className={cn(
+            "flex justify-between gap-6 py-4 text-sm/normal",
+            cardX,
+          )}
+        >
           {widths.map((width) => (
             <span key={width} style={{ width }}>
               Loading
@@ -64,23 +70,20 @@ export function Empty({
           <Inbox />
         </EmptyMedia>
         <EmptyTitle>
-          <h3>{title}</h3>
+          <h3 className="text-base font-semibold">{title}</h3>
         </EmptyTitle>
         <EmptyDescription>{children}</EmptyDescription>
       </EmptyHeader>
     </UiEmpty>
   );
 }
+/** Kept for existing call sites; prefer StateBadge from page.tsx. */
 export function Badge({ state }: { state: string }) {
-  return (
-    <UiBadge variant="outline" className={`badge ${state}`}>
-      {state}
-    </UiBadge>
-  );
+  return <StateBadge state={state} />;
 }
 export function Stale({ error }: { error: unknown }) {
   return error ? (
-    <Alert role="status" className="border-[var(--amber)] text-[var(--amber)]">
+    <Alert role="status" className="border-amber text-amber">
       <AlertDescription>
         Couldn’t refresh. Showing data from the last successful update.
       </AlertDescription>

@@ -9,9 +9,9 @@ export function Time({
   empty?: string;
 }) {
   const now = useClock();
-  if (!value) return <span className="muted">{empty}</span>;
+  if (!value) return <span className="text-muted-foreground">{empty}</span>;
   return (
-    <time dateTime={value} title={date(value)} className="tabular">
+    <time dateTime={value} title={date(value)} className="tabular-nums">
       {relative(value, now)}
     </time>
   );

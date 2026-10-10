@@ -33,6 +33,22 @@ func TestAuditAndSavedViews(t *testing.T) {
 	if e = s.Finish(ctx, id, false); e == nil {
 		t.Fatal("finalized audit overwritten")
 	}
+	// At least three records exist, so pages of two have a second page.
+	for i := 0; i < 2; i++ {
+		more, e := s.Begin(ctx, actor, "retry", "test", "task")
+		if e != nil {
+			t.Fatal(e)
+		}
+		defer s.DB.NewDelete().Model((*auditModel)(nil)).Where("id = ?", more).Exec(ctx)
+	}
+	first, e := s.Audits(ctx, 1, 2)
+	if e != nil || len(first.Data) != 2 || first.Total < 3 || first.Page != 1 {
+		t.Fatal("first audit page", first, e)
+	}
+	second, e := s.Audits(ctx, 2, 2)
+	if e != nil || len(second.Data) == 0 || second.Page != 2 {
+		t.Fatal("second audit page", second, e)
+	}
 	v, e := s.SaveView(ctx, actor, domain.ViewRequest{Name: "Failed jobs", Path: "/tasks?state=retry"})
 	if e != nil || v.ID == "" {
 		t.Fatal("saved view", e)

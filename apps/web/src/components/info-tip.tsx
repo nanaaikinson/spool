@@ -17,13 +17,17 @@ export function InfoTip({
   return (
     <Popover.Root>
       <Popover.Trigger asChild>
-        <button type="button" className="info-tip" aria-label={label}>
+        <button
+          type="button"
+          className="-my-0.5 inline-grid size-6 place-items-center rounded-full border-0 bg-transparent p-0 align-middle text-muted-foreground hover:bg-hover hover:text-foreground data-[state=open]:bg-hover data-[state=open]:text-foreground"
+          aria-label={label}
+        >
           <Info size={14} />
         </button>
       </Popover.Trigger>
       <Popover.Portal>
         <Popover.Content
-          className="info-tip-content"
+          className="z-50 max-w-[min(320px,calc(100vw-32px))] rounded-lg border bg-surface-raised p-3 text-xs/[1.55] font-normal tracking-normal text-foreground normal-case shadow-overlay"
           side="bottom"
           align="start"
           sideOffset={6}

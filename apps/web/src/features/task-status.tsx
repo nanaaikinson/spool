@@ -4,8 +4,32 @@ import { Check, X } from "lucide-react";
 import { listServersOptions } from "../api/generated/@tanstack/react-query.gen";
 import type { Task } from "../api/generated/types.gen";
 import { clock, dueIn, runState, timeOfDay, useNow } from "../lib/time";
-import { date, duration } from "../lib/utils";
-type Tone = "green" | "amber" | "red" | "purple" | "muted";
+import { cn, date, duration } from "../lib/utils";
+import {
+  Meter,
+  StatusDot,
+  stack,
+  toneSoft,
+  toneText,
+  type Tone,
+} from "@/components/page";
+/* Left accent border, keyed by tone. */
+const toneBorder: Record<Tone, string> = {
+  green: "border-l-green",
+  amber: "border-l-amber",
+  red: "border-l-red",
+  purple: "border-l-purple",
+  muted: "border-l-muted-foreground",
+};
+/* Current lifecycle step: a filled dot ringed with the soft tone. */
+const stepCurrent: Record<Tone, string> = {
+  green: "border-green bg-green inset-ring-4 inset-ring-green-bg",
+  amber: "border-amber bg-amber inset-ring-4 inset-ring-amber-bg",
+  red: "border-red bg-red inset-ring-4 inset-ring-red-bg",
+  purple: "border-purple bg-purple inset-ring-4 inset-ring-purple-bg",
+  muted:
+    "border-muted-foreground bg-muted-foreground inset-ring-4 inset-ring-hover",
+};
 type Step = "todo" | "current" | "done" | "failed";
 /** States that change without user action; task pages poll while in them. */
 export const LIVE_TASK_STATES = new Set<Task["state"]>([
@@ -125,41 +149,76 @@ export function TaskStatus({ task, gone }: { task: Task; gone: boolean }) {
   ];
   return (
     <section
-      className="task-status"
-      data-tone={tone}
-      data-live={active || undefined}
+      className={cn(
+        "rounded-xl border border-l-[3px] bg-surface p-4 md:px-5",
+        toneBorder[tone],
+        stack,
+      )}
       aria-label="Task status"
     >
-      <div className="task-status-main">
-        <span className="task-status-icon" aria-hidden="true">
-          <i />
+      <div className="flex flex-wrap items-center gap-x-3.5 gap-y-3 md:flex-nowrap">
+        <span
+          className={cn(
+            "grid size-[34px] flex-none place-items-center rounded-full",
+            toneSoft[tone],
+          )}
+          aria-hidden="true"
+        >
+          <StatusDot tone={tone} pulse={active} className="size-2.5" />
         </span>
-        <div className="task-status-text">
-          <h2 role="status">{title}</h2>
-          <p>{detail}</p>
+        <div className="min-w-0 flex-1">
+          <h2
+            role="status"
+            className={cn("text-md font-semibold", toneText[tone])}
+          >
+            {title}
+          </h2>
+          <p className="mt-0.5 text-sm text-muted-foreground tabular-nums">
+            {detail}
+          </p>
         </div>
         {run?.deadline && (
-          <div className="task-status-deadline">
-            <span className="muted small">
+          <div className="grid w-full justify-items-start gap-1.5 md:w-auto md:justify-items-end">
+            <span className="text-xs text-muted-foreground">
               {run.deadline.left > 0
                 ? `${clock(run.deadline.left)} until deadline`
                 : `${clock(-run.deadline.left)} past deadline`}
             </span>
-            <div className="deadline-meter">
-              <span
-                data-tone={run.tone}
-                style={{ width: `${run.deadline.progress * 100}%` }}
-              />
-            </div>
+            <Meter
+              value={run.deadline.progress}
+              tone={run.tone as Tone}
+              size="full"
+              className="md:w-[180px]"
+            />
           </div>
         )}
       </div>
-      <ol className="task-steps" aria-label="Lifecycle">
+      <ol
+        className="mt-4 flex flex-wrap items-center gap-x-2.5 gap-y-2 border-t border-inset-border pt-3.5 text-xs text-muted-foreground md:pl-12"
+        aria-label="Lifecycle"
+      >
         {labels.map((s, i) => (
           <Fragment key={s.label}>
-            {i > 0 && <li className="task-step-line" aria-hidden="true" />}
-            <li className="task-step" data-step={s.step}>
-              <span className="task-step-dot">
+            {i > 0 && (
+              <li
+                className="h-[1.5px] min-w-4 flex-[0_1_48px] bg-border"
+                aria-hidden="true"
+              />
+            )}
+            <li
+              className={cn(
+                "inline-flex items-center gap-[7px] whitespace-nowrap",
+                s.step === "current" && "font-medium text-foreground",
+              )}
+            >
+              <span
+                className={cn(
+                  "grid size-[18px] place-items-center rounded-full border-[1.5px] border-border text-primary-foreground",
+                  s.step === "done" && "border-green bg-green text-background",
+                  s.step === "failed" && "border-red bg-red text-background",
+                  s.step === "current" && stepCurrent[tone],
+                )}
+              >
                 {s.step === "done" ? (
                   <Check size={11} strokeWidth={3} />
                 ) : s.step === "failed" ? (

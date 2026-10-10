@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { CircleAlert, TriangleAlert } from "lucide-react";
+import { cn } from "@/lib/utils";
 import {
   listQueuesOptions,
   listSchedulersOptions,
@@ -12,6 +12,14 @@ import type { Queue, Scheduler, Server } from "../api/generated/types.gen";
 import { Button } from "../components/ui/button";
 import { DataError, Loading } from "../components/data-state";
 import { InfoTip } from "../components/info-tip";
+import {
+  Section,
+  SectionBody,
+  SectionHeader,
+  cardX,
+  dividedList,
+  AllClear,
+} from "../components/page";
 import { useClock } from "../lib/time";
 import { duration, number, plural } from "../lib/utils";
 import { useQueueTrends } from "./charts";
@@ -167,34 +175,30 @@ export function NeedsAttention() {
   const visible = expanded ? issues : issues.slice(0, VISIBLE);
   const critical = issues.filter((i) => i.severity === "critical").length;
   return (
-    <Card className="section">
-      <CardHeader className="section-heading">
-        <div>
-          <CardTitle>
-            <h2 className="title-row">
-              Needs attention
-              <InfoTip label="What is checked">
-                Queues nothing processes, paused queues with work waiting, slow
-                queues (oldest task over {THRESHOLDS.latencyWarnSeconds}s),
-                failure rates over {THRESHOLDS.failureWarnRatio * 100}% today,
-                archive growth in the last hour, servers at capacity, and
-                overdue periodic schedules.
-              </InfoTip>
-            </h2>
-          </CardTitle>
-          <p className="muted small">
-            {pending
-              ? "Checking queues, servers and schedules"
-              : issues.length
-                ? `${plural(critical, "critical issue")} · ${plural(issues.length - critical, "warning")}`
-                : "Queues, servers and schedules look healthy"}
-          </p>
-        </div>
-      </CardHeader>
+    <Section>
+      <SectionHeader
+        title="Needs attention"
+        info={
+          <InfoTip label="What is checked">
+            Queues nothing processes, paused queues with work waiting, slow
+            queues (oldest task over {THRESHOLDS.latencyWarnSeconds}s), failure
+            rates over {THRESHOLDS.failureWarnRatio * 100}% today, archive
+            growth in the last hour, servers at capacity, and overdue periodic
+            schedules.
+          </InfoTip>
+        }
+        description={
+          pending
+            ? "Checking queues, servers and schedules"
+            : issues.length
+              ? `${plural(critical, "critical issue")} · ${plural(issues.length - critical, "warning")}`
+              : "Queues, servers and schedules look healthy"
+        }
+      />
       {pending ? (
         <Loading rows={3} />
       ) : error ? (
-        <div className="section-body">
+        <SectionBody>
           <DataError
             error={error}
             retry={() => {
@@ -202,37 +206,47 @@ export function NeedsAttention() {
               servers.refetch();
             }}
           />
-        </div>
+        </SectionBody>
       ) : !issues.length ? (
-        <div className="all-clear">
-          <CircleCheck size={18} />
-          <div>
-            <strong>All clear</strong>
-            <p className="muted small">
-              Every queue has a server, nothing is slow or failing heavily, and
-              schedules are on time.
-            </p>
-          </div>
-        </div>
+        <AllClear title="All clear">
+          Every queue has a server, nothing is slow or failing heavily, and
+          schedules are on time.
+        </AllClear>
       ) : (
         <>
-          <ul className="issues">
+          <ul className={dividedList}>
             {visible.map((issue) => (
-              <li key={issue.id} data-severity={issue.severity}>
+              <li
+                key={issue.id}
+                data-severity={issue.severity}
+                className={cn("flex items-start gap-3 py-3", cardX)}
+              >
                 {issue.severity === "critical" ? (
-                  <CircleAlert size={16} aria-label="Critical" />
+                  <CircleAlert
+                    size={16}
+                    aria-label="Critical"
+                    className="mt-0.5 flex-none text-red"
+                  />
                 ) : (
-                  <TriangleAlert size={16} aria-label="Warning" />
+                  <TriangleAlert
+                    size={16}
+                    aria-label="Warning"
+                    className="mt-0.5 flex-none text-amber"
+                  />
                 )}
-                <Link {...issue.link} className="issue-link">
-                  <strong>{issue.title}</strong>
-                  <span className="muted small">{issue.detail}</span>
+                <Link {...issue.link} className="group grid min-w-0 gap-0.5">
+                  <strong className="font-[550] underline-offset-3 group-hover:underline">
+                    {issue.title}
+                  </strong>
+                  <span className="text-muted-foreground text-xs">
+                    {issue.detail}
+                  </span>
                 </Link>
               </li>
             ))}
           </ul>
           {issues.length > VISIBLE && (
-            <div className="error-groups-more">
+            <div className="flex justify-center border-t border-inset-border p-1.5">
               <Button
                 variant="ghost"
                 size="sm"
@@ -246,6 +260,6 @@ export function NeedsAttention() {
           )}
         </>
       )}
-    </Card>
+    </Section>
   );
 }

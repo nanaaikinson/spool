@@ -1,5 +1,8 @@
 import logoOnDark from "../assets/brand/spool-horizontal-dark.svg";
 import logoOnLight from "../assets/brand/spool-horizontal-color.svg";
+import { cn } from "@/lib/utils";
+
+const logoImg = "h-full w-auto max-w-none";
 /**
  * The Spool symbol, using the kit's small-size drawing (broader flanges and a
  * wider opening), which stays legible at the 16–24px sizes the UI uses.
@@ -7,7 +10,7 @@ import logoOnLight from "../assets/brand/spool-horizontal-color.svg";
 export function BrandMark({ size = 20 }: { size?: number }) {
   return (
     <svg
-      className="brand-mark"
+      className="flex-none fill-light-copper"
       viewBox="0 0 256 256"
       width={size}
       height={size}
@@ -39,23 +42,27 @@ export function BrandLogo({
   if (onDark)
     return (
       <span
-        className="brand-logo"
+        className="inline-flex"
         role="img"
         aria-label="Spool"
         style={{ height }}
       >
-        <img src={logoOnDark} alt="" />
+        <img src={logoOnDark} alt="" className={logoImg} />
       </span>
     );
   return (
     <span
-      className="brand-logo"
+      className="inline-flex"
       role="img"
       aria-label="Spool"
       style={{ height }}
     >
-      <img src={logoOnLight} alt="" className="on-light" />
-      <img src={logoOnDark} alt="" className="on-dark" />
+      <img src={logoOnLight} alt="" className={cn(logoImg, "dark:hidden")} />
+      <img
+        src={logoOnDark}
+        alt=""
+        className={cn(logoImg, "hidden dark:block")}
+      />
     </span>
   );
 }

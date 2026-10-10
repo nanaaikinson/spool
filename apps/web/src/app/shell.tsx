@@ -118,20 +118,31 @@ function ShellContent() {
   }, [session.data?.authenticated]);
   return (
     <>
-      <a className="skip-link" href="#main">
+      <a
+        className="fixed -top-15 left-3 z-100 bg-primary p-2 text-primary-foreground focus:top-2"
+        href="#main"
+      >
         Skip to content
       </a>
       <AppSidebar onSignOut={signOut} />
-      <SidebarInset>
+      <SidebarInset className="min-w-0">
         <Topbar live={live} onSearch={() => setPalette(true)} />
         {session.data?.read_only_reason === "no_database" && (
-          <div className="mode-banner" role="status">
-            <strong>Read-only.</strong> No database is configured, so changes
-            are off. Set <code>DATABASE_URL</code> to pause queues, act on
-            tasks, save views and keep an audit log.
+          <div
+            className="border-b bg-amber-bg px-4 py-2 text-xs/normal text-amber md:px-6 xl:px-8"
+            role="status"
+          >
+            <strong className="font-semibold">Read-only.</strong> No database is
+            configured, so changes are off. Set{" "}
+            <code className="text-2xs/normal">DATABASE_URL</code> to pause
+            queues, act on tasks, save views and keep an audit log.
           </div>
         )}
-        <div className="main" id="main" tabIndex={-1}>
+        <div
+          className="@container/main mx-auto w-full max-w-[1600px] px-4 pt-5 pb-8 md:px-6 xl:px-8"
+          id="main"
+          tabIndex={-1}
+        >
           {session.isPending ? (
             <Loading />
           ) : session.error ? (

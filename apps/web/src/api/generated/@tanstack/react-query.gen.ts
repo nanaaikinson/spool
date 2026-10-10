@@ -42,7 +42,7 @@ const createQueryKey = <TOptions extends Options>(id: string, options?: TOptions
 export const listAuditQueryKey = (options?: Options<ListAuditData>) => createQueryKey('listAudit', options);
 
 /**
- * Last 100 administrative audit intents
+ * Administrative audit intents, newest first
  */
 export const listAuditOptions = (options?: Options<ListAuditData>) => queryOptions<ListAuditResponse, ListAuditError, ListAuditResponse, ReturnType<typeof listAuditQueryKey>>({
     queryFn: async ({ queryKey, signal }) => {
@@ -56,6 +56,65 @@ export const listAuditOptions = (options?: Options<ListAuditData>) => queryOptio
     },
     queryKey: listAuditQueryKey(options)
 });
+
+const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
+    const params = { ...queryKey[0] };
+    if (page.body) {
+        params.body = {
+            ...queryKey[0].body as any,
+            ...page.body as any
+        };
+    }
+    if (page.headers) {
+        params.headers = {
+            ...queryKey[0].headers,
+            ...page.headers
+        };
+    }
+    if (page.path) {
+        params.path = {
+            ...queryKey[0].path as any,
+            ...page.path as any
+        };
+    }
+    if (page.query) {
+        params.query = {
+            ...queryKey[0].query as any,
+            ...page.query as any
+        };
+    }
+    return params as unknown as typeof page;
+};
+
+export const listAuditInfiniteQueryKey = (options?: Options<ListAuditData>): QueryKey<Options<ListAuditData>> => createQueryKey('listAudit', options, true);
+
+/**
+ * Administrative audit intents, newest first
+ */
+export const listAuditInfiniteOptions = (options?: Options<ListAuditData>) => {
+    const opts = infiniteQueryOptions<ListAuditResponse, ListAuditError, InfiniteData<ListAuditResponse>, QueryKey<Options<ListAuditData>>, number | Pick<QueryKey<Options<ListAuditData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListAuditData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    page: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listAudit({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listAuditInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const listErrorGroupsQueryKey = (options?: Options<ListErrorGroupsData>) => createQueryKey('listErrorGroups', options);
 
@@ -128,35 +187,6 @@ export const queryMetricRangeOptions = (options: Options<QueryMetricRangeData>) 
     },
     queryKey: queryMetricRangeQueryKey(options)
 });
-
-const createInfiniteParams = <K extends Pick<QueryKey<Options>[0], 'body' | 'headers' | 'path' | 'query'>>(queryKey: QueryKey<Options>, page: K) => {
-    const params = { ...queryKey[0] };
-    if (page.body) {
-        params.body = {
-            ...queryKey[0].body as any,
-            ...page.body as any
-        };
-    }
-    if (page.headers) {
-        params.headers = {
-            ...queryKey[0].headers,
-            ...page.headers
-        };
-    }
-    if (page.path) {
-        params.path = {
-            ...queryKey[0].path as any,
-            ...page.path as any
-        };
-    }
-    if (page.query) {
-        params.query = {
-            ...queryKey[0].query as any,
-            ...page.query as any
-        };
-    }
-    return params as unknown as typeof page;
-};
 
 export const queryMetricRangeInfiniteQueryKey = (options: Options<QueryMetricRangeData>): QueryKey<Options<QueryMetricRangeData>> => createQueryKey('queryMetricRange', options, true);
 

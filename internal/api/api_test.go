@@ -251,12 +251,12 @@ func TestRealHTTPMutation(t *testing.T) {
 			t.Fatalf("real %s failed: %d", action, res.StatusCode)
 		}
 	}
-	audits, e := db.Audits(context.Background())
+	audits, e := db.Audits(context.Background(), 1, 100)
 	if e != nil {
 		t.Fatal(e)
 	}
 	count := 0
-	for _, r := range audits {
+	for _, r := range audits.Data {
 		if r.Queue == q && r.Status == "succeeded" {
 			count++
 		}

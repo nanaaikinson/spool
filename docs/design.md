@@ -12,24 +12,26 @@ Pages follow one pattern: a heading with a one-line description and actions, an 
 
 ## Responsive behavior
 
-Styles are mobile first: base rules describe the phone layout, and wider layouts are added with `min-width` queries. Page grids use container queries on the content area (`.main`) rather than the viewport, so they respond to the width actually available whether the sidebar is open, collapsed or hidden.
+Styles are mobile first: unprefixed utilities describe the phone layout, and wider layouts are added with breakpoint variants. Page grids use container queries on the content area (the `@container/main` element in `app/shell.tsx`) rather than the viewport, so they respond to the width actually available whether the sidebar is open, collapsed or hidden.
 
 | Content width | Summary cards | Figure tiles | Paired cards |
 | --- | --- | --- | --- |
-| Under 440px | 1 per row | 2 per row | Stacked |
-| 440px and up | 2 per row | 2 per row (3 for six-tile rows from 560px) | Stacked |
-| 880px and up | 2 per row | 4 per row | Side by side |
-| 1000px and up | 4 per row | 6 for six-tile rows | Side by side; charts split 1.8 : 1 |
+| Under 448px | 1 per row | 2 per row | Stacked |
+| `@md/main` (448px) and up | 2 per row | 2 per row (3 for six-tile rows from `@xl/main`, 576px) | Stacked |
+| `@4xl/main` (896px) and up | 2 per row | 4 per row | Side by side |
+| `@5xl/main` (1024px) and up | 4 per row | 6 for six-tile rows | Side by side; charts split 1.8 : 1 |
 
 Wide tables scroll horizontally inside their card instead of squeezing columns; long error messages are cut to two lines with the full text on hover. On phones, filters stack at full width, pagination and dialog buttons stack, and the command palette drops its keyboard hints.
 
 ## Tokens
 
-Spacing uses a 4px scale (`--space-1` to `--space-8`: 4, 8, 12, 16, 20, 24, 32). Page gutters grow from 16px to 24px at 768px and 32px at 1280px; vertical rhythm between blocks (`--stack`) grows from 16px to 24px. Card and table padding share `--card-x`, so the first table column lines up with the card heading.
+Styling is Tailwind CSS v4 utilities. `src/styles.css` holds only the theme: color tokens for both themes, the `@theme` type scale, fonts and animations, a few base rules and the `live-halo` utility. There are no app-specific classes; anything shared is a component.
 
-Type uses the native system sans for interface text and native monospace for queue names, IDs, cron specs, payloads and errors. The scale is 11, 12, 13, 14, 15, 18, 22, 24 and 28px (`--text-2xs` to `--text-3xl`): 11px for labels and metadata, 12px for secondary text, 13px for tables, 14px for body text, 15px for card headings, 22px (24px from 768px) for page headings, and 24–28px for summary figures. Numbers that update use tabular figures. There are no web fonts.
+Spacing uses Tailwind's 4px scale. Page gutters grow from 16px to 24px at 768px and 32px at 1280px; vertical rhythm between blocks (`stack` in `components/page.tsx`) grows from 16px to 24px. Card and table padding share `cardX`, so the first table column lines up with the card heading.
 
-Cards use a 12px radius and controls 8px.
+Type uses the native system sans for interface text and native monospace for queue names, IDs, cron specs, payloads and errors. The scale is 11, 12, 13, 14, 15, 18, 22, 24 and 28px (`text-2xs` to `text-3xl`): 11px for labels and metadata, 12px for secondary text, 13px for tables, 14px for body text, 15px for card headings, 22px (24px from 768px) for page headings, and 24–28px for summary figures. Numbers that update use tabular figures. There are no web fonts.
+
+Cards use a 12px radius (`rounded-xl`) and controls 8px (`rounded-lg`).
 
 ## Brand
 
@@ -49,7 +51,7 @@ Dark is the first-visit default even if the OS prefers light. The theme toggle p
 
 ## Components
 
-The UI is built on the official shadcn Radix components in `apps/web/src/components/ui`, with domain pieces in `apps/web/src/components` and each feature folder. Select inputs compose `Label`, `SelectTrigger`, `SelectValue`, `SelectContent` and `SelectItem`; React Hook Form controllers keep form selects in sync with validation and URL-backed filters. An empty filter is a nonempty UI option mapped back to the API's empty value, and queue options are prefixed so a queue named "all" stays selectable.
+The UI is built on the official shadcn Radix components in `apps/web/src/components/ui`, adjusted in place for the app's density (tables, dialogs, input groups, sidebar width). Page building blocks live in `components/page.tsx`: `PageHeader`, `Section` with `SectionHeader` and `SectionBody`, `StatTile` and `statGrid`, `StateBadge`, `StatusDot`, `RunStatus`, `Meter`, the tab bar classes, `FilterBar` and `PaginationBar`, and the `Tone` maps that turn a state into its color. Other domain pieces live in `apps/web/src/components` and each feature folder. Select inputs compose `Label`, `SelectTrigger`, `SelectValue`, `SelectContent` and `SelectItem`; React Hook Form controllers keep form selects in sync with validation and URL-backed filters. An empty filter is a nonempty UI option mapped back to the API's empty value, and queue options are prefixed so a queue named "all" stays selectable.
 
 Loading states use structure-aware skeletons from [phantom-ui](https://github.com/aejkatappaja/phantom-ui), wrapped in `components/phantom.tsx`. The real component renders with stand-in data from `lib/placeholders.ts` and phantom-ui shimmers over what it measures, so skeletons always match the layout they stand in for. Stand-in colors (bars, badges) are hidden while loading, table headings stay visible, and the shimmer colors come from the `--phantom-block` and `--phantom-shimmer` theme tokens. Places without a dedicated skeleton use the shared `Loading` placeholder. phantom-ui marks the region busy for screen readers, keeps placeholders out of the tab order and respects reduced motion.
 

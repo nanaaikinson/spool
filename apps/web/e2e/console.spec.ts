@@ -58,10 +58,10 @@ test("dark default, persisted light, queue inspection and confirmed archive/retr
     .getByRole("button", { name: "Confirm archive", exact: true })
     .click();
   await expect(page.getByRole("alertdialog")).not.toBeVisible();
-  await expect(page.locator(".page-heading .badge")).toHaveText("archived");
+  await expect(page.getByTestId("task-state")).toHaveText("archived");
   await page.getByRole("button", { name: "Run now", exact: true }).click();
   await page.getByRole("button", { name: "Confirm run now" }).click();
-  await expect(page.locator(".page-heading .badge")).toHaveText("pending");
+  await expect(page.getByTestId("task-state")).toHaveText("pending");
   await page.screenshot({
     path: "test-results/task-light.png",
     fullPage: true,
@@ -84,9 +84,9 @@ test("scheduled summary, advanced filters and responsive themes", async ({
   ).toBeVisible();
   await expect(
     page
-      .locator(".summary-card")
+      .getByTestId("summary-card")
       .filter({ hasText: "Scheduled workload" })
-      .locator(".summary-value"),
+      .getByTestId("summary-value"),
   ).toHaveText("1");
   await page.screenshot({
     path: "test-results/scheduled-dark.png",
@@ -152,7 +152,7 @@ test("failure presets, keyboard palette, bounded non-JSON display and mobile lay
     .first();
   await expect(taskLink).toBeVisible();
   await taskLink.click();
-  await expect(page.locator(".page-heading .badge")).toHaveText("archived");
+  await expect(page.getByTestId("task-state")).toHaveText("archived");
   await page.keyboard.press("Control+k");
   await expect(page.getByRole("dialog")).toBeVisible();
   await page
@@ -165,7 +165,7 @@ test("failure presets, keyboard palette, bounded non-JSON display and mobile lay
   await page
     .getByRole("link", { name: "fixture:scheduled", exact: true })
     .click();
-  await expect(page.locator("pre.payload")).toHaveText("plain text");
+  await expect(page.getByTestId("payload")).toHaveText("plain text");
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
     page.getByRole("button", { name: "Toggle navigation" }),
@@ -196,7 +196,8 @@ test("signed session login, logout and viewer restrictions", async ({
   await expect(
     page.getByRole("heading", { name: "Queues", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Sign out", exact: true }).click();
+  await page.getByRole("button", { name: /account menu$/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Sign in", exact: true }),
   ).toBeVisible();

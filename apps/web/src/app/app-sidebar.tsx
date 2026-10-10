@@ -1,6 +1,6 @@
 import { Link, useLocation } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { LogOut, Settings } from "lucide-react";
+import { ChevronsUpDown, LogOut, Settings } from "lucide-react";
 import { BrandMark } from "../components/brand";
 import {
   Sidebar,
@@ -18,22 +18,36 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { Button } from "@/components/ui/button";
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   listQueuesOptions,
   listServersOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import { useSession } from "../features/session";
 import { activeNav, altLabel, compactNumber, nav, navGroups } from "./nav";
-import { envTone } from "../lib/utils";
+import { envTone, versionLabel } from "../lib/utils";
+import { cn } from "@/lib/utils";
+
+const navLink =
+  "h-9 gap-2.5 text-muted-foreground data-[active=true]:bg-surface data-[active=true]:shadow-[0_0_0_1px_var(--border),0_1px_2px_rgba(0,0,0,0.06)]";
+const navBadge =
+  "right-1.5 h-[18px] -translate-y-1/2 rounded-full px-1.5 text-2xs font-semibold peer-data-[size=default]/menu-button:top-1/2";
+const envDot: Record<string, string> = {
+  production: "bg-red",
+  staging: "bg-amber",
+};
+
 export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
   const session = useSession();
   const location = useLocation();
-  const { setOpenMobile } = useSidebar();
+  const { isMobile, setOpenMobile } = useSidebar();
   const queues = useQuery({
     ...listQueuesOptions(),
     enabled: session.data?.authenticated === true,
@@ -54,19 +68,33 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
   const close = () => setOpenMobile(false);
   const readOnly = session.data?.role === "viewer";
   const actor = session.data?.actor || "local";
+  const access = !session.data?.authenticated
+    ? "Not signed in"
+    : readOnly
+      ? "Read only"
+      : "Full access";
   return (
     <Sidebar collapsible="icon" aria-label="Primary navigation">
-      <SidebarHeader>
+      <SidebarHeader className="gap-2.5 px-2 pt-3 pb-1.5">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" asChild tooltip="Spool">
-              <Link to="/" className="sidebar-brand" onClick={close}>
-                <span className="brand-tile">
+            <SidebarMenuButton
+              size="lg"
+              asChild
+              tooltip="Spool"
+              className="gap-2.5"
+            >
+              <Link to="/" onClick={close}>
+                <span className="grid size-8 flex-none place-items-center rounded-lg bg-ink shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08),0_1px_3px_rgba(0,0,0,0.25)]">
                   <BrandMark size={20} />
                 </span>
-                <span className="sidebar-text">
-                  <strong>Spool</strong>
-                  <span>Asynq console</span>
+                <span className="grid min-w-0 flex-1 leading-[1.3]">
+                  <strong className="truncate text-md/[1.3] font-[650] tracking-[-0.02em] text-foreground">
+                    Spool
+                  </strong>
+                  <span className="truncate text-2xs/[1.3] text-muted-foreground">
+                    Asynq console
+                  </span>
                 </span>
               </Link>
             </SidebarMenuButton>
@@ -76,8 +104,10 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
       <SidebarContent>
         <nav aria-label="Primary navigation">
           {navGroups.map((group) => (
-            <SidebarGroup key={group.label}>
-              <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroup key={group.label} className="px-2 py-1.5">
+              <SidebarGroupLabel className="h-7 text-2xs font-medium tracking-[0.04em] text-muted-foreground uppercase">
+                {group.label}
+              </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
                   {group.items.map((n) => {
@@ -89,10 +119,10 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
                           asChild
                           isActive={isActive}
                           tooltip={`${n.label} · ${altLabel}${shortcut}`}
+                          className={navLink}
                         >
                           <Link
                             to={n.to}
-                            className="nav-link"
                             aria-current={isActive ? "page" : undefined}
                             onClick={close}
                           >
@@ -102,7 +132,10 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
                         </SidebarMenuButton>
                         {n.to === "/failures" && !!failures && (
                           <SidebarMenuBadge
-                            className="nav-badge"
+                            className={cn(
+                              navBadge,
+                              "bg-red-bg text-red peer-hover/menu-button:text-red peer-data-[active=true]/menu-button:text-red",
+                            )}
                             title={`${failures.toLocaleString()} retained failures`}
                           >
                             {compactNumber(failures)}
@@ -110,7 +143,10 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
                         )}
                         {n.to === "/live" && !!running && (
                           <SidebarMenuBadge
-                            className="nav-badge live"
+                            className={cn(
+                              navBadge,
+                              "bg-green-bg text-green peer-hover/menu-button:text-green peer-data-[active=true]/menu-button:text-green",
+                            )}
                             title={`${running} tasks running`}
                           >
                             {compactNumber(running)}
@@ -125,17 +161,17 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
           ))}
         </nav>
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="gap-1.5 border-t p-2">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
               isActive={location.pathname === "/settings"}
               tooltip="Settings"
+              className={navLink}
             >
               <Link
                 to="/settings"
-                className="nav-link"
                 aria-current={
                   location.pathname === "/settings" ? "page" : undefined
                 }
@@ -147,53 +183,96 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <div className="sidebar-account">
-          <span className="avatar" aria-hidden="true">
-            {actor.slice(0, 1).toUpperCase()}
-          </span>
-          <span className="sidebar-text">
-            <strong>{actor}</strong>
-            <span>
-              {!session.data?.authenticated
-                ? "Not signed in"
-                : readOnly
-                  ? "Read only"
-                  : "Full access"}
-            </span>
-          </span>
-          {session.data?.auth_required && session.data.authenticated && (
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="size-7"
-                  onClick={onSignOut}
-                  aria-label="Sign out"
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  size="lg"
+                  tooltip={actor}
+                  aria-label={`${actor}, account menu`}
+                  className="gap-2.5 data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
                 >
-                  <LogOut size={15} />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="right">Sign out</TooltipContent>
-            </Tooltip>
-          )}
-        </div>
+                  <AccountIdentity actor={actor} access={access} />
+                  <ChevronsUpDown className="ml-auto size-4 text-muted-foreground" />
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+                side={isMobile ? "bottom" : "right"}
+                align="end"
+                sideOffset={4}
+              >
+                <DropdownMenuLabel className="p-0 font-normal">
+                  <div className="flex items-center gap-2.5 px-1.5 py-1.5">
+                    <AccountIdentity actor={actor} access={access} />
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuGroup>
+                  <DropdownMenuItem asChild>
+                    <Link to="/settings" onClick={close}>
+                      <Settings />
+                      Settings &amp; audit
+                    </Link>
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+                <DropdownMenuSeparator />
+                {session.data?.auth_required && session.data.authenticated ? (
+                  <DropdownMenuItem onSelect={onSignOut}>
+                    <LogOut />
+                    Sign out
+                  </DropdownMenuItem>
+                ) : (
+                  <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                    Sign-in is off on this server.
+                  </DropdownMenuLabel>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
         {session.data && (
           <p
-            className="sidebar-meta"
+            className="flex items-center gap-1.5 px-1 pt-0.5 text-2xs/normal text-muted-foreground opacity-75 group-data-[collapsible=icon]:hidden"
             data-tone={envTone(session.data.environment)}
             title={`Environment ${session.data.environment}, Spool ${session.data.version}`}
           >
-            <span className="env-dot" />
+            <span
+              className={cn(
+                "size-1.5 rounded-full bg-muted-foreground",
+                envDot[envTone(session.data.environment)],
+              )}
+            />
             {session.data.environment}
             <span aria-hidden="true">·</span>
-            {/^\d/.test(session.data.version)
-              ? `v${session.data.version}`
-              : session.data.version}
+            {versionLabel(session.data.version)}
           </p>
         )}
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
+  );
+}
+
+/** Avatar initial, name and access level for the signed-in account. */
+function AccountIdentity({ actor, access }: { actor: string; access: string }) {
+  return (
+    <>
+      <span
+        className="grid size-8 flex-none place-items-center rounded-full border bg-accent-bg text-xs/normal font-semibold text-foreground"
+        aria-hidden="true"
+      >
+        {actor.slice(0, 1).toUpperCase()}
+      </span>
+      <span className="grid min-w-0 flex-1 text-left leading-[1.3]">
+        <strong className="truncate text-sm/[1.3] font-[550] text-foreground">
+          {actor}
+        </strong>
+        <span className="truncate text-2xs/[1.3] text-muted-foreground">
+          {access}
+        </span>
+      </span>
+    </>
   );
 }

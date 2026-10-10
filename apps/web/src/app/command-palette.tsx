@@ -26,6 +26,12 @@ import { invalidateOperational } from "../features/queries";
 import { useSession } from "../features/session";
 import { useTheme } from "./theme";
 import { altLabel, compactNumber, nav } from "./nav";
+
+const group =
+  "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:tracking-[0.04em] [&_[cmdk-group-heading]]:uppercase";
+const item = "min-h-10 gap-2.5 rounded-lg";
+const shortcut = "tracking-normal tabular-nums";
+const key = "border text-2xs";
 export function CommandPalette({
   open,
   onOpenChange,
@@ -53,30 +59,35 @@ export function CommandPalette({
       title="Go to…"
       description={`Search pages, queues and actions. Use ${altLabel}+1 through ${altLabel}+${nav.length} to jump between pages.`}
       showCloseButton={false}
-      className="command-palette"
+      className="top-[8vh] max-w-[min(620px,calc(100%-2rem))] translate-y-0 gap-0 rounded-xl shadow-overlay sm:max-w-[min(620px,calc(100%-2rem))] md:top-[14vh] [&_[data-slot=command-input-wrapper]]:gap-2.5 [&_[data-slot=command-input-wrapper]]:px-4"
     >
       <CommandInput placeholder="Search pages, queues and actions…" />
-      <CommandList>
+      <CommandList className="max-h-[min(400px,60dvh)] py-1">
         <CommandEmpty>
-          <SearchX size={20} className="command-empty-icon" />
+          <SearchX
+            size={20}
+            className="mx-auto mb-2 block text-muted-foreground"
+          />
           No matching pages, queues or actions.
         </CommandEmpty>
-        <CommandGroup heading="Pages">
+        <CommandGroup heading="Pages" className={group}>
           {nav.map((n, i) => (
             <CommandItem
+              className={item}
               key={n.to}
               value={n.label}
               onSelect={run(() => navigate({ to: n.to }))}
             >
               <n.icon />
               {n.label}
-              <CommandShortcut aria-hidden="true">
+              <CommandShortcut aria-hidden="true" className={shortcut}>
                 {altLabel}
                 {i + 1}
               </CommandShortcut>
             </CommandItem>
           ))}
           <CommandItem
+            className={item}
             value="Settings & audit"
             keywords={["saved views", "audit log"]}
             onSelect={run(() => navigate({ to: "/settings" }))}
@@ -87,10 +98,11 @@ export function CommandPalette({
         </CommandGroup>
         {!!queues.data?.data.length && (
           <>
-            <CommandSeparator />
-            <CommandGroup heading="Queues">
+            <CommandSeparator className="mx-0 my-1" />
+            <CommandGroup heading="Queues" className={group}>
               {queues.data.data.map((q) => (
                 <CommandItem
+                  className={item}
                   key={q.name}
                   value={`queue ${q.name}`}
                   onSelect={run(() =>
@@ -101,8 +113,8 @@ export function CommandPalette({
                   )}
                 >
                   {q.paused ? <Pause /> : <Layers />}
-                  <span className="mono truncate">{q.name}</span>
-                  <CommandShortcut className="command-meta">
+                  <span className="font-mono truncate">{q.name}</span>
+                  <CommandShortcut className={shortcut}>
                     {q.paused
                       ? "Paused"
                       : `${compactNumber(q.pending)} pending`}
@@ -112,9 +124,10 @@ export function CommandPalette({
             </CommandGroup>
           </>
         )}
-        <CommandSeparator />
-        <CommandGroup heading="Actions">
+        <CommandSeparator className="mx-0 my-1" />
+        <CommandGroup heading="Actions" className={group}>
           <CommandItem
+            className={item}
             value="Toggle theme dark light mode"
             onSelect={run(toggle)}
           >
@@ -122,6 +135,7 @@ export function CommandPalette({
             Switch to {theme === "dark" ? "light" : "dark"} mode
           </CommandItem>
           <CommandItem
+            className={item}
             value="Refresh data"
             onSelect={run(invalidateOperational)}
           >
@@ -129,25 +143,32 @@ export function CommandPalette({
             Refresh data
           </CommandItem>
           {session.data?.auth_required && session.data.authenticated && (
-            <CommandItem value="Sign out log out" onSelect={run(onSignOut)}>
+            <CommandItem
+              value="Sign out log out"
+              className={item}
+              onSelect={run(onSignOut)}
+            >
               <LogOut />
               Sign out
             </CommandItem>
           )}
         </CommandGroup>
       </CommandList>
-      <div className="command-footer" aria-hidden="true">
-        <span>
-          <Kbd>↑</Kbd>
-          <Kbd>↓</Kbd>
+      <div
+        className="hidden gap-4 border-t bg-background px-4 py-[9px] text-2xs/normal text-muted-foreground md:flex"
+        aria-hidden="true"
+      >
+        <span className="inline-flex items-center gap-1">
+          <Kbd className={key}>↑</Kbd>
+          <Kbd className={key}>↓</Kbd>
           Navigate
         </span>
-        <span>
-          <Kbd>↵</Kbd>
+        <span className="inline-flex items-center gap-1">
+          <Kbd className={key}>↵</Kbd>
           Open
         </span>
-        <span>
-          <Kbd>Esc</Kbd>
+        <span className="inline-flex items-center gap-1">
+          <Kbd className={key}>Esc</Kbd>
           Close
         </span>
       </div>

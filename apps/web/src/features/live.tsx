@@ -1,4 +1,19 @@
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Meter,
+  PageHeader,
+  RunStatus,
+  Section,
+  SectionHeader,
+  StatTile,
+  StateBadge,
+  StatusDot,
+  statGrid,
+  cardX,
+  dividedList,
+  type Tone,
+  cardColumns,
+} from "@/components/page";
+import { cn, number } from "@/lib/utils";
 import {
   Table,
   TableHeader,
@@ -15,7 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, useNavigate, useSearch } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Pause, Play, Trash2 } from "lucide-react";
 import {
@@ -31,14 +46,7 @@ import type {
   Worker,
 } from "../api/generated/types.gen";
 import { Button } from "../components/ui/button";
-import {
-  Badge,
-  DataError,
-  Empty,
-  Loading,
-  Stale,
-} from "../components/data-state";
-import { number } from "../lib/utils";
+import { DataError, Empty, Loading, Stale } from "../components/data-state";
 import { InfoTip } from "../components/info-tip";
 import { CronChip } from "./schedules";
 import { clock, dueIn, runState, timeOfDay, useNow } from "../lib/time";
@@ -138,7 +146,7 @@ function useTail(paused: boolean) {
   }, []);
   return { tail, clear: () => setTail([]) };
 }
-const outcomes: Record<Outcome | "started", { label: string; tone: string }> = {
+const outcomes: Record<Outcome | "started", { label: string; tone: Tone }> = {
   started: { label: "Started", tone: "purple" },
   succeeded: { label: "Succeeded", tone: "green" },
   retrying: { label: "Failed · retrying", tone: "amber" },
@@ -199,115 +207,110 @@ export function LivePage() {
   const visibleTail = tail.filter((e) => !queue || e.queue === queue);
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <h1 className="title-row">
-            Live activity
-            <InfoTip label="How live activity works">
-              Running tasks come from worker heartbeats sampled every{" "}
-              {SAMPLE_MS / 1000} seconds, so tasks that start and finish between
-              samples do not appear in the tail. Outcomes are looked up after a
-              task leaves its worker; tasks that are not retained after success
-              show as Finished.
-            </InfoTip>
-          </h1>
-          <p>
-            Tasks processing right now, what runs next, and a running tail of
-            starts and finishes.
-          </p>
-        </div>
-        <div className="heading-actions">
-          <Select
-            value={queue ? `queue:${queue}` : "all"}
-            onValueChange={(value) =>
-              navigate({
-                to: "/live",
-                search: (old) => ({
-                  ...old,
-                  queue: value === "all" ? "" : value.slice(6),
-                }),
-              })
-            }
-          >
-            <SelectTrigger aria-label="Queue" className="min-w-40">
-              <SelectValue placeholder="All queues" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All queues</SelectItem>
-              {queues.data?.data.map((q) => (
-                <SelectItem key={q.name} value={`queue:${q.name}`}>
-                  {q.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant="secondary"
-            onClick={() => setPaused((p) => !p)}
-            aria-pressed={paused}
-          >
-            {paused ? <Play size={14} /> : <Pause size={14} />}
-            {paused ? "Resume" : "Pause"}
-          </Button>
-        </div>
-      </div>
-      <div className="live-stats">
-        <div className="live-stat">
-          <span>Running now</span>
-          <strong>
-            {running.length}
-            {!queue && capacity > 0 && <small> / {capacity} slots</small>}
-          </strong>
+      <PageHeader
+        title="Live activity"
+        info={
+          <InfoTip label="How live activity works">
+            Running tasks come from worker heartbeats sampled every{" "}
+            {SAMPLE_MS / 1000} seconds, so tasks that start and finish between
+            samples do not appear in the tail. Outcomes are looked up after a
+            task leaves its worker; tasks that are not retained after success
+            show as Finished.
+          </InfoTip>
+        }
+        description="Tasks processing right now, what runs next, and a running tail of starts and finishes."
+        actions={
+          <>
+            <Select
+              value={queue ? `queue:${queue}` : "all"}
+              onValueChange={(value) =>
+                navigate({
+                  to: "/live",
+                  search: (old) => ({
+                    ...old,
+                    queue: value === "all" ? "" : value.slice(6),
+                  }),
+                })
+              }
+            >
+              <SelectTrigger aria-label="Queue" className="min-w-40">
+                <SelectValue placeholder="All queues" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All queues</SelectItem>
+                {queues.data?.data.map((q) => (
+                  <SelectItem key={q.name} value={`queue:${q.name}`}>
+                    {q.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="secondary"
+              onClick={() => setPaused((p) => !p)}
+              aria-pressed={paused}
+            >
+              {paused ? <Play size={14} /> : <Pause size={14} />}
+              {paused ? "Resume" : "Pause"}
+            </Button>
+          </>
+        }
+      />
+      <div className={statGrid()}>
+        <StatTile
+          label="Running now"
+          value={
+            <>
+              {running.length}
+              {!queue && capacity > 0 && <small> / {capacity} slots</small>}
+            </>
+          }
+        >
           {!queue && capacity > 0 && (
-            <div className="deadline-meter" aria-hidden="true">
-              <span
-                data-tone="green"
-                style={{
-                  width: `${Math.min(100, (running.length / capacity) * 100)}%`,
-                }}
-              />
-            </div>
+            <Meter
+              value={running.length / capacity}
+              tone="green"
+              size="full"
+              className="mt-1"
+            />
           )}
-        </div>
-        <div className="live-stat">
-          <span>Waiting</span>
-          <strong>
-            {number(backlog)}
-            <small> pending</small>
-          </strong>
-        </div>
-        <div className="live-stat">
-          <span>Longest running</span>
-          <strong className="tabular">
-            {longest ? clock(now - Date.parse(longest.started)) : "—"}
-          </strong>
-          {longest && <small className="mono">{longest.task_type}</small>}
-        </div>
-        <div className="live-stat">
-          <span>Next due</span>
-          <strong className="tabular">
-            {nextDue ? dueIn(nextDue.next_process_at, now) : "—"}
-          </strong>
-          {nextDue && <small className="mono">{nextDue.type}</small>}
-        </div>
+        </StatTile>
+        <StatTile
+          label="Waiting"
+          value={
+            <>
+              {number(backlog)}
+              <small> pending</small>
+            </>
+          }
+        />
+        <StatTile
+          label="Longest running"
+          value={longest ? clock(now - Date.parse(longest.started)) : "—"}
+          detail={
+            longest && <span className="font-mono">{longest.task_type}</span>
+          }
+        />
+        <StatTile
+          label="Next due"
+          value={nextDue ? dueIn(nextDue.next_process_at, now) : "—"}
+          detail={nextDue && <span className="font-mono">{nextDue.type}</span>}
+        />
       </div>
-      <Card className="section">
-        <CardHeader className="section-heading">
-          <div>
-            <CardTitle>
-              <h2>Running now</h2>
-            </CardTitle>
-            <p className="muted small">
-              {paused
-                ? "Paused — showing the last sample"
-                : `Sampled every ${SAMPLE_MS / 1000}s from worker heartbeats`}
-            </p>
-          </div>
-          <span className="live-status" data-live={!paused && !servers.error}>
-            <span className="live-dot" />
-            {paused ? "Paused" : "Live"}
-          </span>
-        </CardHeader>
+      <Section>
+        <SectionHeader
+          title="Running now"
+          description={
+            paused
+              ? "Paused — showing the last sample"
+              : `Sampled every ${SAMPLE_MS / 1000}s from worker heartbeats`
+          }
+          action={
+            <LivePill live={!paused && !servers.error}>
+              {paused ? "Paused" : "Live"}
+            </LivePill>
+          }
+        />
         <Stale error={servers.error} />
         {servers.isPending ? (
           <Loading rows={3} />
@@ -320,94 +323,90 @@ export function LivePage() {
               : "No Asynq servers are running."}
           </Empty>
         ) : (
-          <div className="table-wrap">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Task</TableHead>
-                  <TableHead>Queue</TableHead>
-                  <TableHead>Worker</TableHead>
-                  <TableHead>Started</TableHead>
-                  <TableHead className="numeric">Running for</TableHead>
-                  <TableHead>Deadline</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {running.map((w) => {
-                  const state = runState(w, now);
-                  return (
-                    <TableRow key={workerKey(w)}>
-                      <TableCell>
-                        <span className="run-status" data-tone={state.tone}>
-                          <i />
-                          {state.label}
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Status</TableHead>
+                <TableHead>Task</TableHead>
+                <TableHead>Queue</TableHead>
+                <TableHead>Worker</TableHead>
+                <TableHead>Started</TableHead>
+                <TableHead className="text-right tabular-nums">
+                  Running for
+                </TableHead>
+                <TableHead>Deadline</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {running.map((w) => {
+                const state = runState(w, now);
+                const tone = state.tone as Tone;
+                return (
+                  <TableRow key={workerKey(w)}>
+                    <TableCell>
+                      <RunStatus tone={tone} pulse={tone === "green"}>
+                        {state.label}
+                      </RunStatus>
+                    </TableCell>
+                    <TableCell>
+                      <Link
+                        className="font-mono font-medium text-foreground"
+                        to="/tasks/$queue/$id"
+                        params={{ queue: w.queue, id: w.task_id }}
+                      >
+                        {w.task_type}
+                      </Link>
+                      <div className="font-mono text-muted-foreground text-xs">
+                        {w.task_id}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono">{w.queue}</TableCell>
+                    <TableCell className="font-mono text-muted-foreground text-xs">
+                      {w.host} · {w.pid}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {timeOfDay(w.started)}
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {clock(state.elapsed)}
+                    </TableCell>
+                    <TableCell>
+                      {!state.deadline ? (
+                        <span className="text-muted-foreground text-xs">
+                          No deadline
                         </span>
-                      </TableCell>
-                      <TableCell>
-                        <Link
-                          className="mono table-link"
-                          to="/tasks/$queue/$id"
-                          params={{ queue: w.queue, id: w.task_id }}
-                        >
-                          {w.task_type}
-                        </Link>
-                        <div className="mono muted small">{w.task_id}</div>
-                      </TableCell>
-                      <TableCell className="mono">{w.queue}</TableCell>
-                      <TableCell className="mono muted small">
-                        {w.host} · {w.pid}
-                      </TableCell>
-                      <TableCell className="muted">
-                        {timeOfDay(w.started)}
-                      </TableCell>
-                      <TableCell className="numeric mono">
-                        {clock(state.elapsed)}
-                      </TableCell>
-                      <TableCell>
-                        {!state.deadline ? (
-                          <span className="muted small">No deadline</span>
-                        ) : (
-                          <div className="deadline-cell">
-                            <div className="deadline-meter">
-                              <span
-                                data-tone={state.tone}
-                                style={{
-                                  width: `${state.deadline.progress * 100}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="muted small tabular">
-                              {state.deadline.left > 0
-                                ? `${clock(state.deadline.left)} left`
-                                : `${clock(-state.deadline.left)} over`}
-                            </span>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Meter value={state.deadline.progress} tone={tone} />
+                          <span className="text-muted-foreground text-xs tabular-nums">
+                            {state.deadline.left > 0
+                              ? `${clock(state.deadline.left)} left`
+                              : `${clock(-state.deadline.left)} over`}
+                          </span>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
         )}
-      </Card>
-      <div className="two-columns live-columns">
-        <Card className="section">
-          <CardHeader className="section-heading">
-            <div>
-              <CardTitle>
-                <h2>Up next</h2>
-              </CardTitle>
-              <p className="muted small">
-                Scheduled tasks and retries due soonest
-              </p>
-            </div>
-            <Link to="/scheduled" className="table-link small">
-              All scheduled
-            </Link>
-          </CardHeader>
+      </Section>
+      <div className={cardColumns({ layout: "even" })}>
+        <Section>
+          <SectionHeader
+            title="Up next"
+            description="Scheduled tasks and retries due soonest"
+            action={
+              <Link
+                to="/scheduled"
+                className="font-medium text-foreground text-xs"
+              >
+                All scheduled
+              </Link>
+            }
+          />
           {queues.isPending ? (
             <Loading rows={3} />
           ) : !upNext.length ? (
@@ -416,102 +415,117 @@ export function LivePage() {
               {queue ? ` on ${queue}` : ""}.
             </Empty>
           ) : (
-            <div className="table-wrap">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Task</TableHead>
-                    <TableHead>Queue</TableHead>
-                    <TableHead>State</TableHead>
-                    <TableHead className="numeric">Due</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Task</TableHead>
+                  <TableHead>Queue</TableHead>
+                  <TableHead>State</TableHead>
+                  <TableHead className="text-right tabular-nums">Due</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {upNext.map((t) => (
+                  <TableRow key={`${t.queue}/${t.id}`}>
+                    <TableCell>
+                      <Link
+                        className="font-mono font-medium text-foreground"
+                        to="/tasks/$queue/$id"
+                        params={{ queue: t.queue, id: t.id }}
+                      >
+                        {t.type}
+                      </Link>
+                      {t.state === "retry" && (
+                        <div className="text-muted-foreground text-xs">
+                          Attempt {t.retried + 1} of {t.max_retry + 1}
+                        </div>
+                      )}
+                      {t.schedule && <CronChip schedule={t.schedule} />}
+                    </TableCell>
+                    <TableCell className="font-mono">{t.queue}</TableCell>
+                    <TableCell>
+                      <StateBadge state={t.state} />
+                    </TableCell>
+                    <TableCell className="text-right font-mono tabular-nums">
+                      {dueIn(t.next_process_at, now)}
+                    </TableCell>
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {upNext.map((t) => (
-                    <TableRow key={`${t.queue}/${t.id}`}>
-                      <TableCell>
-                        <Link
-                          className="mono table-link"
-                          to="/tasks/$queue/$id"
-                          params={{ queue: t.queue, id: t.id }}
-                        >
-                          {t.type}
-                        </Link>
-                        {t.state === "retry" && (
-                          <div className="muted small">
-                            Attempt {t.retried + 1} of {t.max_retry + 1}
-                          </div>
-                        )}
-                        {t.schedule && <CronChip schedule={t.schedule} />}
-                      </TableCell>
-                      <TableCell className="mono">{t.queue}</TableCell>
-                      <TableCell>
-                        <Badge state={t.state} />
-                      </TableCell>
-                      <TableCell className="numeric mono">
-                        {dueIn(t.next_process_at, now)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                ))}
+              </TableBody>
+            </Table>
           )}
-        </Card>
-        <Card className="section">
-          <CardHeader className="section-heading">
-            <div>
-              <CardTitle>
-                <h2>Activity tail</h2>
-              </CardTitle>
-              <p className="muted small">
-                {visibleTail.length
-                  ? `${visibleTail.length} events since you opened this page`
-                  : "Waiting for tasks to start or finish"}
-              </p>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={clear}
-              disabled={!tail.length}
-            >
-              <Trash2 size={14} />
-              Clear
-            </Button>
-          </CardHeader>
+        </Section>
+        <Section>
+          <SectionHeader
+            title="Activity tail"
+            description={
+              visibleTail.length
+                ? `${visibleTail.length} events since you opened this page`
+                : "Waiting for tasks to start or finish"
+            }
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={clear}
+                disabled={!tail.length}
+              >
+                <Trash2 size={14} />
+                Clear
+              </Button>
+            }
+          />
           {!visibleTail.length ? (
             <Empty title="No activity yet">
               Starts and finishes appear here as workers pick up and complete
               tasks.
             </Empty>
           ) : (
-            <ol className="tail" aria-live="polite" aria-relevant="additions">
+            <ol
+              className={cn(
+                dividedList,
+                "max-h-[440px] overflow-y-auto py-1.5",
+              )}
+              aria-live="polite"
+              aria-relevant="additions"
+            >
               {visibleTail.map((e) => {
                 const o =
                   outcomes[
                     e.kind === "started" ? "started" : (e.outcome ?? "finished")
                   ];
                 return (
-                  <li key={e.id}>
-                    <span className="run-status" data-tone={o.tone}>
-                      <i />
+                  <li
+                    key={e.id}
+                    className={cn(
+                      "grid animate-tail-in grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2.5 gap-y-1 py-2 text-sm @xl/main:grid-cols-[128px_minmax(0,1fr)_auto] @xl/main:gap-3",
+                      cardX,
+                    )}
+                  >
+                    <RunStatus
+                      tone={o.tone}
+                      className="col-span-full @xl/main:col-auto"
+                    >
                       {o.label}
-                    </span>
-                    <span className="tail-task">
+                    </RunStatus>
+                    <span className="grid min-w-0 leading-[1.35] *:truncate">
                       <Link
-                        className="mono table-link"
+                        className="font-mono font-medium text-foreground"
                         to="/tasks/$queue/$id"
                         params={{ queue: e.queue, id: e.taskId }}
                       >
                         {e.type}
                       </Link>
-                      <span className="mono muted small">{e.queue}</span>
+                      <span className="font-mono text-muted-foreground text-xs">
+                        {e.queue}
+                      </span>
                     </span>
-                    <span className="tail-meta">
-                      <time className="mono">{timeOfDay(e.at)}</time>
+                    <span className="grid min-w-0 justify-items-end text-2xs leading-[1.35] text-muted-foreground">
+                      <time className="font-mono">{timeOfDay(e.at)}</time>
                       {e.ranMs !== undefined && (
-                        <span className="tabular">ran {clock(e.ranMs)}</span>
+                        <span className="tabular-nums">
+                          ran {clock(e.ranMs)}
+                        </span>
                       )}
                     </span>
                   </li>
@@ -519,8 +533,18 @@ export function LivePage() {
               })}
             </ol>
           )}
-        </Card>
+        </Section>
       </div>
     </>
+  );
+}
+
+/** Pill showing whether the page is following live data. */
+function LivePill({ live, children }: { live: boolean; children: ReactNode }) {
+  return (
+    <span className="inline-flex h-7 items-center gap-[7px] rounded-full border bg-surface px-2.5 text-xs text-muted-foreground">
+      <StatusDot tone={live ? "green" : "amber"} pulse={live} />
+      {children}
+    </span>
   );
 }

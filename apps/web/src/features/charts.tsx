@@ -13,7 +13,6 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@/components/ui/chart";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { useId, useMemo, useEffect, useState } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
@@ -25,6 +24,14 @@ import {
 } from "../api/generated/@tanstack/react-query.gen";
 import type { QueryMetricRangeData } from "../api/generated/types.gen";
 import { DataError, Empty, Loading } from "../components/data-state";
+import {
+  Section,
+  SectionBody,
+  SectionHeader,
+  StatTile,
+  StatusDot,
+  statGrid,
+} from "../components/page";
 import { duration, number } from "../lib/utils";
 /** Matches the usual Prometheus scrape interval; faster polling only repeats samples. */
 export const LIVE_REFRESH_MS = 15_000;
@@ -143,23 +150,22 @@ export function HistoricalChart({
     );
   }, [query.data]);
   return (
-    <Card className="section">
-      <CardHeader className="section-heading">
-        <div>
-          <CardTitle>
-            <h2>{title}</h2>
-          </CardTitle>
-          {description && <p className="muted small">{description}</p>}
-        </div>
-        <span className="muted small chart-source">
-          {live && <span className="live-dot" data-live="true" />}
-          Prometheus · {query.data?.unit ?? "history"}
-        </span>
-      </CardHeader>
+    <Section>
+      <SectionHeader
+        className="items-start"
+        title={title}
+        description={description}
+        action={
+          <span className="inline-flex flex-none items-center gap-[7px] text-xs whitespace-nowrap text-muted-foreground">
+            {live && <StatusDot tone="green" pulse />}
+            Prometheus · {query.data?.unit ?? "history"}
+          </span>
+        }
+      />
       {health.error ? (
-        <CardContent className="section-body">
+        <SectionBody>
           <DataError error={health.error} retry={() => health.refetch()} />
-        </CardContent>
+        </SectionBody>
       ) : health.isPending ? (
         <Loading rows={2} />
       ) : !health.data?.available ? (
@@ -175,9 +181,9 @@ export function HistoricalChart({
       ) : query.isPending ? (
         <Loading rows={3} />
       ) : query.error ? (
-        <CardContent className="section-body">
+        <SectionBody>
           <DataError error={query.error} retry={() => query.refetch()} />
-        </CardContent>
+        </SectionBody>
       ) : !chartData.length ? (
         <Empty title="No samples in this range">
           Check that Prometheus is scraping Spool’s /metrics endpoint, or choose
@@ -185,7 +191,7 @@ export function HistoricalChart({
         </Empty>
       ) : (
         <>
-          <div className="chart">
+          <div className="h-[220px] px-2 pt-4 pb-1 md:h-[250px] md:px-3">
             <ChartContainer
               className="h-full w-full aspect-auto"
               config={Object.fromEntries(
@@ -255,7 +261,7 @@ export function HistoricalChart({
           </div>
         </>
       )}
-    </Card>
+    </Section>
   );
 }
 
@@ -308,15 +314,15 @@ function Reading({
       : values.reduce((a, b) => a + b, 0)
     : undefined;
   return (
-    <div className="live-stat">
-      <span>{label}</span>
-      <strong>{value === undefined ? "—" : format(value)}</strong>
-      <small>
-        {query.error
+    <StatTile
+      label={label}
+      value={value === undefined ? "—" : format(value)}
+      detail={
+        query.error
           ? "Unavailable"
-          : `${combine === "max" ? "Highest of" : "Across"} ${values.length} ${values.length === 1 ? "queue" : "queues"}`}
-      </small>
-    </div>
+          : `${combine === "max" ? "Highest of" : "Across"} ${values.length} ${values.length === 1 ? "queue" : "queues"}`
+      }
+    />
   );
 }
 /** Current value of each charted signal, from Prometheus instant queries. */
@@ -324,7 +330,7 @@ export function LiveReadings({ live }: { live: boolean }) {
   const health = useQuery({ ...metricsHealthOptions(), staleTime: 60_000 });
   if (!health.data?.available) return null;
   return (
-    <div className="live-stats metric-readings">
+    <div className={statGrid({ columns: 6 })}>
       {readings.map((r) => (
         <Reading key={r.metric} {...r} live={live} />
       ))}
@@ -370,21 +376,27 @@ export function Sparkline({
   values?: number[];
   label: string;
 }) {
-  if (!values || values.length < 2) return <span className="muted">—</span>;
+  if (!values || values.length < 2)
+    return <span className="text-muted-foreground">—</span>;
   const max = Math.max(...values, Number.EPSILON);
   const points = values
     .map((v, i) => `${(i / (values.length - 1)) * 80},${22 - (v / max) * 20}`)
     .join(" ");
   return (
     <svg
-      className="sparkline"
+      data-skeleton-hide
       viewBox="0 0 80 24"
       width="80"
       height="24"
       role="img"
       aria-label={label}
     >
-      <polyline points={points} />
+      <polyline
+        points={points}
+        className="fill-none stroke-green stroke-[1.5]"
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     </svg>
   );
 }

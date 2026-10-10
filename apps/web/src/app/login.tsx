@@ -25,7 +25,8 @@ import {
 import type { Session } from "../api/generated/types.gen";
 import { errorMessage } from "../api/client";
 import { queryClient } from "../features/queries";
-import { envTone } from "../lib/utils";
+import { envTone, versionLabel } from "../lib/utils";
+import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
 const loginSchema = z.object({
   username: z.string().trim().min(1, "Enter your username."),
@@ -48,6 +49,10 @@ const highlights = [
     text: "Know when a queue backs up or nothing is processing it.",
   },
 ];
+const envDot: Record<string, string> = {
+  production: "bg-red",
+  staging: "bg-amber",
+};
 /** Full-screen sign-in, shown instead of the app shell until a session exists. */
 export function LoginScreen({ session }: { session?: Session }) {
   const id = useId();
@@ -80,34 +85,41 @@ export function LoginScreen({ session }: { session?: Session }) {
   const errors = form.formState.errors;
   const next = theme === "dark" ? "light" : "dark";
   return (
-    <div className="login-screen">
-      <aside className="login-brand" aria-hidden="true">
+    <div className="grid min-h-dvh bg-background min-[960px]:grid-cols-[minmax(400px,5fr)_7fr]">
+      {/* Brand panel beside the form from 960px, in the logo kit's ink, paper
+          and copper in both themes. The ::after line is a faint thread. */}
+      <aside
+        className="relative hidden flex-col justify-between gap-8 overflow-hidden p-12 text-paper [background:radial-gradient(120%_80%_at_0%_100%,rgba(182,92,58,0.22),transparent_60%),#161616] after:pointer-events-none after:absolute after:inset-x-[-40%] after:inset-y-[-20%] after:[background:linear-gradient(150deg,transparent_49.6%,rgba(228,160,122,0.16)_49.8%,rgba(228,160,122,0.16)_50.2%,transparent_50.4%)] min-[960px]:flex"
+        aria-hidden="true"
+      >
         <BrandLogo height={36} onDark />
-        <div className="login-pitch">
-          <p className="login-tagline">
+        <div className="relative z-1 max-w-[440px]">
+          <p className="text-3xl/[1.2] font-medium tracking-[-0.02em] text-balance">
             Observability and operations for your Asynq queues.
           </p>
-          <ul className="login-highlights">
+          <ul className="mt-8 grid gap-5">
             {highlights.map((h) => (
-              <li key={h.title}>
-                <span className="login-highlight-icon">
+              <li key={h.title} className="flex gap-3">
+                <span className="grid size-8 flex-none place-items-center rounded-lg border border-paper/12 bg-paper/4 text-light-copper">
                   <h.icon size={16} />
                 </span>
                 <div>
-                  <strong>{h.title}</strong>
-                  <span>{h.text}</span>
+                  <strong className="block font-semibold">{h.title}</strong>
+                  <span className="mt-0.5 block text-sm/normal text-paper/65">
+                    {h.text}
+                  </span>
                 </div>
               </li>
             ))}
           </ul>
         </div>
-        <p className="login-brand-footer">
+        <p className="relative z-1 flex items-center gap-2 text-xs/normal text-paper/55">
           <Activity size={14} /> Reads your Asynq data in Redis directly. No
           agents, no worker changes.
         </p>
       </aside>
-      <main className="login-main">
-        <div className="login-toolbar">
+      <main className="relative flex flex-col items-center justify-center px-4 py-16">
+        <div className="absolute top-3 right-3 min-[960px]:top-5 min-[960px]:right-5">
           <Button
             variant="ghost"
             size="icon"
@@ -117,16 +129,18 @@ export function LoginScreen({ session }: { session?: Session }) {
             {theme === "dark" ? <Sun /> : <Moon />}
           </Button>
         </div>
-        <div className="login-panel">
-          <div className="login-mobile-logo">
+        <div className="w-[min(400px,100%)]">
+          <div className="mb-8 min-[960px]:hidden">
             <BrandLogo height={32} />
           </div>
-          <h1>Sign in</h1>
-          <p className="login-intro">
+          <h1 className="text-2xl/[1.25] font-semibold tracking-[-0.02em] text-balance">
+            Sign in
+          </h1>
+          <p className="mt-2 text-muted-foreground">
             Use the account set up for this Spool deployment.
           </p>
           <form
-            className="login-form"
+            className="mt-6 grid gap-4"
             noValidate
             onSubmit={form.handleSubmit((values) =>
               mutation.mutate({ body: values }),
@@ -135,6 +149,7 @@ export function LoginScreen({ session }: { session?: Session }) {
             <Field>
               <FieldLabel htmlFor={`${id}-username`}>Username</FieldLabel>
               <Input
+                className="h-10"
                 id={`${id}-username`}
                 autoComplete="username"
                 autoCapitalize="none"
@@ -155,10 +170,11 @@ export function LoginScreen({ session }: { session?: Session }) {
             </Field>
             <Field>
               <FieldLabel htmlFor={`${id}-password`}>Password</FieldLabel>
-              <div className="password-field">
+              <div className="relative">
                 <Input
                   id={`${id}-password`}
                   type={showPassword ? "text" : "password"}
+                  className="h-10 pr-11"
                   autoComplete="current-password"
                   aria-invalid={!!errors.password}
                   aria-describedby={
@@ -176,7 +192,7 @@ export function LoginScreen({ session }: { session?: Session }) {
                 />
                 <button
                   type="button"
-                  className="password-toggle"
+                  className="absolute top-1/2 right-1 grid size-8 -translate-y-1/2 place-items-center rounded-md border-0 bg-transparent text-muted-foreground hover:bg-hover hover:text-foreground"
                   onClick={() => setShowPassword((v) => !v)}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                   aria-pressed={showPassword}
@@ -185,7 +201,7 @@ export function LoginScreen({ session }: { session?: Session }) {
                 </button>
               </div>
               {capsLock && (
-                <p id={`${id}-caps`} className="caps-hint">
+                <p id={`${id}-caps`} className="text-xs/normal text-amber">
                   Caps Lock is on.
                 </p>
               )}
@@ -196,15 +212,22 @@ export function LoginScreen({ session }: { session?: Session }) {
               )}
             </Field>
             {mutation.error && (
-              <div className="login-error" role="alert">
-                <CircleAlert size={16} aria-hidden="true" />
+              <div
+                className="flex items-start gap-2 rounded-lg border border-red/35 bg-red-bg px-3 py-2.5 text-sm/normal text-red"
+                role="alert"
+              >
+                <CircleAlert
+                  size={16}
+                  aria-hidden="true"
+                  className="mt-0.5 flex-none"
+                />
                 {errorMessage(mutation.error)}
               </div>
             )}
             <Button
               type="submit"
               size="lg"
-              className="login-submit"
+              className="mt-1 w-full"
               disabled={mutation.isPending}
             >
               {mutation.isPending && (
@@ -213,22 +236,23 @@ export function LoginScreen({ session }: { session?: Session }) {
               Sign in
             </Button>
           </form>
-          <p className="login-help">
+          <p className="mt-5 text-xs/normal text-pretty text-muted-foreground">
             Forgot your password? Accounts are set on the server, so ask whoever
             runs this deployment.
           </p>
         </div>
         {session && (
-          <p className="login-meta">
+          <p className="absolute bottom-4 flex items-center gap-1.5 text-2xs/normal text-muted-foreground">
             <span
-              className="env-dot"
+              className={cn(
+                "size-1.5 rounded-full bg-muted-foreground",
+                envDot[envTone(session.environment)],
+              )}
               data-tone={envTone(session.environment)}
             />
             {session.environment}
             <span aria-hidden="true">·</span>
-            {/^\d/.test(session.version)
-              ? `v${session.version}`
-              : session.version}
+            {versionLabel(session.version)}
           </p>
         )}
       </main>

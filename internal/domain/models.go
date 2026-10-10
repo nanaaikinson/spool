@@ -231,7 +231,10 @@ type Audit struct {
 }
 
 type AuditList struct {
-	Data []Audit `json:"data"`
+	Data  []Audit `json:"data"`
+	Page  int     `json:"page"`
+	Limit int     `json:"limit"`
+	Total int     `json:"total"`
 }
 
 type SavedView struct {

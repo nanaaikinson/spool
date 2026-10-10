@@ -129,20 +129,27 @@ func (s *Store) Finish(ctx context.Context, id string, success bool) error {
 	return nil
 }
 
-func (s *Store) Audits(ctx context.Context) ([]domain.Audit, error) {
+// Audits returns one page of the audit log, newest first, and the total
+// number of records. Pages start at 1.
+func (s *Store) Audits(ctx context.Context, page, limit int) (domain.AuditList, error) {
+	out := domain.AuditList{Data: []domain.Audit{}, Page: page, Limit: limit}
 	if s == nil {
-		return nil, ErrUnavailable
+		return out, ErrUnavailable
 	}
-	rows, e := s.audits.GetMany(
-		ctx,
-		func(q *bun.SelectQuery) *bun.SelectQuery {
-			return q.OrderExpr("created_at DESC, id DESC").Limit(100)
-		},
-	)
-	out := make([]domain.Audit, 0, len(rows))
+	var rows []auditModel
+	total, e := s.DB.NewSelect().
+		Model(&rows).
+		OrderExpr("created_at DESC, id DESC").
+		Limit(limit).
+		Offset((page - 1) * limit).
+		ScanAndCount(ctx)
+	if e != nil {
+		return out, e
+	}
+	out.Total = total
 	for _, r := range rows {
-		out = append(
-			out,
+		out.Data = append(
+			out.Data,
 			domain.Audit{
 				ID:        r.ID,
 				Actor:     r.Actor,
@@ -154,7 +161,7 @@ func (s *Store) Audits(ctx context.Context) ([]domain.Audit, error) {
 			},
 		)
 	}
-	return out, e
+	return out, nil
 }
 
 func (s *Store) Views(ctx context.Context, actor string) ([]domain.SavedView, error) {

@@ -452,12 +452,27 @@ func (a *API) dispatch(id string, w http.ResponseWriter, r *http.Request) {
 	case "queryMetric", "queryMetricRange":
 		a.metric(w, r, id == "queryMetricRange")
 	case "listAudit":
-		v, e := a.Store.Audits(ctx)
+		page, limit := 1, 25
+		for key, target := range map[string]*int{"page": &page, "limit": &limit} {
+			if raw := r.URL.Query().Get(key); raw != "" {
+				n, e := strconv.Atoi(raw)
+				if e != nil || n < 1 {
+					a.fail(w, r, 422, "VALIDATION_ERROR", "Page and page size must be whole numbers of 1 or more.", nil)
+					return
+				}
+				*target = n
+			}
+		}
+		if limit > 100 {
+			a.fail(w, r, 422, "VALIDATION_ERROR", "Page size must be 100 or fewer.", nil)
+			return
+		}
+		v, e := a.Store.Audits(ctx, page, limit)
 		if e != nil {
 			a.failure(w, r, e)
 			return
 		}
-		a.json(w, domain.AuditList{Data: v})
+		a.json(w, v)
 	case "listViews":
 		v, e := a.Store.Views(ctx, actor(r))
 		if e != nil {

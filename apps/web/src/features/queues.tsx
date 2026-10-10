@@ -9,7 +9,6 @@ import {
   InputGroupInput,
   InputGroupAddon,
 } from "@/components/ui/input-group";
-import { Badge as UiBadge } from "@/components/ui/badge";
 import {
   Table,
   TableHeader,
@@ -18,7 +17,7 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { DialogFooter } from "@/components/ui/dialog";
 import type { Options } from "../api/generated/sdk.gen";
@@ -62,13 +61,24 @@ import {
   resumeQueueMutation,
 } from "../api/generated/@tanstack/react-query.gen";
 import { errorMessage } from "../api/client";
+import { DataError, Empty, Loading, Stale } from "../components/data-state";
 import {
-  Badge,
-  DataError,
-  Empty,
-  Loading,
-  Stale,
-} from "../components/data-state";
+  FilterBar,
+  PageHeader,
+  Section,
+  SectionBody,
+  SectionHeader,
+  StatTile,
+  StateBadge,
+  TabCount,
+  cardX,
+  dividedList,
+  stack,
+  statGrid,
+  tabBar,
+  tabItem,
+  cardColumns,
+} from "../components/page";
 import { Button } from "../components/ui/button";
 import { OperationDialog } from "../components/operation-dialog";
 import { AlertDialogCancel } from "@/components/ui/alert-dialog";
@@ -103,12 +113,24 @@ const states = [
   "completed",
   "aggregating",
 ] as const;
+const stateFill: Record<(typeof states)[number], string> = {
+  pending: "bg-primary",
+  active: "bg-green",
+  scheduled: "bg-purple",
+  retry: "bg-amber",
+  archived: "bg-red",
+  completed: "bg-muted-foreground",
+  aggregating: "bg-muted-foreground",
+};
+/** Page columns: one on narrow screens, side by side when there is room. */
 export function Distribution({
   queue,
   large = false,
+  className,
 }: {
   queue: Queue;
   large?: boolean;
+  className?: string;
 }) {
   const total = states.reduce((n, s) => n + queue[s], 0);
   return (
@@ -116,7 +138,11 @@ export function Distribution({
       <TooltipTrigger asChild>
         <div
           tabIndex={0}
-          className={large ? "distribution large" : "distribution"}
+          className={cn(
+            "flex h-1.5 max-w-[190px] min-w-[100px] gap-0.5 overflow-hidden rounded-[3px] bg-hover",
+            large && "h-2.5 w-full max-w-none rounded-[5px]",
+            className,
+          )}
           aria-label={states.map((s) => `${queue[s]} ${s}`).join(", ")}
         >
           {states.map(
@@ -124,7 +150,8 @@ export function Distribution({
               queue[s] > 0 && (
                 <span
                   key={s}
-                  className={s}
+                  data-skeleton-hide
+                  className={cn("min-w-0.5", stateFill[s])}
                   style={{ width: `${(queue[s] / Math.max(total, 1)) * 100}%` }}
                 />
               ),
@@ -142,15 +169,18 @@ function columns(trends: Map<string, number[]>) {
     helper.accessor("name", {
       header: "Queue",
       cell: ({ row }) => (
-        <div className="queue-cell">
+        <div className="grid gap-1.5">
           <Link
-            className="table-link mono"
+            className="font-medium text-foreground font-mono"
             to="/queues/$queue"
             params={{ queue: row.original.name }}
           >
             {row.original.name}
           </Link>
-          <Distribution queue={row.original} />
+          <Distribution
+            queue={row.original}
+            className="h-1 w-[120px] min-w-0"
+          />
         </div>
       ),
     }),
@@ -158,7 +188,7 @@ function columns(trends: Map<string, number[]>) {
       id: "state",
       header: "State",
       cell: ({ row }) => (
-        <Badge state={row.original.paused ? "paused" : "running"} />
+        <StateBadge state={row.original.paused ? "paused" : "running"} />
       ),
     }),
     ...(["pending", "active", "scheduled", "retry", "archived"] as const).map(
@@ -169,7 +199,11 @@ function columns(trends: Map<string, number[]>) {
             <Link
               to="/tasks"
               search={{ queue: row.original.name, state: s }}
-              className={row.original[s] > 0 ? "table-link" : "muted"}
+              className={
+                row.original[s] > 0
+                  ? "font-medium text-foreground"
+                  : "text-muted-foreground"
+              }
             >
               {number(row.original[s])}
             </Link>
@@ -181,10 +215,14 @@ function columns(trends: Map<string, number[]>) {
       cell: ({ row }) => {
         const { processed, failed } = row.original;
         return (
-          <div className="today-cell">
+          <div className="grid leading-[1.3]">
             <span>{number(processed)}</span>
             {processed > 0 && (
-              <span className={failed ? "danger small" : "muted small"}>
+              <span
+                className={
+                  failed ? "text-red text-xs" : "text-muted-foreground text-xs"
+                }
+              >
                 {number((failed / processed) * 100)}% failed
               </span>
             )}
@@ -195,13 +233,17 @@ function columns(trends: Map<string, number[]>) {
     helper.accessor("latency_seconds", {
       header: "Latency",
       cell: ({ row }) => (
-        <span className="mono">{duration(row.original.latency_seconds)}</span>
+        <span className="font-mono">
+          {duration(row.original.latency_seconds)}
+        </span>
       ),
     }),
     helper.accessor("memory_bytes", {
       header: "Memory",
       cell: ({ row }) => (
-        <span className="mono muted">{bytes(row.original.memory_bytes)}</span>
+        <span className="font-mono text-muted-foreground">
+          {bytes(row.original.memory_bytes)}
+        </span>
       ),
     }),
     helper.display({
@@ -279,7 +321,7 @@ export function QueueTable({ data }: { data: Queue[] }) {
               }),
             });
         }}
-        className="table-tabs"
+        className={tabBar}
         aria-label="Queue status"
       >
         {(
@@ -306,15 +348,15 @@ export function QueueTable({ data }: { data: Queue[] }) {
             value={tab.value}
             key={tab.value}
             type="button"
-            className="table-tab"
+            className={tabItem}
           >
             {tab.label}
-            <UiBadge className="tab-count">{number(tab.count)}</UiBadge>
+            <TabCount>{number(tab.count)}</TabCount>
           </ToggleGroupItem>
         ))}
       </ToggleGroup>
-      <div className="filters">
-        <InputGroup className="queue-search">
+      <FilterBar>
+        <InputGroup className="w-full @2xl/main:w-[min(320px,100%)]">
           <InputGroupAddon>
             <Search aria-hidden="true" />
           </InputGroupAddon>
@@ -333,64 +375,64 @@ export function QueueTable({ data }: { data: Queue[] }) {
             }
           />
         </InputGroup>
-        <span className="muted small">{filtered.length} queues</span>
-      </div>
+        <span className="self-center text-xs text-muted-foreground">
+          {plural(filtered.length, "queue")}
+        </span>
+      </FilterBar>
       {!filtered.length ? (
         <Empty title="No matching queues">
           Change or clear the queue search.
         </Empty>
       ) : (
-        <div className="table-wrap">
-          <Table>
-            <TableHeader data-shimmer-ignore>
-              {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id}>
-                  {group.headers.map((h) => (
-                    <TableHead
-                      key={h.id}
-                      aria-sort={
-                        h.column.getIsSorted() === "asc"
-                          ? "ascending"
-                          : h.column.getIsSorted() === "desc"
-                            ? "descending"
-                            : undefined
-                      }
-                    >
-                      {h.column.getCanSort() ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="sortable"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
-                          <table.FlexRender header={h} />
-                          {h.column.getIsSorted() === "desc" ? (
-                            <ArrowDown size={12} />
-                          ) : h.column.getIsSorted() === "asc" ? (
-                            <ArrowUp size={12} />
-                          ) : null}
-                        </Button>
-                      ) : (
+        <Table>
+          <TableHeader data-shimmer-ignore>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id}>
+                {group.headers.map((h) => (
+                  <TableHead
+                    key={h.id}
+                    aria-sort={
+                      h.column.getIsSorted() === "asc"
+                        ? "ascending"
+                        : h.column.getIsSorted() === "desc"
+                          ? "descending"
+                          : undefined
+                    }
+                  >
+                    {h.column.getCanSort() ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="flex gap-[5px] border-none bg-transparent p-0 text-inherit hover:bg-transparent hover:text-inherit has-[>svg]:px-0 dark:hover:bg-transparent"
+                        onClick={h.column.getToggleSortingHandler()}
+                      >
                         <table.FlexRender header={h} />
-                      )}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              ))}
-            </TableHeader>
-            <TableBody>
-              {table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getAllCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      <table.FlexRender cell={cell} />
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+                        {h.column.getIsSorted() === "desc" ? (
+                          <ArrowDown size={12} />
+                        ) : h.column.getIsSorted() === "asc" ? (
+                          <ArrowUp size={12} />
+                        ) : null}
+                      </Button>
+                    ) : (
+                      <table.FlexRender header={h} />
+                    )}
+                  </TableHead>
+                ))}
+              </TableRow>
+            ))}
+          </TableHeader>
+          <TableBody>
+            {table.getRowModel().rows.map((row) => (
+              <TableRow key={row.id}>
+                {row.getAllCells().map((cell) => (
+                  <TableCell key={cell.id}>
+                    <table.FlexRender cell={cell} />
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </>
   );
@@ -425,7 +467,12 @@ function Stats({
     undefined,
   );
   return (
-    <div className="summary-grid">
+    <div
+      className={cn(
+        "grid grid-cols-1 gap-3 @md/main:grid-cols-2 @5xl/main:grid-cols-4",
+        stack,
+      )}
+    >
       <SummaryCard
         icon={<Layers size={18} />}
         label="Backlog"
@@ -501,22 +548,19 @@ export function OverviewPage() {
   const query = useQuery(getOverviewOptions());
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <h1>Dashboard</h1>
-          <p>
-            Current queue state, processing health, and the signals that need
-            attention.
-          </p>
-        </div>
-        <div className="heading-actions">
-          <TimeRange />
-          <RefreshButton
-            onClick={() => invalidateOperational()}
-            pending={query.isFetching}
-          />
-        </div>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Current queue state, processing health, and the signals that need attention."
+        actions={
+          <>
+            <TimeRange />
+            <RefreshButton
+              onClick={() => invalidateOperational()}
+              pending={query.isFetching}
+            />
+          </>
+        }
+      />
       {query.isPending ? (
         <>
           <Phantom loading label="Loading dashboard">
@@ -527,7 +571,7 @@ export function OverviewPage() {
               servers={1}
             />
           </Phantom>
-          <div className="two-columns dashboard-columns">
+          <div className={cardColumns({ layout: "even" })}>
             <Loading rows={3} />
             <Loading rows={3} />
           </div>
@@ -544,11 +588,11 @@ export function OverviewPage() {
               concurrency={query.data.concurrency}
               servers={query.data.servers}
             />
-            <div className="two-columns dashboard-columns">
+            <div className={cardColumns({ layout: "even" })}>
               <NeedsAttention />
               <ErrorGroupsCard limit={5} />
             </div>
-            <div className="two-columns">
+            <div className={cardColumns()}>
               <HistoricalChart
                 metric="processed"
                 title="Processing throughput"
@@ -565,31 +609,31 @@ export function QueuesPage() {
   const query = useQuery(listQueuesOptions());
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <h1>Queues</h1>
-          <p>Backlog, processing state, and latency across your environment.</p>
-        </div>
-        <RefreshButton
-          onClick={() => query.refetch()}
-          pending={query.isFetching}
-        />
-      </div>
+      <PageHeader
+        title="Queues"
+        description="Backlog, processing state, and latency across your environment."
+        actions={
+          <RefreshButton
+            onClick={() => query.refetch()}
+            pending={query.isFetching}
+          />
+        }
+      />
       {query.isPending ? (
-        <Card className="section">
+        <Section>
           <Phantom loading label="Loading queues">
             <QueueTable data={placeholderQueues} />
           </Phantom>
-        </Card>
+        </Section>
       ) : query.error && !query.data ? (
         <DataError error={query.error} retry={() => query.refetch()} />
       ) : (
         query.data && (
           <>
             <Stale error={query.error} />
-            <Card className="section">
+            <Section>
               <QueueTable data={query.data.data} />
-            </Card>
+            </Section>
           </>
         )
       )}
@@ -623,15 +667,25 @@ export function QueuePage() {
   const paused = query.data?.paused;
   return (
     <>
-      <div className="page-heading">
-        <div>
-          <div className="title-row">
-            <h1 className="mono">{queue}</h1>
-            {query.data && <Badge state={paused ? "paused" : "running"} />}
+      {/* Not PageHeader: the badge sits beside the title, outside the h1. */}
+      <div
+        className={cn(
+          "flex flex-col gap-4 @3xl/main:flex-row @3xl/main:items-start @3xl/main:justify-between",
+          stack,
+        )}
+      >
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="font-mono text-xl font-semibold tracking-tight text-balance md:text-2xl">
+              {queue}
+            </h1>
+            {query.data && <StateBadge state={paused ? "paused" : "running"} />}
           </div>
-          <p>Backlog, throughput and the servers processing this queue.</p>
+          <p className="mt-2 max-w-[72ch] text-pretty text-muted-foreground">
+            Backlog, throughput and the servers processing this queue.
+          </p>
         </div>
-        <div className="heading-actions">
+        <div className="flex flex-none flex-wrap items-center gap-2 @3xl/main:justify-end">
           <TimeRange />
           <Button
             variant="secondary"
@@ -654,36 +708,38 @@ export function QueuePage() {
           <>
             <Stale error={query.error} />
             <QueueFigures queue={query.data} />
-            <div className="two-columns">
+            <div className={cardColumns()}>
               <ProcessedBy queue={queue} />
-              <Card className="section">
-                <CardHeader className="section-heading">
-                  <CardTitle>
-                    <h2>Task distribution</h2>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="section-body">
+              <Section>
+                <SectionHeader title="Task distribution" />
+                <SectionBody>
                   <Distribution queue={query.data} large />
-                  <div className="distribution-legend">
+                  <div className="mt-4 grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-x-4 gap-y-1">
                     {states.map((state) => (
                       <Link
                         to="/tasks"
                         search={{ queue, state }}
                         key={state}
-                        className="distribution-item"
+                        className="flex items-center gap-2 rounded-md p-1.5 text-sm text-muted-foreground hover:bg-hover hover:text-foreground"
                       >
-                        <i className={state} />
+                        <i
+                          data-skeleton-hide
+                          className={cn(
+                            "size-2 rounded-[2px]",
+                            stateFill[state],
+                          )}
+                        />
                         <span>{state}</span>
-                        <strong className="mono">
+                        <strong className="ml-auto font-mono font-medium text-foreground">
                           {number(query.data![state])}
                         </strong>
                       </Link>
                     ))}
                   </div>
-                </CardContent>
-              </Card>
+                </SectionBody>
+              </Section>
             </div>
-            <div className="two-columns">
+            <div className={cardColumns()}>
               <HistoricalChart
                 metric="depth"
                 title="Queue depth"
@@ -711,12 +767,15 @@ export function QueuePage() {
             : "Workers stop picking up new tasks from this queue. Tasks already running finish normally."
         }
       >
-        <Alert role="note" className="notice">
-          <AlertDescription>
+        <Alert
+          role="note"
+          className="mt-3 block rounded-md border-0 bg-hover p-3 text-xs text-muted-foreground"
+        >
+          <AlertDescription className="text-xs">
             This action is recorded in the audit log.
           </AlertDescription>
         </Alert>
-        <DialogFooter className="dialog-actions">
+        <DialogFooter className="mt-6">
           <AlertDialogCancel
             variant="secondary"
             disabled={pending}
@@ -746,43 +805,44 @@ export function QueuePage() {
 function QueueFigures({ queue }: { queue: Queue }) {
   const rate = queue.processed ? (queue.failed / queue.processed) * 100 : 0;
   return (
-    <div className="live-stats queue-figures">
-      <div className="live-stat">
-        <span>Waiting</span>
-        <strong>{number(queue.pending)}</strong>
-        <small>{number(queue.scheduled)} scheduled for later</small>
-      </div>
-      <div className="live-stat">
-        <span>Oldest wait</span>
-        <strong>{duration(queue.latency_seconds)}</strong>
-        <small>Age of the oldest pending task</small>
-      </div>
-      <div className="live-stat">
-        <span>Processed today</span>
-        <strong>{number(queue.processed)}</strong>
-        <small>{number(queue.active)} running now</small>
-      </div>
-      <div className="live-stat">
-        <span>Failed today</span>
-        <strong className={queue.failed ? "danger" : undefined}>
-          {number(queue.failed)}
-        </strong>
-        <small>
-          {queue.processed ? `${number(rate)}% of attempts` : "No attempts yet"}
-        </small>
-      </div>
-      <div className="live-stat">
-        <span>Retained failures</span>
-        <strong>{number(queue.retry + queue.archived)}</strong>
-        <small>
-          {number(queue.retry)} retrying · {number(queue.archived)} archived
-        </small>
-      </div>
-      <div className="live-stat">
-        <span>Memory</span>
-        <strong>{bytes(queue.memory_bytes)}</strong>
-        <small>Approximate Redis usage</small>
-      </div>
+    <div className={statGrid({ columns: 6 })}>
+      <StatTile
+        label="Waiting"
+        value={number(queue.pending)}
+        detail={`${number(queue.scheduled)} scheduled for later`}
+      />
+      <StatTile
+        label="Oldest wait"
+        value={duration(queue.latency_seconds)}
+        detail="Age of the oldest pending task"
+      />
+      <StatTile
+        label="Processed today"
+        value={number(queue.processed)}
+        detail={`${number(queue.active)} running now`}
+      />
+      <StatTile
+        label="Failed today"
+        value={number(queue.failed)}
+        valueClassName={queue.failed ? "text-red" : undefined}
+        detail={
+          queue.processed ? `${number(rate)}% of attempts` : "No attempts yet"
+        }
+      />
+      <StatTile
+        label="Retained failures"
+        value={number(queue.retry + queue.archived)}
+        detail={
+          <>
+            {number(queue.retry)} retrying · {number(queue.archived)} archived
+          </>
+        }
+      />
+      <StatTile
+        label="Memory"
+        value={bytes(queue.memory_bytes)}
+        detail="Approximate Redis usage"
+      />
     </div>
   );
 }
@@ -790,26 +850,24 @@ function ProcessedBy({ queue }: { queue: string }) {
   const servers = useQuery(listServersOptions());
   const consumers = (servers.data?.data ?? []).filter((s) => queue in s.queues);
   return (
-    <Card className="section">
-      <CardHeader className="section-heading">
-        <div>
-          <CardTitle>
-            <h2>Processed by</h2>
-          </CardTitle>
-          <p className="muted small">Servers that pull from this queue</p>
-        </div>
-        <Link to="/workers" className="table-link small">
-          All servers
-        </Link>
-      </CardHeader>
+    <Section>
+      <SectionHeader
+        title="Processed by"
+        description="Servers that pull from this queue"
+        action={
+          <Link to="/workers" className="text-xs font-medium text-foreground">
+            All servers
+          </Link>
+        }
+      />
       {servers.isPending ? (
         <Loading rows={2} />
       ) : servers.error && !servers.data ? (
-        <CardContent className="section-body">
+        <SectionBody>
           <DataError error={servers.error} retry={() => servers.refetch()} />
-        </CardContent>
+        </SectionBody>
       ) : !consumers.length ? (
-        <CardContent className="section-body">
+        <SectionBody>
           <Alert variant="destructive">
             <CircleX />
             <AlertDescription>
@@ -818,28 +876,37 @@ function ProcessedBy({ queue }: { queue: string }) {
                 : "No Asynq servers are running for this connection."}
             </AlertDescription>
           </Alert>
-        </CardContent>
+        </SectionBody>
       ) : (
-        <ul className="consumer-list">
+        <ul className={dividedList}>
           {consumers.map((s) => {
             const weights = Object.values(s.queues).reduce((a, b) => a + b, 0);
             const busy = s.workers.filter((w) => w.queue === queue).length;
             return (
-              <li key={s.id}>
+              <li
+                key={s.id}
+                className={cn(
+                  "flex flex-col items-start gap-2 py-3.5 @xl/main:flex-row @xl/main:items-center @xl/main:justify-between @xl/main:gap-4",
+                  cardX,
+                )}
+              >
                 <div>
-                  <strong className="mono">{s.host}</strong>
-                  <span className="muted small"> · PID {s.pid}</span>
-                  <div className="muted small">
+                  <strong className="font-mono">{s.host}</strong>
+                  <span className="text-muted-foreground text-xs">
+                    {" "}
+                    · PID {s.pid}
+                  </span>
+                  <div className="text-muted-foreground text-xs">
                     {s.strict_priority
                       ? `Strict priority ${s.queues[queue]}`
                       : `Weight ${s.queues[queue]} of ${weights} · ~${number((s.queues[queue] / Math.max(weights, 1)) * 100)}% of slots`}
                   </div>
                 </div>
-                <div className="consumer-busy">
-                  <span className="small">
+                <div className="grid justify-items-start @xl/main:justify-items-end @xl/main:text-right">
+                  <span className="text-xs">
                     {plural(busy, "task")} running here
                   </span>
-                  <span className="muted small">
+                  <span className="text-muted-foreground text-xs">
                     {s.workers.length}/{s.concurrency} slots busy overall
                   </span>
                 </div>
@@ -848,6 +915,6 @@ function ProcessedBy({ queue }: { queue: string }) {
           })}
         </ul>
       )}
-    </Card>
+    </Section>
   );
 }

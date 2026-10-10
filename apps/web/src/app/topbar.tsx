@@ -18,9 +18,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { StatusDot } from "@/components/page";
+import { cn } from "@/lib/utils";
 import { useTheme } from "./theme";
 import { activeNav, modLabel } from "./nav";
 type Crumb = { label: ReactNode; link?: ReactNode };
+/** Long queue names and task IDs in the trail are cut short. */
+const mono =
+  "inline-block max-w-[18ch] truncate align-bottom font-mono md:max-w-[26ch]";
+const crumb = "inline-flex items-center gap-1.5 whitespace-nowrap";
 const decode = (segment: string) => {
   try {
     return decodeURIComponent(segment);
@@ -43,7 +49,7 @@ function useCrumbs(): Crumb[] {
   if (section === "queues" && rest[0])
     return [
       { label: active.label, link: root },
-      { label: <span className="mono">{rest[0]}</span> },
+      { label: <span className={mono}>{rest[0]}</span> },
     ];
   if (section === "tasks" && rest[1])
     return [
@@ -54,13 +60,13 @@ function useCrumbs(): Crumb[] {
           <Link
             to="/queues/$queue"
             params={{ queue: rest[0] }}
-            className="mono"
+            className={mono}
           >
             {rest[0]}
           </Link>
         ),
       },
-      { label: <span className="mono">{rest[1]}</span> },
+      { label: <span className={mono}>{rest[1]}</span> },
     ];
   return [
     {
@@ -84,8 +90,8 @@ export function Topbar({
   const crumbs = useCrumbs();
   const next = theme === "dark" ? "light" : "dark";
   return (
-    <header className="topbar">
-      <div className="topbar-start">
+    <header className="sticky top-0 z-20 flex h-[52px] items-center justify-between gap-2 border-b bg-[color-mix(in_srgb,var(--background)_82%,transparent)] pr-3 pl-2 [backdrop-filter:saturate(1.4)_blur(10px)] md:h-14 md:gap-3 md:pr-6 md:pl-3 xl:pr-8">
+      <div className="flex min-w-0 items-center gap-2">
         <Tooltip>
           <TooltipTrigger asChild>
             <SidebarTrigger aria-label="Toggle navigation" />
@@ -94,17 +100,30 @@ export function Topbar({
             Toggle navigation <Kbd>{modLabel} B</Kbd>
           </TooltipContent>
         </Tooltip>
-        <Separator orientation="vertical" className="topbar-divider" />
-        <Breadcrumb className="topbar-crumbs">
-          <BreadcrumbList>
+        <Separator
+          orientation="vertical"
+          className="data-[orientation=vertical]:h-[18px]"
+        />
+        <Breadcrumb className="min-w-0">
+          <BreadcrumbList className="flex-nowrap text-sm">
             {crumbs.map((c, i) => (
               <Fragment key={i}>
-                {i > 0 && <BreadcrumbSeparator />}
-                <BreadcrumbItem>
+                {i > 0 && (
+                  <BreadcrumbSeparator className="hidden md:inline-flex" />
+                )}
+                <BreadcrumbItem
+                  className={cn(
+                    i < crumbs.length - 1 && "hidden md:inline-flex",
+                  )}
+                >
                   {c.link ? (
-                    <BreadcrumbLink asChild>{c.link}</BreadcrumbLink>
+                    <BreadcrumbLink asChild className={crumb}>
+                      {c.link}
+                    </BreadcrumbLink>
                   ) : (
-                    <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                    <BreadcrumbPage className={cn(crumb, "font-medium")}>
+                      {c.label}
+                    </BreadcrumbPage>
                   )}
                 </BreadcrumbItem>
               </Fragment>
@@ -112,26 +131,32 @@ export function Topbar({
           </BreadcrumbList>
         </Breadcrumb>
       </div>
-      <div className="topbar-actions">
+      <div className="flex min-w-0 items-center gap-2">
         <Button
           variant="outline"
-          className="command-trigger"
+          className="h-8 w-8 justify-center gap-2 bg-surface! p-0 font-normal text-muted-foreground shadow-none hover:text-foreground has-[>svg]:p-0 md:w-50 md:justify-start md:has-[>svg]:pr-[5px] md:has-[>svg]:pl-2.5 xl:w-60"
           onClick={onSearch}
           aria-label="Search pages, queues and actions"
           aria-keyshortcuts="Meta+K Control+K"
         >
           <Search />
-          <span className="search-label">Search…</span>
-          <KbdGroup>
-            <Kbd>{modLabel}</Kbd>
-            <Kbd>K</Kbd>
+          <span className="hidden flex-1 text-left md:inline">Search…</span>
+          <KbdGroup className="hidden border text-2xs md:inline-flex">
+            <Kbd className="border text-2xs">{modLabel}</Kbd>
+            <Kbd className="border text-2xs">K</Kbd>
           </KbdGroup>
         </Button>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span className="live-status" data-live={live} tabIndex={0}>
-              <span className="live-dot" />
-              <span className="live-label">{live ? "Live" : "Connecting"}</span>
+            <span
+              className="inline-flex h-7 items-center gap-[7px] rounded-full border bg-surface px-2.5 text-xs/normal text-muted-foreground"
+              data-live={live}
+              tabIndex={0}
+            >
+              <StatusDot tone={live ? "green" : "amber"} pulse={live} />
+              <span className="hidden md:inline">
+                {live ? "Live" : "Connecting"}
+              </span>
             </span>
           </TooltipTrigger>
           <TooltipContent>
