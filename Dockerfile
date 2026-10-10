@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -trimpath -ldflags="$LDFLAGS" -o /out/spool ./cmd/server && \
     go build -trimpath -ldflags="$LDFLAGS" -o /out/spool-demo ./cmd/demo
 
-FROM alpine:3.23
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates && addgroup -S spool && adduser -S spool -G spool
 WORKDIR /app
 COPY --from=backend /out/ /app/
