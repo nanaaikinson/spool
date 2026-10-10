@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Build stages run on the build machine's platform and cross-compile, so
 # multi-architecture images don't need emulation.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS web
+FROM --platform=$BUILDPLATFORM node:25-alpine AS web
 WORKDIR /src/apps/web
 COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
