@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as FailuresRouteImport } from './routes/failures'
 import { Route as LiveRouteImport } from './routes/live'
+import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MetricsRouteImport } from './routes/metrics'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as SchedulersRouteImport } from './routes/schedulers'
@@ -35,6 +36,11 @@ const FailuresRoute = FailuresRouteImport.update({
 const LiveRoute = LiveRouteImport.update({
   id: '/live',
   path: '/live',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LogsRoute = LogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
   getParentRoute: () => rootRouteImport,
 } as any)
 const MetricsRoute = MetricsRouteImport.update({
@@ -87,6 +93,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/failures': typeof FailuresRoute
   '/live': typeof LiveRoute
+  '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
   '/scheduled': typeof ScheduledRoute
   '/schedulers': typeof SchedulersRoute
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/failures': typeof FailuresRoute
   '/live': typeof LiveRoute
+  '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
   '/scheduled': typeof ScheduledRoute
   '/schedulers': typeof SchedulersRoute
@@ -116,6 +124,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/failures': typeof FailuresRoute
   '/live': typeof LiveRoute
+  '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
   '/scheduled': typeof ScheduledRoute
   '/schedulers': typeof SchedulersRoute
@@ -132,6 +141,7 @@ export interface FileRouteTypes {
     | '/'
     | '/failures'
     | '/live'
+    | '/logs'
     | '/metrics'
     | '/scheduled'
     | '/schedulers'
@@ -146,6 +156,7 @@ export interface FileRouteTypes {
     | '/'
     | '/failures'
     | '/live'
+    | '/logs'
     | '/metrics'
     | '/scheduled'
     | '/schedulers'
@@ -160,6 +171,7 @@ export interface FileRouteTypes {
     | '/'
     | '/failures'
     | '/live'
+    | '/logs'
     | '/metrics'
     | '/scheduled'
     | '/schedulers'
@@ -175,6 +187,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   FailuresRoute: typeof FailuresRoute
   LiveRoute: typeof LiveRoute
+  LogsRoute: typeof LogsRoute
   MetricsRoute: typeof MetricsRoute
   ScheduledRoute: typeof ScheduledRoute
   SchedulersRoute: typeof SchedulersRoute
@@ -207,6 +220,13 @@ declare module '@tanstack/react-router' {
       path: '/live'
       fullPath: '/live'
       preLoaderRoute: typeof LiveRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/logs': {
+      id: '/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof LogsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/metrics': {
@@ -279,6 +299,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   FailuresRoute: FailuresRoute,
   LiveRoute: LiveRoute,
+  LogsRoute: LogsRoute,
   MetricsRoute: MetricsRoute,
   ScheduledRoute: ScheduledRoute,
   SchedulersRoute: SchedulersRoute,

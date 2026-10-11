@@ -23,6 +23,7 @@ export const queryClient = new QueryClient({
           "NOT_FOUND",
           "VALIDATION_ERROR",
           "INVALID_CURSOR",
+          "FORBIDDEN",
         ].includes(errorCode(error)),
     },
     mutations: { retry: false },

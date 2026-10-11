@@ -163,6 +163,67 @@ func TestSessionsAndRole(t *testing.T) {
 	}
 }
 
+func TestServerLogsAreAdminOnly(t *testing.T) {
+	ctx := context.Background()
+	db, e := store.Open(ctx, filepath.Join(t.TempDir(), "spool.db"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer db.DB.Close()
+	if e := db.RecordServerLogs(ctx, []domain.ServerLog{{Time: time.Now(), Level: "ERROR", Message: "request failed"}}); e != nil {
+		t.Fatal(e)
+	}
+	a := testAPI(&fakeSource{})
+	a.Store = db
+	a.Config.AdminUser, a.Config.AdminPassword = "admin", "admin-test"
+	a.Config.ViewerUser, a.Config.ViewerPassword = "viewer", "viewer-test"
+	// Read-only mode demotes the administrator to viewer for changes, not logs.
+	a.Config.ReadOnly = true
+	h := a.Handler(http.NotFoundHandler())
+	logs := func(user, password string, path ...string) *httptest.ResponseRecorder {
+		w := call(h, "POST", "/api/v1/session", `{"username":"`+user+`","password":"`+password+`"}`, nil)
+		target := "/api/v1/logs?limit=10"
+		if len(path) > 0 {
+			target = path[0]
+		}
+		r := httptest.NewRequest("GET", target, nil)
+		r.AddCookie(w.Result().Cookies()[0])
+		result := httptest.NewRecorder()
+		h.ServeHTTP(result, r)
+		return result
+	}
+	if w := logs("viewer", "viewer-test"); w.Code != 403 {
+		t.Fatalf("viewer: %d %s", w.Code, w.Body.String())
+	}
+	w := logs("admin", "admin-test")
+	var list domain.ServerLogList
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &list) != nil || len(list.Data) != 1 || list.Data[0].Message != "request failed" {
+		t.Fatalf("admin: %d %s", w.Code, w.Body.String())
+	}
+	var hist domain.LogHistogram
+	w = logs("admin", "admin-test", "/api/v1/logs/histogram?q=level:error")
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &hist) != nil || hist.Total != 1 || hist.StepSeconds != 60 {
+		t.Fatalf("histogram: %d %s", w.Code, w.Body.String())
+	}
+	if w = logs("viewer", "viewer-test", "/api/v1/logs/histogram"); w.Code != 403 {
+		t.Fatalf("viewer histogram: %d", w.Code)
+	}
+	if w = logs("admin", "admin-test", "/api/v1/logs?start=2026-01-02T00:00:00Z&end=2026-01-01T00:00:00Z"); w.Code != 422 {
+		t.Fatalf("inverted range: %d", w.Code)
+	}
+}
+
+func TestRequestLinesUseAccessLogger(t *testing.T) {
+	var server, access bytes.Buffer
+	a := testAPI(&fakeSource{})
+	a.Log = slog.New(slog.NewJSONHandler(&server, nil))
+	a.Access = slog.New(slog.NewJSONHandler(&access, nil))
+	call(a.Handler(http.NotFoundHandler()), "GET", "/api/v1/queues", "", nil)
+	if strings.Contains(server.String(), "http request") || !strings.Contains(access.String(), `"route":"/api/v1/queues"`) {
+		t.Fatalf("server log %q, access log %q", server.String(), access.String())
+	}
+}
+
 func TestContractAndFilters(t *testing.T) {
 	b, e := OpenAPI()
 	if e != nil {

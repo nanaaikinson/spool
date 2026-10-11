@@ -165,7 +165,7 @@ docker compose --env-file .env.installation run --rm --no-deps --user root --ent
 docker compose --env-file .env.installation start app
 ```
 
-Check each command's exit status and test a restore periodically. The database file covers the audit log, saved views and schedule links. Back up `.env.installation` separately to retain credentials and project settings. Metrics history lives in the separate Prometheus volume; preserving that volume is necessary to retain it through updates. Tasks remain in your existing Redis and follow that service's backup policy. Use your provider's backup procedure for external Prometheus.
+Check each command's exit status and test a restore periodically. The database file covers the audit log, saved views, schedule links and server logs. Back up `.env.installation` separately to retain credentials and project settings. Metrics history lives in the separate Prometheus volume; preserving that volume is necessary to retain it through updates. Tasks remain in your existing Redis and follow that service's backup policy. Use your provider's backup procedure for external Prometheus.
 
 ### Upgrading from PostgreSQL
 

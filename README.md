@@ -15,6 +15,7 @@ What Spool shows:
 - **Queues**, **All tasks**, **Scheduled** and **Failed** views, with payload and error inspection, retry/archive/delete/cancel/clone actions where the task state allows them, confirmed bulk actions, and saved views.
 - **Servers**: each Asynq server process, its queues and its busy worker slots.
 - **Periodic schedules**: cron specs with plain-English descriptions. Tasks link back to the schedule entry that enqueued them, and those links are kept in SQLite after Asynq drops its enqueue history.
+- **Logs**: Spool's own log lines for the administrator, with search, a level histogram, live tail, JSON views, and a detail panel with lines around, same-message filtering and copy actions.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
 ## Install on your own Docker host
@@ -135,7 +136,7 @@ The defaults below are for the standalone Go server. The installer provisions th
 | --- | --- | --- |
 | `SPOOL_ADDR` | HTTP listen address | `127.0.0.1:8088` |
 | `REDIS_URL` | Asynq connection URI, including DB index | `redis://127.0.0.1:6388/0` |
-| `DATABASE_PATH` | SQLite file for the audit log, saved views and schedule links, created with its directory if missing; without it Spool is read-only | unset |
+| `DATABASE_PATH` | SQLite file for the audit log, saved views, schedule links and server logs, created with its directory if missing; without it Spool is read-only | unset |
 | `REDIS_TLS_CA_FILE` | PEM file with the CA that signed your Redis server certificate | unset |
 | `REDIS_TLS_CERT_FILE`, `REDIS_TLS_KEY_FILE` | Client certificate and key for Redis mutual TLS | unset |
 | `PROMETHEUS_URL` | Prometheus base URL, with optional URI credentials | unset |
@@ -146,12 +147,13 @@ The defaults below are for the standalone Go server. The installer provisions th
 | `SPOOL_VIEWER_USER`, `SPOOL_VIEWER_PASSWORD` | Read-only account | unset |
 | `SPOOL_SESSION_KEY` | Session signing secret; at least 32 characters when accounts are set | unset |
 | `SPOOL_SECURE_COOKIE` | HTTPS-only session cookie | `false` |
+| `SPOOL_LOG_RETENTION` | How long the Logs page keeps Spool's own log lines, such as `3d` or `36h` (1h to 365d) | `3d` |
 
 Accounts are required when `SPOOL_ADDR` is not a loopback address. Use long random account passwords and a random signing secret. For remote access, use TLS termination and `SPOOL_SECURE_COOKIE=true`; the installer's localhost HTTP option uses `false`. Protect Redis with its own network and credentials, and the database file with filesystem permissions. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
 
 Without a database, Spool runs read-only and says so in a banner: every change is refused before it reaches Redis, saved views and the audit log are unavailable, and task-to-schedule links last only as long as Asynq keeps its enqueue history. Migrations run at startup. Run one Spool instance per database file, on local storage rather than a network filesystem. Each change is written to the audit log as pending before the Redis action and marked succeeded or failed afterward, so a record left pending (for example after a crash) means the outcome is unknown. Payloads are never stored in the audit log. Back up the database file and retain audit records as your deployment requires; see [backups](docs/deployment.md#backups).
 
-`/health` checks the running process; `/ready` checks Redis and, when configured, the database. Prometheus is optional and does not block server readiness; the installer performs its own metrics check after starting services. Structured logs include request IDs, route templates, statuses and timings. `/metrics` exports native Asynq metrics, Go/process metrics and `spool_http_request_duration_seconds`.
+`/health` checks the running process; `/ready` checks Redis and, when configured, the database. Prometheus is optional and does not block server readiness; the installer performs its own metrics check after starting services. Structured logs include the calling file and line, request IDs, route templates, statuses and timings. With a database, Spool's own log lines (not the per-request lines) are also kept for `SPOOL_LOG_RETENTION`, removed hourly, and shown to the administrator account on the Logs page. `/metrics` exports native Asynq metrics, Go/process metrics, `spool_http_request_duration_seconds` and `spool_log_events_total` by level.
 
 ## Data limits
 

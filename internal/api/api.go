@@ -28,12 +28,15 @@ import (
 )
 
 type API struct {
-	Config   config.Config
-	Source   asynqadapter.Source
-	Metrics  metrics.Provider
-	Store    *store.Store
-	Events   *events.Broker
-	Log      *slog.Logger
+	Config  config.Config
+	Source  asynqadapter.Source
+	Metrics metrics.Provider
+	Store   *store.Store
+	Events  *events.Broker
+	Log     *slog.Logger
+	// Access receives one line per HTTP request; it defaults to Log. Keep it
+	// apart from Log so request lines are not stored as server logs.
+	Access   *slog.Logger
 	Requests *prometheus.HistogramVec
 	logins   loginLimiter
 }
@@ -299,6 +302,12 @@ func (a *API) audited(r *http.Request, action, q, id string, run func() error) e
 		return e
 	}
 	e = run()
+	attrs := []any{"actor", actor(r), "action", action, "queue", q, "task_id", id, "audit_id", auditID}
+	if e == nil {
+		a.Log.Info("action succeeded", attrs...)
+	} else {
+		a.Log.Warn("action failed", append(attrs, "error", urlCredentials.ReplaceAllString(e.Error(), "://REDACTED@"))...)
+	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 	defer cancel()
 	if finishErr := a.Store.Finish(ctx, auditID, e == nil); finishErr != nil {

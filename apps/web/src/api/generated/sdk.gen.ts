@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
+import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServerLogsData, ListServerLogsErrors, ListServerLogsResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LogHistogramData, LogHistogramErrors, LogHistogramResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -54,6 +54,32 @@ export const listErrorGroups = <ThrowOnError extends boolean = false>(options?: 
             type: 'apiKey'
         }],
     url: '/api/v1/failures/groups',
+    ...options
+});
+
+/**
+ * Spool's own log records, newest first; administrator only
+ */
+export const listServerLogs = <ThrowOnError extends boolean = false>(options?: Options<ListServerLogsData, ThrowOnError>): RequestResult<ListServerLogsResponses, ListServerLogsErrors, ThrowOnError> => (options?.client ?? client).get<ListServerLogsResponses, ListServerLogsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/logs',
+    ...options
+});
+
+/**
+ * Matching log records per level over time; administrator only
+ */
+export const logHistogram = <ThrowOnError extends boolean = false>(options?: Options<LogHistogramData, ThrowOnError>): RequestResult<LogHistogramResponses, LogHistogramErrors, ThrowOnError> => (options?.client ?? client).get<LogHistogramResponses, LogHistogramErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/logs/histogram',
     ...options
 });
 

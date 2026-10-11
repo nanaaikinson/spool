@@ -8,8 +8,10 @@ import {
   CircleAlert,
   Server,
   CalendarClock,
+  ScrollText,
 } from "lucide-react";
-// Order matters: position n maps to the Alt+n shortcut.
+// Order matters: positions 1–9 map to the Alt+n shortcuts. Items marked
+// serverLogs show only to accounts that may read server logs.
 export const nav = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, group: "Monitor" },
   { to: "/live", label: "Live activity", icon: Radio, group: "Monitor" },
@@ -30,11 +32,25 @@ export const nav = [
     icon: CalendarClock,
     group: "Infrastructure",
   },
+  {
+    to: "/logs",
+    label: "Logs",
+    icon: ScrollText,
+    group: "Monitor",
+    serverLogs: true,
+  },
 ] as const;
 export const navGroups = (["Monitor", "Tasks", "Infrastructure"] as const).map(
   (label) => ({ label, items: nav.filter((n) => n.group === label) }),
 );
 export type NavItem = (typeof nav)[number];
+/** The Alt+n shortcut for an item, if it has one. */
+export function shortcutOf(n: NavItem): number | undefined {
+  const i = nav.indexOf(n) + 1;
+  return i <= 9 ? i : undefined;
+}
+export const visibleNav = (n: NavItem, serverLogs: boolean) =>
+  !("serverLogs" in n) || serverLogs;
 export const isMac =
   typeof navigator !== "undefined" &&
   /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);

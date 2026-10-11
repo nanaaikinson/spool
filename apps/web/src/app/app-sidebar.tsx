@@ -30,7 +30,14 @@ import {
   listServersOptions,
 } from "../api/generated/@tanstack/react-query.gen";
 import { useSession } from "../features/session";
-import { activeNav, altLabel, compactNumber, nav, navGroups } from "./nav";
+import {
+  activeNav,
+  altLabel,
+  compactNumber,
+  navGroups,
+  shortcutOf,
+  visibleNav,
+} from "./nav";
 import { envTone, versionLabel } from "../lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -108,51 +115,57 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
               </SidebarGroupLabel>
               <SidebarGroupContent>
                 <SidebarMenu>
-                  {group.items.map((n) => {
-                    const isActive = active?.to === n.to;
-                    const shortcut = nav.indexOf(n) + 1;
-                    return (
-                      <SidebarMenuItem key={n.to}>
-                        <SidebarMenuButton
-                          isActive={isActive}
-                          tooltip={`${n.label} · ${altLabel}${shortcut}`}
-                          className={navLink}
-                          render={
-                            <Link
-                              to={n.to}
-                              aria-current={isActive ? "page" : undefined}
-                              onClick={close}
-                            />
-                          }
-                        >
-                          <n.icon />
-                          <span>{n.label}</span>
-                        </SidebarMenuButton>
-                        {n.to === "/failures" && !!failures && (
-                          <SidebarMenuBadge
-                            className={cn(
-                              navBadge,
-                              "bg-red-bg text-red peer-hover/menu-button:text-red peer-data-active/menu-button:text-red",
-                            )}
-                            title={`${failures.toLocaleString()} retained failures`}
+                  {group.items
+                    .filter((n) => visibleNav(n, !!session.data?.server_logs))
+                    .map((n) => {
+                      const isActive = active?.to === n.to;
+                      const shortcut = shortcutOf(n);
+                      return (
+                        <SidebarMenuItem key={n.to}>
+                          <SidebarMenuButton
+                            isActive={isActive}
+                            tooltip={
+                              shortcut
+                                ? `${n.label} · ${altLabel}${shortcut}`
+                                : n.label
+                            }
+                            className={navLink}
+                            render={
+                              <Link
+                                to={n.to}
+                                aria-current={isActive ? "page" : undefined}
+                                onClick={close}
+                              />
+                            }
                           >
-                            {compactNumber(failures)}
-                          </SidebarMenuBadge>
-                        )}
-                        {n.to === "/live" && !!running && (
-                          <SidebarMenuBadge
-                            className={cn(
-                              navBadge,
-                              "bg-green-bg text-green peer-hover/menu-button:text-green peer-data-active/menu-button:text-green",
-                            )}
-                            title={`${running} tasks running`}
-                          >
-                            {compactNumber(running)}
-                          </SidebarMenuBadge>
-                        )}
-                      </SidebarMenuItem>
-                    );
-                  })}
+                            <n.icon />
+                            <span>{n.label}</span>
+                          </SidebarMenuButton>
+                          {n.to === "/failures" && !!failures && (
+                            <SidebarMenuBadge
+                              className={cn(
+                                navBadge,
+                                "bg-red-bg text-red peer-hover/menu-button:text-red peer-data-active/menu-button:text-red",
+                              )}
+                              title={`${failures.toLocaleString()} retained failures`}
+                            >
+                              {compactNumber(failures)}
+                            </SidebarMenuBadge>
+                          )}
+                          {n.to === "/live" && !!running && (
+                            <SidebarMenuBadge
+                              className={cn(
+                                navBadge,
+                                "bg-green-bg text-green peer-hover/menu-button:text-green peer-data-active/menu-button:text-green",
+                              )}
+                              title={`${running} tasks running`}
+                            >
+                              {compactNumber(running)}
+                            </SidebarMenuBadge>
+                          )}
+                        </SidebarMenuItem>
+                      );
+                    })}
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>

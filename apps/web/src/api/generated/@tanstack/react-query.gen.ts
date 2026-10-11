@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServers, listTasks, listViews, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
-import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
+import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServerLogs, listServers, listTasks, listViews, logHistogram, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
+import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServerLogsData, ListServerLogsError, ListServerLogsResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LogHistogramData, LogHistogramError, LogHistogramResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -133,6 +133,102 @@ export const listErrorGroupsOptions = (options?: Options<ListErrorGroupsData>) =
     },
     queryKey: listErrorGroupsQueryKey(options)
 });
+
+export const listServerLogsQueryKey = (options?: Options<ListServerLogsData>) => createQueryKey('listServerLogs', options);
+
+/**
+ * Spool's own log records, newest first; administrator only
+ */
+export const listServerLogsOptions = (options?: Options<ListServerLogsData>) => queryOptions<ListServerLogsResponse, ListServerLogsError, ListServerLogsResponse, ReturnType<typeof listServerLogsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listServerLogs({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listServerLogsQueryKey(options)
+});
+
+export const listServerLogsInfiniteQueryKey = (options?: Options<ListServerLogsData>): QueryKey<Options<ListServerLogsData>> => createQueryKey('listServerLogs', options, true);
+
+/**
+ * Spool's own log records, newest first; administrator only
+ */
+export const listServerLogsInfiniteOptions = (options?: Options<ListServerLogsData>) => {
+    const opts = infiniteQueryOptions<ListServerLogsResponse, ListServerLogsError, InfiniteData<ListServerLogsResponse>, QueryKey<Options<ListServerLogsData>>, string | Pick<QueryKey<Options<ListServerLogsData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<ListServerLogsData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await listServerLogs({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: listServerLogsInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
+
+export const logHistogramQueryKey = (options?: Options<LogHistogramData>) => createQueryKey('logHistogram', options);
+
+/**
+ * Matching log records per level over time; administrator only
+ */
+export const logHistogramOptions = (options?: Options<LogHistogramData>) => queryOptions<LogHistogramResponse, LogHistogramError, LogHistogramResponse, ReturnType<typeof logHistogramQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await logHistogram({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: logHistogramQueryKey(options)
+});
+
+export const logHistogramInfiniteQueryKey = (options?: Options<LogHistogramData>): QueryKey<Options<LogHistogramData>> => createQueryKey('logHistogram', options, true);
+
+/**
+ * Matching log records per level over time; administrator only
+ */
+export const logHistogramInfiniteOptions = (options?: Options<LogHistogramData>) => {
+    const opts = infiniteQueryOptions<LogHistogramResponse, LogHistogramError, InfiniteData<LogHistogramResponse>, QueryKey<Options<LogHistogramData>>, string | Pick<QueryKey<Options<LogHistogramData>>[0], 'body' | 'headers' | 'path' | 'query'>>(
+    // @ts-ignore
+    {
+        queryFn: async ({ pageParam, queryKey, signal }) => {
+            // @ts-ignore
+            const page: Pick<QueryKey<Options<LogHistogramData>>[0], 'body' | 'headers' | 'path' | 'query'> = typeof pageParam === 'object' ? pageParam : {
+                query: {
+                    start: pageParam
+                }
+            };
+            const params = createInfiniteParams(queryKey, page);
+            const { data } = await logHistogram({
+                ...options,
+                ...params,
+                signal,
+                throwOnError: true
+            });
+            return data;
+        },
+        queryKey: logHistogramInfiniteQueryKey(options)
+    });
+    return opts as Omit<typeof opts, 'initialData'>;
+};
 
 export const metricsHealthQueryKey = (options?: Options<MetricsHealthData>) => createQueryKey('metricsHealth', options);
 

@@ -253,6 +253,46 @@ type AuditList struct {
 	Total int     `json:"total"`
 }
 
+// ServerLog is one of Spool's own log records.
+type ServerLog struct {
+	ID      int64     `json:"id"`
+	Time    time.Time `json:"time"`
+	Level   string    `json:"level"`
+	Message string    `json:"message"`
+	Caller  string    `json:"caller"`
+	Attrs   []LogAttr `json:"attrs"`
+}
+
+type LogAttr struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+// ServerLogList is one page of log records, newest first. HasMore means older
+// matching records exist; pass the last ID as before to read them.
+type ServerLogList struct {
+	Data    []ServerLog `json:"data"`
+	Limit   int         `json:"limit"`
+	HasMore bool        `json:"has_more"`
+}
+
+// LogHistogram counts matching log records per level over time.
+type LogHistogram struct {
+	Start       time.Time   `json:"start"`
+	End         time.Time   `json:"end"`
+	StepSeconds int         `json:"step_seconds"`
+	Total       int         `json:"total"`
+	Buckets     []LogBucket `json:"buckets"`
+}
+
+type LogBucket struct {
+	Start time.Time `json:"start"`
+	Debug int       `json:"debug"`
+	Info  int       `json:"info"`
+	Warn  int       `json:"warn"`
+	Error int       `json:"error"`
+}
+
 type SavedView struct {
 	ID        string    `json:"id"`
 	Name      string    `json:"name"`
@@ -283,6 +323,8 @@ type Session struct {
 	// in ReadOnlyReason: "configured" or "no_database".
 	ReadOnly       bool   `json:"read_only"`
 	ReadOnlyReason string `json:"read_only_reason"`
+	// ServerLogs is true when this account may read Spool's own logs.
+	ServerLogs bool `json:"server_logs"`
 }
 
 type LoginRequest struct {

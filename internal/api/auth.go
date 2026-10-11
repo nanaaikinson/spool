@@ -122,6 +122,7 @@ func (a *API) session(r *http.Request) domain.Session {
 		Version:        version.Version,
 		ReadOnly:       a.Config.ReadOnly,
 		ReadOnlyReason: a.Config.ReadOnlyReason,
+		ServerLogs:     ok && (!a.authRequired() || c.Actor == a.Config.AdminUser),
 	}
 }
 
@@ -174,6 +175,7 @@ func (a *API) logout(w http.ResponseWriter, r *http.Request, _ params) {
 	if !a.confirmed(w, r) {
 		return
 	}
+	a.Log.Info("signed out", "actor", actor(r))
 	http.SetCookie(
 		w,
 		&http.Cookie{
@@ -212,9 +214,12 @@ func (a *API) login(w http.ResponseWriter, r *http.Request, _ params) {
 		role = "viewer"
 	}
 	if role == "" {
+		// The attempted username is not logged: people sometimes type a password there.
+		a.Log.Warn("sign-in failed", "remote_addr", r.RemoteAddr)
 		a.fail(w, r, 401, "INVALID_CREDENTIALS", "Username or password is incorrect.", nil)
 		return
 	}
+	a.Log.Info("signed in", "actor", in.Username, "role", role, "remote_addr", r.RemoteAddr)
 	c := claims{Actor: in.Username, Role: role, Expires: time.Now().Add(12 * time.Hour).Unix()}
 	raw, _ := json.Marshal(c)
 	payload := base64.RawURLEncoding.EncodeToString(raw)
@@ -246,6 +251,7 @@ func (a *API) login(w http.ResponseWriter, r *http.Request, _ params) {
 			Version:        version.Version,
 			ReadOnly:       a.Config.ReadOnly,
 			ReadOnlyReason: a.Config.ReadOnlyReason,
+			ServerLogs:     in.Username == a.Config.AdminUser,
 		},
 	)
 }

@@ -44,7 +44,11 @@ func (a *API) observe(next http.Handler) http.Handler {
 			a.Requests.WithLabelValues(r.Method, route, strconv.Itoa(ww.Status())).Observe(time.Since(start).Seconds())
 		}
 		if r.URL.Path != "/api/v1/events" {
-			a.Log.Info(
+			access := a.Access
+			if access == nil {
+				access = a.Log
+			}
+			access.Info(
 				"http request",
 				"request_id", middleware.GetReqID(r.Context()),
 				"method", r.Method,

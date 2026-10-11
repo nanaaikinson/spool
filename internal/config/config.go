@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	z "github.com/Oudwins/zog"
 	"github.com/hibiken/asynq"
@@ -31,6 +32,8 @@ type Config struct {
 	SessionKey     string
 	MetricsToken   string
 	ReadOnly       bool
+	// LogRetention is how long Spool keeps its own log lines.
+	LogRetention time.Duration
 	// ReadOnlyReason says why changes are disabled: "configured" when
 	// SPOOL_READ_ONLY is set, "no_database" when there is nowhere to record
 	// audit entries. Empty when changes are allowed.
@@ -39,6 +42,20 @@ type Config struct {
 	// RedisTLS adds a private CA or client certificate to rediss:// and
 	// redis-sentinel:// connections. Nil uses the system trust store.
 	RedisTLS *tls.Config
+}
+
+// retentionDuration parses a Go duration such as 36h, or whole days such as 3d,
+// between one hour and one year.
+func retentionDuration(s string) (time.Duration, error) {
+	d, e := time.ParseDuration(s)
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		n, ne := strconv.Atoi(days)
+		d, e = time.Duration(n)*24*time.Hour, ne
+	}
+	if e != nil || d < time.Hour || d > 365*24*time.Hour {
+		return 0, fmt.Errorf("SPOOL_LOG_RETENTION must be a duration from 1h to 365d, such as 3d or 36h")
+	}
+	return d, nil
 }
 
 func Load() (Config, error) {
@@ -106,6 +123,11 @@ func Load() (Config, error) {
 	if env.Get("DATABASE_URL") != "" {
 		return c, fmt.Errorf("DATABASE_URL is no longer supported: Spool stores its data in SQLite; unset DATABASE_URL and set DATABASE_PATH to a file path such as /data/spool.db")
 	}
+	retention, e := retentionDuration(env.Get("SPOOL_LOG_RETENTION", "3d"))
+	if e != nil {
+		return c, e
+	}
+	c.LogRetention = retention
 	if strings.ContainsAny(c.DatabasePath, "?#") {
 		return c, fmt.Errorf("DATABASE_PATH must be a file path without ? or #")
 	}

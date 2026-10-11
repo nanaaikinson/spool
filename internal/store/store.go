@@ -79,7 +79,7 @@ func Open(ctx context.Context, path string) (*Store, error) {
 		return nil, e
 	}
 	e = db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries} {
+		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries, migrations.ServerLogs} {
 			if _, e := tx.ExecContext(ctx, m); e != nil {
 				return e
 			}
