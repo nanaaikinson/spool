@@ -16,7 +16,7 @@ func (a *API) deploymentStatus(w http.ResponseWriter, r *http.Request, _ params)
 	out := domain.DeploymentStatus{
 		CheckedAt: time.Now().UTC(),
 		Redis:     domain.ConnectionHealth{Configured: true, Message: "Cannot reach the Asynq Redis connection. Ask the operator to check credentials and network access."},
-		Database:  domain.ConnectionHealth{Configured: a.Config.DatabaseURL != "" || a.Store != nil, Message: "Cannot reach the database. Ask the operator to check database availability."},
+		Database:  domain.ConnectionHealth{Configured: a.Config.DatabasePath != "" || a.Store != nil, Message: "Cannot use the database. Ask the operator to check the database volume."},
 		Metrics:   domain.MetricHealth{Configured: a.Config.PrometheusURL != "", ScrapeStatus: "unavailable", Message: "The metrics check did not finish. Retry or ask the operator to check metrics availability."},
 	}
 	type redisResult struct {
@@ -50,7 +50,7 @@ func (a *API) deploymentStatus(w http.ResponseWriter, r *http.Request, _ params)
 		} else {
 			health.Available = a.Store != nil && a.Store.Ping(ctx) == nil
 			if health.Available {
-				health.Message = "Connected. Audit entries, saved views and schedule links have persistent storage."
+				health.Message = "Open. Audit entries, saved views and schedule links are saved to the database file."
 			}
 		}
 		database <- health

@@ -11,7 +11,7 @@ help: ## List available targets
 
 install: ## Install web UI dependencies at the pinned pnpm version
 	cd apps/web && $(PNPM) install --frozen-lockfile
-self-host: ## Guided self-hosted setup with optional bundled PostgreSQL and Prometheus
+self-host: ## Guided self-hosted setup with optional bundled Prometheus
 	./scripts/install.sh
 test-install: ## Check self-hosted setup and Compose configuration without starting containers
 	python3 scripts/test-install.py
@@ -28,8 +28,8 @@ run-dev: ## Run the API server and web UI together
 	$(MAKE) --no-print-directory -j2 dev web
 demo: ## Run the demo worker, which enqueues sample traffic
 	$(GO) run ./cmd/demo
-infra: ## Start local Redis, PostgreSQL and Prometheus
-	docker compose up -d redis postgres prometheus
+infra: ## Start local Redis and Prometheus
+	docker compose up -d redis prometheus
 down: ## Stop local infrastructure, keeping its data
 	docker compose down
 
@@ -43,7 +43,7 @@ image: ## Build the Docker image locally, tagged spool:$(VERSION)
 test: ## Run backend and frontend unit tests
 	$(GO) test ./...
 	cd apps/web && $(PNPM) test
-e2e: ## Run browser tests against isolated test databases
+e2e: ## Run browser tests against an isolated Redis database
 	cd apps/web && $(PNPM) build
 	cd apps/web && $(PNPM) exec playwright test
 lint: ## Run go vet, ESLint and the TypeScript checker

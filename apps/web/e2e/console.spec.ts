@@ -176,6 +176,60 @@ test("failure presets, keyboard palette, bounded non-JSON display and mobile lay
     fullPage: true,
   });
 });
+test("server logs: search, line detail and viewer restriction", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  const signIn = async (user: string, password: string) => {
+    await page
+      .getByRole("textbox", { name: "Username", exact: true })
+      .fill(user);
+    await page.locator("input[type=password]").fill(password);
+    await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  };
+  await page.goto("http://127.0.0.1:8189/logs");
+  await signIn("admin", "wrong");
+  await expect(page.getByRole("alert")).toContainText("incorrect");
+  await page.locator("input[type=password]").fill("test-admin-password");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Logs", exact: true }),
+  ).toBeVisible();
+  // The failed attempt is a server log line; request lines are not.
+  const failed = page.getByRole("row").filter({ hasText: "sign-in failed" });
+  await expect(failed.first()).toBeVisible();
+  await expect(
+    page.getByRole("row").filter({ hasText: "http request" }),
+  ).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Search logs" }).fill("level:warn");
+  await page.getByRole("textbox", { name: "Search logs" }).press("Enter");
+  await expect(page).toHaveURL(/q=level%3Awarn/);
+  await expect(
+    page.getByRole("row").filter({ hasText: "signed in" }),
+  ).toHaveCount(0);
+  await failed.first().click();
+  const detail = page.getByRole("complementary", { name: "Log line" });
+  await expect(detail).toContainText("sign-in failed");
+  await expect(detail).toContainText("remote_addr");
+  await page.keyboard.press("Escape");
+  await expect(detail).toBeHidden();
+  await page.getByRole("button", { name: /account menu$/ }).click();
+  await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
+  await signIn("viewer", "test-viewer-password");
+  await expect(
+    page.getByRole("link", { name: "Queues", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Logs", exact: true }),
+  ).toHaveCount(0);
+  await page.goto("http://127.0.0.1:8189/logs");
+  await expect(
+    page.getByText("Only the administrator can view logs"),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
 test("signed session login, logout and viewer restrictions", async ({
   page,
 }) => {

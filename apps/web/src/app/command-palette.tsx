@@ -25,7 +25,7 @@ import { listQueuesOptions } from "../api/generated/@tanstack/react-query.gen";
 import { invalidateOperational } from "../features/queries";
 import { useSession } from "../features/session";
 import { useTheme } from "./theme";
-import { altLabel, compactNumber, nav } from "./nav";
+import { altLabel, compactNumber, nav, shortcutOf, visibleNav } from "./nav";
 
 const group =
   "[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:tracking-[0.04em] [&_[cmdk-group-heading]]:uppercase";
@@ -57,7 +57,7 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Go to…"
-      description={`Search pages, queues and actions. Use ${altLabel}+1 through ${altLabel}+${nav.length} to jump between pages.`}
+      description={`Search pages, queues and actions. Use ${altLabel}+1 through ${altLabel}+9 to jump between pages.`}
       showCloseButton={false}
       className="top-[8vh] max-w-[min(620px,calc(100%-2rem))] translate-y-0 gap-0 rounded-xl shadow-overlay sm:max-w-[min(620px,calc(100%-2rem))] md:top-[14vh] [&_[data-slot=command-input-wrapper]]:gap-2.5 [&_[data-slot=command-input-wrapper]]:px-4"
     >
@@ -71,21 +71,25 @@ export function CommandPalette({
           No matching pages, queues or actions.
         </CommandEmpty>
         <CommandGroup heading="Pages" className={group}>
-          {nav.map((n, i) => (
-            <CommandItem
-              className={item}
-              key={n.to}
-              value={n.label}
-              onSelect={run(() => navigate({ to: n.to }))}
-            >
-              <n.icon />
-              {n.label}
-              <CommandShortcut aria-hidden="true" className={shortcut}>
-                {altLabel}
-                {i + 1}
-              </CommandShortcut>
-            </CommandItem>
-          ))}
+          {nav
+            .filter((n) => visibleNav(n, !!session.data?.server_logs))
+            .map((n) => (
+              <CommandItem
+                className={item}
+                key={n.to}
+                value={n.label}
+                onSelect={run(() => navigate({ to: n.to }))}
+              >
+                <n.icon />
+                {n.label}
+                {shortcutOf(n) && (
+                  <CommandShortcut aria-hidden="true" className={shortcut}>
+                    {altLabel}
+                    {shortcutOf(n)}
+                  </CommandShortcut>
+                )}
+              </CommandItem>
+            ))}
           <CommandItem
             className={item}
             value="Settings & audit"

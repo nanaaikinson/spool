@@ -6,12 +6,6 @@ services:
     volumes: ["redis-data:/data"]
     command: ["redis-server", "--appendonly", "yes"]
     healthcheck: {test: ["CMD", "redis-cli", "ping"], interval: 5s, timeout: 3s, retries: 10}
-  postgres:
-    image: postgres:17-alpine
-    environment: {POSTGRES_USER: spool, POSTGRES_PASSWORD: spool-local, POSTGRES_DB: spool}
-    ports: ["127.0.0.1:5448:5432"]
-    volumes: ["postgres-data:/var/lib/postgresql/data"]
-    healthcheck: {test: ["CMD-SHELL", "pg_isready -U spool"], interval: 5s, timeout: 3s, retries: 10}
   prometheus:
     image: prom/prometheus:v3.5.0
     ports: ["127.0.0.1:9098:9090"]
@@ -23,13 +17,14 @@ services:
     environment:
       SPOOL_ADDR: 0.0.0.0:8003
       REDIS_URL: redis://redis:6379/0
-      DATABASE_URL: postgres://spool:spool-local@postgres:5432/spool?sslmode=disable
+      DATABASE_PATH: /data/spool.db
       PROMETHEUS_URL: http://prometheus:9090
       SPOOL_ADMIN_USER: admin
       SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:-spool-local}
       SPOOL_SESSION_KEY: ${SPOOL_SESSION_KEY:-development-key-replace-before-production-12345}
       SPOOL_ENV: development
-    depends_on: {redis: {condition: service_healthy}, postgres: {condition: service_healthy}}
+    volumes: ["spool-data:/data"]
+    depends_on: {redis: {condition: service_healthy}}
   demo:
     build: .
     entrypoint: ["/app/spool-demo"]
@@ -38,5 +33,5 @@ services:
     profiles: [demo]
 volumes:
   redis-data:
-  postgres-data:
+  spool-data:
   prometheus-data:

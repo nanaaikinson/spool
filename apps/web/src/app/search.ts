@@ -25,5 +25,13 @@ export const searchSchema = z.object({
   sort: z.string().catch("name"),
   desc: z.coerce.boolean().catch(false),
   range: z.enum(["15m", "1h", "6h", "24h", "7d"]).catch("1h"),
+  // Logs: a custom ISO range overrides range; log is the open line and
+  // around shows the lines logged next to one.
+  from: z.string().catch(""),
+  to: z.string().catch(""),
+  log: z.coerce.number().int().min(0).catch(0),
+  around: z.coerce.number().int().min(0).catch(0),
+  // Logs: list lines logged before this ISO time, keeping the range.
+  at: z.string().catch(""),
   live: z.boolean().catch(false),
 });

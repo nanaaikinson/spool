@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -17,6 +18,7 @@ import (
 	"github.com/nanaaikinson/spool/internal/config"
 	"github.com/nanaaikinson/spool/internal/events"
 	"github.com/nanaaikinson/spool/internal/metrics"
+	"github.com/nanaaikinson/spool/internal/serverlog"
 	"github.com/nanaaikinson/spool/internal/store"
 	"github.com/nanaaikinson/spool/internal/version"
 	"github.com/prometheus/client_golang/prometheus"
@@ -25,14 +27,19 @@ import (
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	if e := run(log); e != nil {
+	stdout := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true, ReplaceAttr: caller})
+	recorder := serverlog.New(stdout, 256)
+	log := slog.New(recorder.Handler())
+	// Request lines go only to stdout; they are not kept as server logs.
+	e := run(log, slog.New(stdout), recorder)
+	recorder.Close()
+	if e != nil {
 		log.Error("startup failed", "reason", e.Error())
 		os.Exit(1)
 	}
 }
 
-func run(log *slog.Logger) error {
+func run(log, access *slog.Logger, recorder *serverlog.Recorder) error {
 	c, e := config.Load()
 	if e != nil {
 		return e
@@ -43,14 +50,19 @@ func run(log *slog.Logger) error {
 	defer source.Close()
 	checkRedis(ctx, log, c, source)
 	startup, cancel := context.WithTimeout(ctx, 10*time.Second)
-	db, e := store.Open(startup, c.DatabaseURL)
+	db, e := store.Open(startup, c.DatabasePath)
 	cancel()
 	if e != nil {
-		return errors.New("could not connect to PostgreSQL or apply migrations; check DATABASE_URL")
+		return fmt.Errorf("could not open the database or apply migrations; check that DATABASE_PATH is writable: %w", e)
 	}
 	if db != nil {
 		defer db.DB.Close()
+		// Flush queued records before the database closes.
+		defer recorder.Close()
 		source.Entries = db
+		recorder.Attach(db)
+		log.Info("database ready", "path", c.DatabasePath, "log_retention", c.LogRetention.String())
+		go pruneLogs(ctx, log, db, c.LogRetention)
 	}
 	broker := events.New()
 	go broker.Run(ctx)
@@ -70,7 +82,7 @@ func run(log *slog.Logger) error {
 		},
 		[]string{"method", "route", "status"},
 	)
-	registry.MustRegister(requests)
+	registry.MustRegister(requests, recorder.Collector())
 	provider := metrics.New(c.PrometheusURL)
 	provider.Job = c.MetricsJob
 	app := &api.API{
@@ -80,6 +92,7 @@ func run(log *slog.Logger) error {
 		Store:    db,
 		Events:   broker,
 		Log:      log,
+		Access:   access,
 		Requests: requests,
 	}
 	server := &http.Server{
@@ -107,11 +120,42 @@ func run(log *slog.Logger) error {
 			return e
 		}
 	case <-ctx.Done():
+		log.Info("shutting down; finishing open requests")
 		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		return server.Shutdown(shutdown)
 	}
 	return nil
+}
+
+// caller replaces slog's source group with "caller": "/full/path/file.go:line".
+func caller(groups []string, a slog.Attr) slog.Attr {
+	if s, ok := a.Value.Any().(*slog.Source); ok && a.Key == slog.SourceKey && len(groups) == 0 {
+		return slog.String("caller", fmt.Sprintf("%s:%d", s.File, s.Line))
+	}
+	return a
+}
+
+// pruneLogs deletes log lines older than retention at startup and then hourly.
+func pruneLogs(ctx context.Context, log *slog.Logger, db *store.Store, retention time.Duration) {
+	t := time.NewTicker(time.Hour)
+	defer t.Stop()
+	for {
+		run, cancel := context.WithTimeout(ctx, time.Minute)
+		removed, e := db.PruneServerLogs(run, time.Now().Add(-retention))
+		cancel()
+		switch {
+		case e != nil && ctx.Err() == nil:
+			log.Warn("could not remove old log lines", "error_type", fmt.Sprintf("%T", e))
+		case removed > 0:
+			log.Info("removed old log lines", "count", removed, "retention", retention.String())
+		}
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+		}
+	}
 }
 
 // checkRedis reports early whether Spool can see the Asynq data. It never stops
@@ -132,6 +176,6 @@ func checkRedis(ctx context.Context, log *slog.Logger, c config.Config, source *
 		log.Info("connected to Redis", "redis", c.RedisTarget(), "queues", len(queues))
 	}
 	if c.ReadOnlyReason == "no_database" {
-		log.Warn("DATABASE_URL is not set; running read-only without the audit log, saved views or schedule links")
+		log.Warn("DATABASE_PATH is not set; running read-only without the audit log, saved views or schedule links")
 	}
 }

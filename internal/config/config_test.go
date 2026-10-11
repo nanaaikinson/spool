@@ -58,6 +58,7 @@ func TestRedisCredentials(t *testing.T) {
 func TestReadOnlyWithoutDatabase(t *testing.T) {
 	t.Setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 	t.Setenv("DATABASE_URL", "")
+	t.Setenv("DATABASE_PATH", "")
 	t.Setenv("SPOOL_READ_ONLY", "false")
 	c, e := Load()
 	if e != nil {
@@ -66,13 +67,40 @@ func TestReadOnlyWithoutDatabase(t *testing.T) {
 	if !c.ReadOnly || c.ReadOnlyReason != "no_database" {
 		t.Fatalf("read only = %v (%q), want no_database", c.ReadOnly, c.ReadOnlyReason)
 	}
-	t.Setenv("DATABASE_URL", "postgres://spool@localhost/spool")
+	t.Setenv("DATABASE_PATH", "/data/spool.db")
 	if c, e = Load(); e != nil || c.ReadOnly || c.ReadOnlyReason != "" {
 		t.Fatalf("with database: %v %v %q", e, c.ReadOnly, c.ReadOnlyReason)
 	}
+	// A leftover PostgreSQL URL must not silently drop to read-only.
+	t.Setenv("DATABASE_URL", "postgres://spool@localhost/spool")
+	if _, e = Load(); e == nil || !strings.Contains(e.Error(), "DATABASE_URL") {
+		t.Fatalf("legacy DATABASE_URL accepted: %v", e)
+	}
+	t.Setenv("DATABASE_URL", "")
 	t.Setenv("SPOOL_READ_ONLY", "true")
 	if c, e = Load(); e != nil || !c.ReadOnly || c.ReadOnlyReason != "configured" {
 		t.Fatalf("configured: %v %v %q", e, c.ReadOnly, c.ReadOnlyReason)
+	}
+}
+
+func TestLogRetention(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+	t.Setenv("DATABASE_URL", "")
+	for value, want := range map[string]time.Duration{"": 72 * time.Hour, "7d": 7 * 24 * time.Hour, "36h": 36 * time.Hour} {
+		if value == "" {
+			os.Unsetenv("SPOOL_LOG_RETENTION")
+		} else {
+			t.Setenv("SPOOL_LOG_RETENTION", value)
+		}
+		if c, e := Load(); e != nil || c.LogRetention != want {
+			t.Errorf("%q: %v, %v; want %v", value, c.LogRetention, e, want)
+		}
+	}
+	for _, bad := range []string{"30m", "400d", "3 days", "-1d"} {
+		t.Setenv("SPOOL_LOG_RETENTION", bad)
+		if _, e := Load(); e == nil || !strings.Contains(e.Error(), "SPOOL_LOG_RETENTION") {
+			t.Errorf("%q accepted: %v", bad, e)
+		}
 	}
 }
 

@@ -1,7 +1,14 @@
 import tseslint from "typescript-eslint";
 import hooks from "eslint-plugin-react-hooks";
 export default tseslint.config(
-  { ignores: ["src/api/generated/**", "dist/**", "node_modules/**"] },
+  {
+    ignores: [
+      "src/api/generated/**",
+      "src/routeTree.gen.ts",
+      "dist/**",
+      "node_modules/**",
+    ],
+  },
   ...tseslint.configs.recommended,
   {
     files: ["src/**/*.{ts,tsx}"],

@@ -93,11 +93,11 @@ export function ConnectionDiagnostics() {
           message: status.data.redis.message,
         },
         {
-          name: "PostgreSQL",
+          name: "Database",
           state: !status.data.database.configured
             ? "Not configured"
             : status.data.database.available
-              ? "Connected"
+              ? "Ready"
               : "Unavailable",
           tone: status.data.database.available ? "green" : "amber",
           message: status.data.database.message,

@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	z "github.com/Oudwins/zog"
 	"github.com/hibiken/asynq"
@@ -17,7 +18,7 @@ import (
 type Config struct {
 	Addr           string
 	RedisURL       string
-	DatabaseURL    string
+	DatabasePath   string
 	PrometheusURL  string
 	Environment    string
 	InstanceName   string
@@ -31,6 +32,8 @@ type Config struct {
 	SessionKey     string
 	MetricsToken   string
 	ReadOnly       bool
+	// LogRetention is how long Spool keeps its own log lines.
+	LogRetention time.Duration
 	// ReadOnlyReason says why changes are disabled: "configured" when
 	// SPOOL_READ_ONLY is set, "no_database" when there is nowhere to record
 	// audit entries. Empty when changes are allowed.
@@ -39,6 +42,20 @@ type Config struct {
 	// RedisTLS adds a private CA or client certificate to rediss:// and
 	// redis-sentinel:// connections. Nil uses the system trust store.
 	RedisTLS *tls.Config
+}
+
+// retentionDuration parses a Go duration such as 36h, or whole days such as 3d,
+// between one hour and one year.
+func retentionDuration(s string) (time.Duration, error) {
+	d, e := time.ParseDuration(s)
+	if days, ok := strings.CutSuffix(s, "d"); ok {
+		n, ne := strconv.Atoi(days)
+		d, e = time.Duration(n)*24*time.Hour, ne
+	}
+	if e != nil || d < time.Hour || d > 365*24*time.Hour {
+		return 0, fmt.Errorf("SPOOL_LOG_RETENTION must be a duration from 1h to 365d, such as 3d or 36h")
+	}
+	return d, nil
 }
 
 func Load() (Config, error) {
@@ -50,7 +67,7 @@ func Load() (Config, error) {
 	c := Config{
 		Addr:           env.Get("SPOOL_ADDR", "127.0.0.1:8088"),
 		RedisURL:       env.Get("REDIS_URL", "redis://127.0.0.1:6388/0"),
-		DatabaseURL:    env.Get("DATABASE_URL"),
+		DatabasePath:   env.Get("DATABASE_PATH"),
 		PrometheusURL:  env.Get("PROMETHEUS_URL"),
 		Environment:    env.Get("SPOOL_ENV", "development"),
 		InstanceName:   env.Get("SPOOL_INSTANCE_NAME"),
@@ -103,6 +120,17 @@ func Load() (Config, error) {
 			return c, fmt.Errorf("SPOOL_SESSION_KEY must be at least 32 characters when sign-in is enabled")
 		}
 	}
+	if env.Get("DATABASE_URL") != "" {
+		return c, fmt.Errorf("DATABASE_URL is no longer supported: Spool stores its data in SQLite; unset DATABASE_URL and set DATABASE_PATH to a file path such as /data/spool.db")
+	}
+	retention, e := retentionDuration(env.Get("SPOOL_LOG_RETENTION", "3d"))
+	if e != nil {
+		return c, e
+	}
+	c.LogRetention = retention
+	if strings.ContainsAny(c.DatabasePath, "?#") {
+		return c, fmt.Errorf("DATABASE_PATH must be a file path without ? or #")
+	}
 	if _, err := asynq.ParseRedisURI(c.RedisURL); err != nil {
 		return c, fmt.Errorf("invalid REDIS_URL")
 	}
@@ -122,11 +150,11 @@ func Load() (Config, error) {
 	}
 	c.RedisTLS = tlsConfig
 	// Every change is recorded in the audit log before it runs, so without
-	// PostgreSQL Spool can only observe.
+	// a database Spool can only observe.
 	switch {
 	case c.ReadOnly:
 		c.ReadOnlyReason = "configured"
-	case c.DatabaseURL == "":
+	case c.DatabasePath == "":
 		c.ReadOnly, c.ReadOnlyReason = true, "no_database"
 	}
 	if c.PrometheusURL != "" {

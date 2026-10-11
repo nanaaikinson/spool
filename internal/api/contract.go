@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -38,6 +39,15 @@ type Endpoint struct {
 
 func q(name, description string) Parameter {
 	return Parameter{Name: name, Type: "string", Description: description}
+}
+
+// logParams are the search and range shared by the log endpoints.
+func logParams() []Parameter {
+	return []Parameter{
+		q("q", "Search: free text, field:value (level, message, caller or an attribute; * is a wildcard), -term to exclude, \"quoted text\""),
+		{Name: "start", Type: "string", Description: "RFC3339 start; defaults to an hour before end"},
+		{Name: "end", Type: "string", Description: "RFC3339 end, exclusive; defaults to now; at most 31 days after start"},
+	}
 }
 
 func n(name, description string, min, max int) Parameter {
@@ -343,6 +353,35 @@ func Endpoints() []Endpoint {
 			},
 			false,
 			(*API).listAudit,
+		},
+		{
+			"GET",
+			"/logs",
+			"listServerLogs",
+			"Spool's own log records, newest first; administrator only",
+			domain.ServerLogList{},
+			nil,
+			append(
+				logParams(),
+				n("before", "Return records older than this record ID", 1, math.MaxInt32),
+				n("after", "Return the records just newer than this record ID", 1, math.MaxInt32),
+				Parameter{Name: "at", Type: "string", Description: "RFC3339 time; return records logged before it, newest first"},
+				n("around", "Return the records logged around this record ID, ignoring q, start and end", 1, math.MaxInt32),
+				n("limit", "Records to return; with around, records on each side is half of this", 1, 500),
+			),
+			false,
+			(*API).listServerLogs,
+		},
+		{
+			"GET",
+			"/logs/histogram",
+			"logHistogram",
+			"Matching log records per level over time; administrator only",
+			domain.LogHistogram{},
+			nil,
+			logParams(),
+			false,
+			(*API).logHistogram,
 		},
 		{"GET", "/views", "listViews", "Current actor's saved views", domain.ViewList{}, nil, nil, false, (*API).listViews},
 		{

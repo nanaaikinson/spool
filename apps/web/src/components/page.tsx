@@ -246,6 +246,8 @@ const stateTones: Record<string, Tone> = {
   retry: "red",
   archived: "red",
   failed: "red",
+  warn: "amber",
+  error: "red",
 };
 /** Task, queue, server or audit state as a small labelled badge. */
 export function StateBadge({

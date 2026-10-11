@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -88,6 +89,11 @@ func (a *Adapter) Queue(ctx context.Context, name string) (domain.Queue, error) 
 	}
 	q, e := a.inspector.GetQueueInfo(name)
 	if e != nil {
+		// GetQueueInfo returns asynq's internal not-found error rather than
+		// ErrQueueNotFound, so confirm a missing queue against the queue list.
+		if names, err := a.inspector.Queues(); err == nil && !slices.Contains(names, name) {
+			return domain.Queue{}, ErrNotFound
+		}
 		return domain.Queue{}, mapError(e)
 	}
 	return domain.Queue{

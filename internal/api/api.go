@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -27,12 +28,15 @@ import (
 )
 
 type API struct {
-	Config   config.Config
-	Source   asynqadapter.Source
-	Metrics  metrics.Provider
-	Store    *store.Store
-	Events   *events.Broker
-	Log      *slog.Logger
+	Config  config.Config
+	Source  asynqadapter.Source
+	Metrics metrics.Provider
+	Store   *store.Store
+	Events  *events.Broker
+	Log     *slog.Logger
+	// Access receives one line per HTTP request; it defaults to Log. Keep it
+	// apart from Log so request lines are not stored as server logs.
+	Access   *slog.Logger
 	Requests *prometheus.HistogramVec
 	logins   loginLimiter
 }
@@ -57,7 +61,7 @@ func (a *API) Handler(scrape http.Handler) http.Handler {
 		}
 		if a.Store != nil {
 			if e := a.Store.Ping(ctx); e != nil {
-				a.fail(w, r, 503, "NOT_READY", "Cannot reach PostgreSQL. Check DATABASE_URL and that PostgreSQL is running.", e)
+				a.fail(w, r, 503, "NOT_READY", "Cannot use the database. Check DATABASE_PATH and that its volume is writable.", e)
 				return
 			}
 		}
@@ -128,16 +132,26 @@ func (a *API) json(w http.ResponseWriter, v any) {
 }
 
 func (a *API) fail(w http.ResponseWriter, r *http.Request, status int, code, message string, cause error) {
-	if cause != nil {
-		a.Log.Error(
-			"request failed",
-			"request_id",
-			middleware.GetReqID(r.Context()),
-			"code",
-			code,
-			"error_type",
-			fmt.Sprintf("%T", cause),
+	a.reply(w, r, status, code, message, cause)
+}
+
+// urlCredentials matches the user info of URLs that dependency errors may echo.
+var urlCredentials = regexp.MustCompile(`://[^/@\s]+@`)
+
+// reply writes an error response, logging the cause against the handler that
+// called fail or failure. Both add exactly one frame above reply.
+func (a *API) reply(w http.ResponseWriter, r *http.Request, status int, code, message string, cause error) {
+	if cause != nil && a.Log.Enabled(r.Context(), slog.LevelError) {
+		var pcs [1]uintptr
+		runtime.Callers(3, pcs[:]) // runtime.Callers, reply, fail or failure
+		rec := slog.NewRecord(time.Now(), slog.LevelError, "request failed", pcs[0])
+		rec.AddAttrs(
+			slog.String("request_id", middleware.GetReqID(r.Context())),
+			slog.String("code", code),
+			slog.String("error", urlCredentials.ReplaceAllString(cause.Error(), "://REDACTED@")),
+			slog.String("error_type", fmt.Sprintf("%T", cause)),
 		)
+		_ = a.Log.Handler().Handle(r.Context(), rec)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -170,7 +184,7 @@ var errAuditOutcome = errors.New("audit outcome unknown")
 func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 	switch {
 	case errors.Is(e, errAuditOutcome):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			500,
@@ -179,9 +193,9 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			e,
 		)
 	case errors.Is(e, asynqadapter.ErrNotFound):
-		a.fail(w, r, 404, "NOT_FOUND", "The queue or task no longer exists.", nil)
+		a.reply(w, r, 404, "NOT_FOUND", "The queue or task no longer exists.", nil)
 	case errors.Is(e, asynqadapter.ErrConflict):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			409,
@@ -190,7 +204,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			nil,
 		)
 	case errors.Is(e, asynqadapter.ErrCursor):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			422,
@@ -199,16 +213,16 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			nil,
 		)
 	case errors.Is(e, store.ErrUnavailable):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			503,
 			"AUDIT_UNAVAILABLE",
-			"Changes are disabled because the audit log is unavailable. Set DATABASE_URL to a reachable PostgreSQL database.",
+			"Changes are disabled because the audit log is unavailable. Set DATABASE_PATH to a writable file on persistent storage.",
 			e,
 		)
 	case errors.Is(e, metrics.ErrUnavailable):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			503,
@@ -217,12 +231,12 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			e,
 		)
 	default:
-		a.fail(
+		a.reply(
 			w,
 			r,
 			503,
 			"DEPENDENCY_UNAVAILABLE",
-			"The request failed. Check that Redis and PostgreSQL are reachable, then try again.",
+			"The request failed. Check that Redis is reachable and the database is writable, then try again.",
 			e,
 		)
 	}
@@ -288,6 +302,12 @@ func (a *API) audited(r *http.Request, action, q, id string, run func() error) e
 		return e
 	}
 	e = run()
+	attrs := []any{"actor", actor(r), "action", action, "queue", q, "task_id", id, "audit_id", auditID}
+	if e == nil {
+		a.Log.Info("action succeeded", attrs...)
+	} else {
+		a.Log.Warn("action failed", append(attrs, "error", urlCredentials.ReplaceAllString(e.Error(), "://REDACTED@"))...)
+	}
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), 5*time.Second)
 	defer cancel()
 	if finishErr := a.Store.Finish(ctx, auditID, e == nil); finishErr != nil {

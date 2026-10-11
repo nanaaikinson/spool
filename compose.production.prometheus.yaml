@@ -1,4 +1,4 @@
-# Optional private metrics storage, usable with either production Compose file.
+# Optional private metrics storage, added to compose.production.redis.yaml.
 services:
   app:
     environment:

@@ -1,6 +1,6 @@
 # Architecture and data provenance
 
-The React/Vite client uses TanStack Router for typed routing, TanStack Query for server state and the generated Hey API SDK. Chi serves a versioned API and the compiled single-page app. Public contracts are application-owned DTOs; Asynq and Bun types never cross the HTTP boundary. `cmd/openapi` generates the canonical OpenAPI document from the explicit endpoint registry and DTOs. The TypeScript client is generated and committed, and CI regenerates it to check for drift.
+The React/Vite client uses TanStack Router for typed file-based routing (one file per page in `apps/web/src/routes`; the Vite plugin generates and code-splits `src/routeTree.gen.ts`, which is committed so type checks work before a build), TanStack Query for server state and the generated Hey API SDK. Chi serves a versioned API and the compiled single-page app. Public contracts are application-owned DTOs; Asynq and Bun types never cross the HTTP boundary. `cmd/openapi` generates the canonical OpenAPI document from the explicit endpoint registry and DTOs. The TypeScript client is generated and committed, and CI regenerates it to check for drift.
 
 ```mermaid
 flowchart TD
@@ -14,7 +14,7 @@ flowchart TD
   Metrics --> Prometheus[Prometheus]
   Prometheus --> Exporter[Native Asynq collector]
   API --> Store[Bun and Chandlery repositories]
-  Store --> Postgres[(PostgreSQL)]
+  Store --> SQLite[(SQLite file)]
   API --> Events[SSE invalidation broker]
   Events --> Browser
 ```
@@ -41,7 +41,7 @@ The dashboard checks run in the browser (`apps/web/src/features/attention.tsx`) 
 
 ### Periodic schedule links
 
-Asynq records the last 1,000 tasks each periodic entry enqueued, but only while its scheduler runs: a clean scheduler shutdown deletes that history, and each restart registers new entry IDs. Every 10 seconds, when a task request needs it, Spool reads the history of every entry it knows about and stores new task-to-entry links and each entry's cron spec in PostgreSQL. A task's schedule comes from the history still in Redis first, then from stored links, so links survive restarts of both the scheduler and Spool. Links older than 30 days are pruned hourly. Without PostgreSQL, links last only while the history exists and Spool keeps running. Tasks enqueued while Spool was not running can't be linked once their history is gone.
+Asynq records the last 1,000 tasks each periodic entry enqueued, but only while its scheduler runs: a clean scheduler shutdown deletes that history, and each restart registers new entry IDs. Every 10 seconds, when a task request needs it, Spool reads the history of every entry it knows about and stores new task-to-entry links and each entry's cron spec in the database. A task's schedule comes from the history still in Redis first, then from stored links, so links survive restarts of both the scheduler and Spool. Links older than 30 days are pruned hourly. Without a database, links last only while the history exists and Spool keeps running. Tasks enqueued while Spool was not running can't be linked once their history is gone.
 
 ## Freshness
 
@@ -60,9 +60,9 @@ Worker information comes from Asynq server heartbeats, which update roughly ever
 
 ## Persistence and safety
 
-PostgreSQL stores the audit log, saved views, periodic schedule entries and schedule links. Redis remains the source of truth for tasks. Migrations are embedded in the binary and applied at startup under an advisory lock. Chandlery's `db.Repository[*Model]` handles audit and saved-view creates and reads; Bun handles migrations, upserts and conditional audit updates.
+A SQLite file (`DATABASE_PATH`) stores the audit log, saved views, periodic schedule entries, schedule links and Spool's own log lines. A wrapping log handler queues every record without blocking and a background writer saves them in batches; records logged before the database opens wait in the queue, and the queue drops records rather than slow a request when it is full. HTTP request lines use a separate logger, so they reach standard output but are not stored. An hourly job deletes lines older than `SPOOL_LOG_RETENTION` (3 days by default), and inserts cap the table at 100,000 lines in between. The Logs page searches with a small field:value syntax translated to SQL, counts lines per level for its histogram, and polls every two seconds for live tail. Its list pages by cursor rather than offset: `before` and `after` record IDs, or an `at` time for jumping, with each page reporting whether older and newer matches exist. Only the rows near the viewport are rendered, older pages load as the reader nears the end (up to 5,000 lines), and table rows have a fixed height so newer lines can be added above without moving the reader. Logs are served only to the administrator account, because error details can name internal hosts; credentials in URLs are redacted before logging. Redis remains the source of truth for tasks. Spool uses the pure-Go modernc driver with WAL journaling, foreign keys, a five-second busy timeout and a single connection, so exactly one instance may use a database file. Migrations are embedded in the binary and applied at startup. Chandlery's `db.Repository[*Model]` handles audit and saved-view creates and reads; Bun handles migrations, upserts and conditional audit updates.
 
-Every queue or task action writes a pending audit record before it runs, then marks it succeeded or failed. A record left pending after a crash means the outcome is unknown. PostgreSQL and Redis can't share a transaction, so if the final update fails Spool reports the outcome as unknown rather than letting an operator repeat the action blindly.
+Every queue or task action writes a pending audit record before it runs, then marks it succeeded or failed. A record left pending after a crash means the outcome is unknown. SQLite and Redis can't share a transaction, so if the final update fails Spool reports the outcome as unknown rather than letting an operator repeat the action blindly.
 
 Each deployment connects to one environment, configured on the server and included in the session. Connection secrets never reach the browser. Use separate deployments for staging and production.
 
@@ -70,16 +70,16 @@ Session cookies are signed, HTTP-only and SameSite strict. Admin and viewer acco
 
 ## Installation and runtime configuration
 
-`scripts/install.sh` configures one self-hosted environment. It saves connection URLs, generated secrets, console access settings and the Compose file list in `.env.installation`. Compose supplies runtime environment variables to the Go server, which creates its Redis adapter, PostgreSQL store and Prometheus provider at startup. React assets are built independently of these credentials. The installer is a terminal workflow; accounts and connection settings are configured before startup rather than through browser onboarding.
+`scripts/install.sh` configures one self-hosted environment. It saves connection URLs, generated secrets, console access settings and the Compose file list in `.env.installation`. Compose supplies runtime environment variables to the Go server, which creates its Redis adapter, SQLite store and Prometheus provider at startup. React assets are built independently of these credentials. The installer is a terminal workflow; accounts and connection settings are configured before startup rather than through browser onboarding.
 
-The installer selects `compose.production.redis.yaml` for bundled PostgreSQL or `compose.production.external.yaml` for an existing database. Either can include `compose.production.prometheus.yaml`, whose private Prometheus service scrapes the app's native Asynq collector at `app:8003/metrics`. The bundled database and metrics store have separate persistent volumes; Prometheus retains 15 days of samples. `compose.production.host.yaml` publishes the console on host loopback for local access or a host-installed proxy.
+The installer uses `compose.production.redis.yaml`, which keeps the SQLite file in the `spool-data` volume at `/data/spool.db`, and adds `compose.production.prometheus.yaml` for bundled metrics. Its private Prometheus service scrapes the app's native Asynq collector at `app:8003/metrics`. The database and metrics store have separate persistent volumes; Prometheus retains 15 days of samples. `compose.production.host.yaml` publishes the console on host loopback for local access or a host-installed proxy.
 
-The server can run without PostgreSQL or Prometheus when configured manually: absent PostgreSQL disables all changes and durable saved views/audit/schedule links, while absent Prometheus disables historical charts. The guided installer supplies both by default. A configured external service is never replaced by a bundled fallback when it is unavailable.
+The server can run without a database or Prometheus when configured manually: an unset `DATABASE_PATH` disables all changes and durable saved views/audit/schedule links, while absent Prometheus disables historical charts. The guided installer supplies both by default. A configured external service is never replaced by a bundled fallback when it is unavailable.
 
-`/health` checks the process; `/ready` checks Redis and configured PostgreSQL. Prometheus does not affect server readiness. After Compose reports healthy services, the installer separately checks a successful bundled scrape or an external Prometheus query. Samples accumulate from the first successful scrape; installation does not reconstruct earlier history.
+`/health` checks the process; `/ready` checks Redis and, when configured, that the SQLite database opens. Prometheus does not affect server readiness. After Compose reports healthy services, the installer separately checks a successful bundled scrape or an external Prometheus query. Samples accumulate from the first successful scrape; installation does not reconstruct earlier history.
 
 Runtime configuration changes require a redeployment. Preserve the installation file, project name and volumes across upgrades. For procedures and troubleshooting, see the [deployment guide](deployment.md).
 
 An optional `SPOOL_METRICS_TOKEN` authenticates `/metrics` scrapes independently of console accounts. Without it, scrapes are unauthenticated and must stay private at ingress.
 
-The session returns safe public instance identity and support metadata. Authenticated `/api/v1/status` performs independent Redis, PostgreSQL and Prometheus checks with a five-second response deadline and fixed, credential-free messages. Prometheus health validates its API response, checks the deployment’s configured scrape job and verifies sample warm-up using successful `up` samples. This is diagnostic information; it does not change readiness, task storage or chart query scope.
+The session returns safe public instance identity and support metadata. Authenticated `/api/v1/status` performs independent Redis, database and Prometheus checks with a five-second response deadline and fixed, credential-free messages. Prometheus health validates its API response, checks the deployment’s configured scrape job and verifies sample warm-up using successful `up` samples. This is diagnostic information; it does not change readiness, task storage or chart query scope.

@@ -336,9 +336,68 @@ export function MetricsPage() {
   );
 }
 const auditPageSize = 25;
+/** Newer/older paging for a newest-first list. */
+function Pager({
+  label,
+  page,
+  size,
+  shown,
+  total,
+  busy,
+  onPage,
+}: {
+  label: string;
+  page: number;
+  size: number;
+  shown: number;
+  total: number;
+  busy: boolean;
+  onPage: (page: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / size));
+  return (
+    <PaginationBar>
+      <span className="text-xs text-muted-foreground">
+        {number((page - 1) * size + 1)}–{number((page - 1) * size + shown)} of{" "}
+        {plural(total, "entry", "entries")}
+      </span>
+      <Pagination className="m-0 w-auto" aria-label={label}>
+        <PaginationContent className="gap-2">
+          <PaginationItem>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page <= 1 || busy}
+              onClick={() => onPage(page - 1)}
+            >
+              <ChevronLeft />
+              Newer
+            </Button>
+          </PaginationItem>
+          <PaginationItem>
+            <span className="px-1 text-xs text-muted-foreground tabular-nums">
+              Page {number(page)} of {number(pages)}
+            </span>
+          </PaginationItem>
+          <PaginationItem>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={page >= pages || busy}
+              onClick={() => onPage(page + 1)}
+            >
+              Older
+              <ChevronRight />
+            </Button>
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
+    </PaginationBar>
+  );
+}
 export function SettingsPage() {
   const session = useSession();
-  // Saved views and the audit log live in PostgreSQL.
+  // Saved views and the audit log live in the SQLite database.
   const noDatabase = session.data?.read_only_reason === "no_database";
   const [auditPage, setAuditPage] = useState(1);
   const audit = useQuery({
@@ -346,10 +405,6 @@ export function SettingsPage() {
     enabled: !noDatabase,
     placeholderData: keepPreviousData,
   });
-  const auditPages = Math.max(
-    1,
-    Math.ceil((audit.data?.total ?? 0) / auditPageSize),
-  );
   const views = useQuery({ ...listViewsOptions(), enabled: !noDatabase });
   const [deleteID, setDeleteID] = useState<string | null>(null);
   const remove = useMutation({
@@ -543,46 +598,15 @@ export function SettingsPage() {
                 ))}
               </TableBody>
             </Table>
-            <PaginationBar>
-              <span className="text-xs text-muted-foreground">
-                {number((auditPage - 1) * auditPageSize + 1)}–
-                {number(
-                  (auditPage - 1) * auditPageSize + audit.data.data.length,
-                )}{" "}
-                of {plural(audit.data.total, "entry", "entries")}
-              </span>
-              <Pagination className="m-0 w-auto" aria-label="Audit log pages">
-                <PaginationContent className="gap-2">
-                  <PaginationItem>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={auditPage <= 1 || audit.isFetching}
-                      onClick={() => setAuditPage((p) => p - 1)}
-                    >
-                      <ChevronLeft />
-                      Newer
-                    </Button>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <span className="px-1 text-xs text-muted-foreground tabular-nums">
-                      Page {number(auditPage)} of {number(auditPages)}
-                    </span>
-                  </PaginationItem>
-                  <PaginationItem>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={auditPage >= auditPages || audit.isFetching}
-                      onClick={() => setAuditPage((p) => p + 1)}
-                    >
-                      Older
-                      <ChevronRight />
-                    </Button>
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-            </PaginationBar>
+            <Pager
+              label="Audit log pages"
+              page={auditPage}
+              size={auditPageSize}
+              shown={audit.data.data.length}
+              total={audit.data.total}
+              busy={audit.isFetching}
+              onPage={setAuditPage}
+            />
           </>
         )}
       </Section>

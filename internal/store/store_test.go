@@ -2,7 +2,7 @@ package store
 
 import (
 	"context"
-	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -11,11 +11,7 @@ import (
 )
 
 func TestAuditAndSavedViews(t *testing.T) {
-	dsn := os.Getenv("SPOOL_TEST_DATABASE")
-	if dsn == "" {
-		t.Skip("set SPOOL_TEST_DATABASE for PostgreSQL integration")
-	}
-	s, e := Open(context.Background(), dsn)
+	s, e := Open(context.Background(), filepath.Join(t.TempDir(), "spool.db"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -65,11 +61,7 @@ func TestAuditAndSavedViews(t *testing.T) {
 }
 
 func TestScheduleLinks(t *testing.T) {
-	dsn := os.Getenv("SPOOL_TEST_DATABASE")
-	if dsn == "" {
-		t.Skip("set SPOOL_TEST_DATABASE for PostgreSQL integration")
-	}
-	s, e := Open(context.Background(), dsn)
+	s, e := Open(context.Background(), filepath.Join(t.TempDir(), "spool.db"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -118,4 +110,41 @@ func TestScheduleLinks(t *testing.T) {
 	if e != nil || len(refs) != 1 {
 		t.Fatalf("links after prune = %+v, %v", refs, e)
 	}
+}
+
+func TestOpenAppliesPragmasAndReopens(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "spool.db")
+	s, e := Open(ctx, path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	var fk int
+	var mode string
+	if e := s.DB.QueryRowContext(ctx, "PRAGMA foreign_keys").Scan(&fk); e != nil || fk != 1 {
+		t.Fatalf("foreign_keys = %d, %v", fk, e)
+	}
+	if e := s.DB.QueryRowContext(ctx, "PRAGMA journal_mode").Scan(&mode); e != nil || mode != "wal" {
+		t.Fatalf("journal_mode = %q, %v", mode, e)
+	}
+	if _, e := s.Begin(ctx, "admin", "retry", "q", "t"); e != nil {
+		t.Fatal(e)
+	}
+	s.DB.Close()
+	// Migrations are idempotent and data survives a restart.
+	s, e = Open(ctx, path)
+	if e != nil {
+		t.Fatal(e)
+	}
+	defer s.DB.Close()
+	list, e := s.Audits(ctx, 1, 10)
+	if e != nil || list.Total != 1 {
+		t.Fatalf("after reopen: %+v, %v", list, e)
+	}
+	// Missing directories are created along with the file.
+	nested, e := Open(ctx, filepath.Join(t.TempDir(), "missing", "dir", "spool.db"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	nested.DB.Close()
 }

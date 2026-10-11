@@ -14,7 +14,7 @@ while (($#)); do
       env_file=$2; shift 2 ;;
     --help|-h)
       echo 'Usage: scripts/install.sh [--configure-only] [--env-file PATH]'
-      echo 'Creates configuration, builds Spool, and waits for Redis/PostgreSQL readiness.'
+      echo 'Creates configuration, builds Spool, and waits for Redis and database readiness.'
       echo 'Reruns reuse saved credentials. --configure-only saves and validates without starting services.'
       exit 0 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -29,8 +29,8 @@ docker compose version >/dev/null || fail 'Docker Compose is required (with supp
 # Use the saved installation, even when the caller exported development settings.
 compose() (
   unset COMPOSE_FILE COMPOSE_PATH_SEPARATOR COMPOSE_PROJECT_NAME COMPOSE_PROFILES
-  unset REDIS_URL DATABASE_URL PROMETHEUS_URL POSTGRES_PASSWORD
-  unset SPOOL_INSTANCE_NAME SPOOL_SUPPORT_URL SPOOL_METRICS_JOB
+  unset REDIS_URL PROMETHEUS_URL
+  unset SPOOL_INSTANCE_NAME SPOOL_SUPPORT_URL SPOOL_METRICS_JOB SPOOL_LOG_RETENTION
   unset SPOOL_ADDR SPOOL_ENV SPOOL_ADMIN_USER SPOOL_ADMIN_PASSWORD SPOOL_SESSION_KEY
   unset SPOOL_VIEWER_USER SPOOL_VIEWER_PASSWORD SPOOL_READ_ONLY SPOOL_SECURE_COOKIE SPOOL_HOST_PORT
   cd "$root"
@@ -62,6 +62,15 @@ if [[ -e "$env_file" || -L "$env_file" ]]; then
     fail "Refusing to overwrite $env_file. Use --env-file with a new path for guided setup."
   chmod 600 "$env_file"
   echo "Reusing $env_file; credentials and service choices are preserved."
+  # Installations from before SQLite named a PostgreSQL Compose file or password.
+  if grep -q '^POSTGRES_PASSWORD=\|compose\.production\.external\.yaml' "$env_file"; then
+    updated=$(mktemp "$env_file.XXXXXX")
+    sed -e 's#compose\.production\.external\.yaml#compose.production.redis.yaml#' \
+      -e '/^DATABASE_URL=/d' -e '/^POSTGRES_PASSWORD=/d' "$env_file" > "$updated"
+    mv "$updated" "$env_file"
+    echo 'Spool now keeps its data in SQLite, in the spool-data volume. Earlier PostgreSQL data is not copied;'
+    echo 'a bundled PostgreSQL volume is left in place. See docs/deployment.md#upgrading-from-postgresql.'
+  fi
 else
   command -v openssl >/dev/null || fail 'OpenSSL is required to generate installation secrets.'
   echo 'Spool self-hosted setup'
@@ -72,17 +81,6 @@ else
   [[ "$redis_url" =~ ^(redis|rediss|redis-sentinel)://[^/]+ ]] ||
     fail 'Enter a redis://, rediss://, or redis-sentinel:// URL with a host.'
 
-  ask 'PostgreSQL: bundled or external' bundled
-  database_mode=$answer
-  case "$database_mode" in
-    bundled) base=compose.production.redis.yaml; database_url='' ;;
-    external)
-      base=compose.production.external.yaml
-      ask 'PostgreSQL URL (existing database)' '' true
-      database_url=$answer
-      [[ "$database_url" =~ ^postgres(ql)?://[^/]+/[^?]+ ]] || fail 'Enter a PostgreSQL URL including the database name.' ;;
-    *) fail 'Choose bundled or external for PostgreSQL.' ;;
-  esac
   ask 'Prometheus: bundled or external' bundled
   metrics_mode=$answer
   case "$metrics_mode" in
@@ -111,13 +109,12 @@ else
     *) fail 'Use localhost HTTP or an HTTPS origin. Remote HTTP is not supported.' ;;
   esac
 
-  files="$root/$base"
+  files="$root/compose.production.redis.yaml"
   [[ "$metrics_mode" != bundled ]] || files+=":$root/compose.production.prometheus.yaml"
   files+=":$root/compose.production.host.yaml"
   [[ "$files" != *"'"* && "$files" != *\\* && "$files" != *$'\n'* ]] || fail 'The checkout path contains unsupported characters.'
   admin_password=$(openssl rand -hex 24)
   session_key=$(openssl rand -hex 32)
-  postgres_password=$(openssl rand -hex 32)
   # noclobber prevents concurrent installers from replacing existing credentials.
   (
     set -o noclobber
@@ -129,8 +126,6 @@ COMPOSE_FILE='$files'
 COMPOSE_PATH_SEPARATOR=':'
 COMPOSE_PROJECT_NAME='spool-production'
 REDIS_URL='$redis_url'
-DATABASE_URL='$database_url'
-POSTGRES_PASSWORD='$postgres_password'
 PROMETHEUS_URL='$prometheus_url'
 SPOOL_ENV='production'
 SPOOL_INSTANCE_NAME=''
@@ -161,7 +156,7 @@ fi
 docker info >/dev/null 2>&1 || fail 'Docker is not running or accessible. Start Docker and rerun; configuration is saved.'
 echo 'Building and starting Spool. Waiting up to 180 seconds after the build for service readiness...'
 compose up -d --build --wait --wait-timeout 180 ||
-  fail 'Startup failed. Check compose logs for Redis reachability, database credentials or an occupied port. Rerun after correcting the issue; data and secrets are preserved.'
+  fail 'Startup failed. Check compose logs for Redis reachability, database volume permissions or an occupied port. Rerun after correcting the issue; data and secrets are preserved.'
 if compose config --services | grep -qx prometheus; then
   echo 'Verifying that bundled Prometheus is collecting Spool metrics...'
   scraped=false

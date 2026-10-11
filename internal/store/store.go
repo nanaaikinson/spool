@@ -4,14 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
 	"time"
 
 	cdb "github.com/nanaaikinson/chandlery/db"
 	"github.com/nanaaikinson/spool/db/migrations"
 	"github.com/nanaaikinson/spool/internal/domain"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
-	"github.com/uptrace/bun/driver/pgdriver"
+	"github.com/uptrace/bun/dialect/sqlitedialect"
+	_ "modernc.org/sqlite"
 )
 
 var ErrUnavailable = errors.New("audit database unavailable")
@@ -51,23 +53,33 @@ type Store struct {
 	views  cdb.Repository[*viewModel]
 }
 
-func Open(ctx context.Context, dsn string) (*Store, error) {
-	if dsn == "" {
+// Open opens the SQLite database at path, creating the file and its directory
+// when missing, and applies migrations. An empty path returns a nil Store:
+// Spool runs read-only.
+func Open(ctx context.Context, path string) (*Store, error) {
+	if path == "" {
 		return nil, nil
 	}
-	db := bun.NewDB(sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn))), pgdialect.New())
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(30 * time.Minute)
+	if e := os.MkdirAll(filepath.Dir(path), 0o700); e != nil {
+		return nil, e
+	}
+	// Pragmas go in the DSN so every connection gets them. Immediate
+	// transactions take the write lock up front instead of failing on upgrade.
+	dsn := path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_txlock=immediate"
+	sqldb, e := sql.Open("sqlite", dsn)
+	if e != nil {
+		return nil, e
+	}
+	db := bun.NewDB(sqldb, sqlitedialect.New())
+	// SQLite allows one writer; a single connection serializes access in
+	// process rather than contending for the file lock.
+	db.SetMaxOpenConns(1)
 	if e := db.PingContext(ctx); e != nil {
 		db.Close()
-		return nil, ErrUnavailable
+		return nil, e
 	}
-	e := db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, e := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(74290311)"); e != nil {
-			return e
-		}
-		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries} {
+	e = db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
+		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries, migrations.ServerLogs} {
 			if _, e := tx.ExecContext(ctx, m); e != nil {
 				return e
 			}

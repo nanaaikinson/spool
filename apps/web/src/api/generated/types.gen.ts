@@ -100,6 +100,27 @@ export type FieldError = {
     reasons: Array<string>;
 };
 
+export type LogAttr = {
+    key: string;
+    value: string;
+};
+
+export type LogBucket = {
+    debug: number;
+    error: number;
+    info: number;
+    start: string;
+    warn: number;
+};
+
+export type LogHistogram = {
+    buckets: Array<LogBucket>;
+    end: string;
+    start: string;
+    step_seconds: number;
+    total: number;
+};
+
 export type LoginRequest = {
     password: string;
     username: string;
@@ -222,6 +243,22 @@ export type ServerList = {
     data: Array<Server>;
 };
 
+export type ServerLog = {
+    attrs: Array<LogAttr>;
+    caller: string;
+    id: number;
+    level: string;
+    message: string;
+    time: string;
+};
+
+export type ServerLogList = {
+    data: Array<ServerLog>;
+    has_more: boolean;
+    has_newer: boolean;
+    limit: number;
+};
+
 export type Session = {
     actor: string;
     auth_required: boolean;
@@ -231,6 +268,7 @@ export type Session = {
     read_only: boolean;
     read_only_reason: string;
     role: 'admin' | 'viewer' | '';
+    server_logs: boolean;
     support_url: string;
     version: string;
 };
@@ -490,6 +528,166 @@ export type ListErrorGroupsResponses = {
 };
 
 export type ListErrorGroupsResponse = ListErrorGroupsResponses[keyof ListErrorGroupsResponses];
+
+export type ListServerLogsData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Search: free text, field:value (level, message, caller or an attribute; * is a wildcard), -term to exclude, "quoted text"
+         */
+        q?: string;
+        /**
+         * RFC3339 start; defaults to an hour before end
+         */
+        start?: string;
+        /**
+         * RFC3339 end, exclusive; defaults to now; at most 31 days after start
+         */
+        end?: string;
+        /**
+         * Return records older than this record ID
+         */
+        before?: number;
+        /**
+         * Return the records just newer than this record ID
+         */
+        after?: number;
+        /**
+         * RFC3339 time; return records logged before it, newest first
+         */
+        at?: string;
+        /**
+         * Return the records logged around this record ID, ignoring q, start and end
+         */
+        around?: number;
+        /**
+         * Records to return; with around, records on each side is half of this
+         */
+        limit?: number;
+    };
+    url: '/api/v1/logs';
+};
+
+export type ListServerLogsErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ListServerLogsError = ListServerLogsErrors[keyof ListServerLogsErrors];
+
+export type ListServerLogsResponses = {
+    /**
+     * Successful response
+     */
+    200: ServerLogList;
+};
+
+export type ListServerLogsResponse = ListServerLogsResponses[keyof ListServerLogsResponses];
+
+export type LogHistogramData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * Search: free text, field:value (level, message, caller or an attribute; * is a wildcard), -term to exclude, "quoted text"
+         */
+        q?: string;
+        /**
+         * RFC3339 start; defaults to an hour before end
+         */
+        start?: string;
+        /**
+         * RFC3339 end, exclusive; defaults to now; at most 31 days after start
+         */
+        end?: string;
+    };
+    url: '/api/v1/logs/histogram';
+};
+
+export type LogHistogramErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type LogHistogramError = LogHistogramErrors[keyof LogHistogramErrors];
+
+export type LogHistogramResponses = {
+    /**
+     * Successful response
+     */
+    200: LogHistogram;
+};
+
+export type LogHistogramResponse = LogHistogramResponses[keyof LogHistogramResponses];
 
 export type MetricsHealthData = {
     body?: never;
