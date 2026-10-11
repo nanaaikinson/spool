@@ -1,11 +1,26 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   keepPreviousData,
   useInfiniteQuery,
   useQuery,
 } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ReferenceLine,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { toast } from "sonner";
 import {
   ArrowDown,
@@ -69,6 +84,13 @@ import { LIVE_REFRESH_MS } from "./charts";
 import { useSession } from "./session";
 
 const PAGE = 200;
+/** Table rows are one line at a fixed height, which virtualizing relies on. */
+const ROW_HEIGHT = 36;
+const cell = "py-0 text-xs";
+/** Older lines stop loading automatically at this many; jump or narrow instead. */
+const MAX_LINES = 5_000;
+/** Where a page starts: older than a line, newer than a line, or before a time. */
+type Cursor = { before?: number; after?: number; at?: string };
 const spans = {
   "15m": 15 * 60_000,
   "1h": 60 * 60_000,
@@ -164,8 +186,15 @@ type LogSearch = ReturnType<typeof useLogSearch>["search"];
 function useLogSearch() {
   const search = useSearch({ from: "__root__" });
   const navigate = useNavigate();
+  // The page manages its own scroll position (selection, lines around and
+  // jumps), so URL updates must not reset it to the top.
   const set = (patch: Partial<typeof search>, replace = false) =>
-    navigate({ to: ".", search: (old) => ({ ...old, ...patch }), replace });
+    navigate({
+      to: ".",
+      search: (old) => ({ ...old, ...patch }),
+      replace,
+      resetScroll: false,
+    });
   return { search, set };
 }
 
@@ -204,25 +233,33 @@ export function LogsPage() {
   const noDatabase = session.data?.read_only_reason === "no_database";
   const around = search.around || 0;
   const [pages, setPages] = useState(1);
-  const live = search.live && !around && !(search.from && search.to);
+  const live =
+    search.live && !around && !search.at && !(search.from && search.to);
   const [view, setView] = useStoredState("spool.logs.view", "table", views);
   const win = useWindow(search, pages > 1 || !!search.log || !!around, live);
   const query = { q: search.q, start: iso(win.start), end: iso(win.end) };
+  const at = around ? "" : search.at;
   const list = useInfiniteQuery({
-    queryKey: ["serverLogs", around ? { around } : query],
+    queryKey: ["serverLogs", around ? { around } : { ...query, at }],
     queryFn: async ({ pageParam, signal }) => {
       const { data } = await listServerLogs({
         query: around
           ? { around, limit: PAGE }
-          : { ...query, limit: PAGE, before: pageParam || undefined },
+          : { ...query, limit: PAGE, ...pageParam },
         signal,
         throwOnError: true,
       });
       return data;
     },
-    initialPageParam: 0,
-    getNextPageParam: (last) =>
-      !around && last.has_more ? last.data.at(-1)?.id : undefined,
+    initialPageParam: (at ? { at } : {}) as Cursor,
+    getNextPageParam: (last): Cursor | undefined =>
+      !around && last.has_more && last.data.length
+        ? { before: last.data[last.data.length - 1].id }
+        : undefined,
+    getPreviousPageParam: (first): Cursor | undefined =>
+      !around && first.has_newer && first.data.length
+        ? { after: first.data[0].id }
+        : undefined,
     placeholderData: keepPreviousData,
     enabled: !noDatabase,
   });
@@ -250,9 +287,9 @@ export function LogsPage() {
   const searchInput = useRef<HTMLInputElement>(null);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      const typing = (e.target as HTMLElement).closest(
-        "input, textarea, [contenteditable]",
-      );
+      const typing =
+        e.target instanceof Element &&
+        e.target.closest("input, textarea, [contenteditable]");
       if (e.key === "/" && !typing) {
         e.preventDefault();
         searchInput.current?.focus();
@@ -275,14 +312,6 @@ export function LogsPage() {
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   });
-  // Bring the anchor line into view; it sits mid-list.
-  const anchorShown = around > 0 && rows.some((r) => r.id === around);
-  useEffect(() => {
-    if (anchorShown)
-      document
-        .querySelector(`[data-log-id="${around}"]`)
-        ?.scrollIntoView({ block: "center" });
-  }, [around, anchorShown]);
   const forbidden = errorCode(list.error) === "FORBIDDEN";
   const withDate = win.end - win.start > spans["24h"] || !!around;
   return (
@@ -345,7 +374,8 @@ export function LogsPage() {
                 error={histogram.error}
                 retry={() => histogram.refetch()}
                 shown={rows.length}
-                more={!!list.hasNextPage}
+                more={!!list.hasNextPage || !!list.hasPreviousPage}
+                at={at}
                 win={win}
                 set={set}
               />
@@ -358,119 +388,36 @@ export function LogsPage() {
               </SectionBody>
             ) : !rows.length ? (
               <Empty title="No log lines">
+                {at ? "Nothing was logged before this time in the range. " : ""}
                 {search.q
                   ? "Nothing matches this search in this range. Try a longer range or a broader search."
                   : "Spool hasn’t logged anything in this range."}
               </Empty>
             ) : (
-              <>
-                {view === "json" ? (
-                  <div
-                    role="list"
-                    aria-label="Log lines as JSON"
-                    className="divide-y font-mono text-xs"
-                  >
-                    {rows.map((r) => (
-                      <button
-                        key={r.id}
-                        type="button"
-                        role="listitem"
-                        data-log-id={r.id}
-                        aria-current={r.id === search.log || undefined}
-                        onClick={() => select(r.id)}
-                        className={cn(
-                          "block w-full py-2 text-left whitespace-pre-wrap [overflow-wrap:anywhere] hover:bg-hover",
-                          cardX,
-                          rowTint[r.level],
-                          fresh(r.id) && "animate-in fade-in-0 bg-hover",
-                          (r.id === search.log || r.id === around) &&
-                            "bg-accent outline outline-1 -outline-offset-1 outline-ring/40",
-                        )}
-                      >
-                        {JSON.stringify(jsonLine(r))}
-                      </button>
-                    ))}
-                  </div>
-                ) : (
-                  <Table className="table-fixed">
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead
-                          className={withDate ? "w-[170px]" : "w-[120px]"}
-                        >
-                          Time ({zone})
-                        </TableHead>
-                        <TableHead className="hidden w-[76px] sm:table-cell">
-                          Level
-                        </TableHead>
-                        <TableHead>Message</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody className="font-mono text-xs">
-                      {rows.map((r) => (
-                        <TableRow
-                          key={r.id}
-                          data-log-id={r.id}
-                          aria-selected={r.id === search.log}
-                          onClick={() => select(r.id)}
-                          className={cn(
-                            "cursor-pointer",
-                            rowTint[r.level],
-                            fresh(r.id) && "animate-in fade-in-0 bg-hover",
-                            (r.id === search.log || r.id === around) &&
-                              "bg-accent hover:bg-accent outline outline-1 -outline-offset-1 outline-ring/40",
-                          )}
-                        >
-                          <TableCell className="tabular-nums text-muted-foreground">
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 text-left outline-none focus-visible:underline"
-                              aria-label={`Open log line from ${fullStamp(r.time)}`}
-                            >
-                              <StatusDot
-                                tone={levelTones[r.level] ?? "muted"}
-                                className="sm:hidden"
-                              />
-                              {stamp(r.time, withDate)}
-                            </button>
-                          </TableCell>
-                          <TableCell className="hidden sm:table-cell">
-                            <StateBadge state={r.level.toLowerCase()} />
-                          </TableCell>
-                          <TableCell className="truncate">
-                            <span className="text-foreground">{r.message}</span>
-                            {r.attrs.length > 0 && (
-                              <span className="ml-3 text-muted-foreground">
-                                {r.attrs
-                                  .map((a) => `${a.key}=${a.value}`)
-                                  .join(" ")}
-                              </span>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-                {list.hasNextPage && (
-                  <div className={cn("border-t py-3 text-center", cardX)}>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={list.isFetchingNextPage}
-                      onClick={() => {
-                        // Older pages and a moving tail don't mix.
-                        if (search.live) set({ live: false }, true);
-                        list.fetchNextPage();
-                      }}
-                    >
-                      {list.isFetchingNextPage
-                        ? "Loading…"
-                        : "Load older lines"}
-                    </Button>
-                  </div>
-                )}
-              </>
+              <LogList
+                rows={rows}
+                view={view}
+                selected={search.log}
+                anchor={around || undefined}
+                jump={at}
+                fresh={fresh}
+                withDate={withDate}
+                select={select}
+                older={{
+                  more: !!list.hasNextPage,
+                  loading: list.isFetchingNextPage,
+                  load: () => {
+                    // Older pages and a moving tail don't mix.
+                    if (search.live) set({ live: false }, true);
+                    list.fetchNextPage();
+                  },
+                }}
+                newer={{
+                  more: !!list.hasPreviousPage,
+                  loading: list.isFetchingPreviousPage,
+                  load: () => list.fetchPreviousPage(),
+                }}
+              />
             )}
           </Section>
         </>
@@ -495,6 +442,268 @@ export function LogsPage() {
         />
       )}
     </>
+  );
+}
+
+type Loader = { more: boolean; loading: boolean; load: () => void };
+
+/**
+ * The lines, rendered only near the viewport. Older lines load as the reader
+ * scrolls toward the end, up to MAX_LINES; newer ones load on request and keep
+ * the reader's place.
+ */
+function LogList({
+  rows,
+  view,
+  selected,
+  anchor,
+  jump,
+  fresh,
+  withDate,
+  select,
+  older,
+  newer,
+}: {
+  rows: ServerLog[];
+  view: (typeof views)[number];
+  selected: number;
+  anchor?: number;
+  jump: string;
+  fresh: (id: number) => boolean;
+  withDate: boolean;
+  select: (id: number) => void;
+  older: Loader;
+  newer: Loader;
+}) {
+  const body = useRef<HTMLElement | null>(null);
+  const top = useRef<HTMLDivElement>(null);
+  // The virtualizer measures from the document top to the first row.
+  const [margin, setMargin] = useState(0);
+  const newerShown = newer.more;
+  useLayoutEffect(() => {
+    const el = body.current;
+    if (!el) return;
+    const measure = () => {
+      setMargin(Math.round(el.getBoundingClientRect().top + window.scrollY));
+    };
+    measure();
+    // Content above the list can change height without a re-render here.
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    return () => ro.disconnect();
+  }, [view, newerShown]);
+  const virtualizer = useWindowVirtualizer({
+    count: rows.length,
+    // Table rows have one fixed height, so their estimate is exact and newer
+    // lines added above keep the reader's place; JSON rows are measured.
+    estimateSize: () => (view === "json" ? 52 : ROW_HEIGHT),
+    overscan: 12,
+    scrollMargin: margin,
+    getItemKey: (i) => rows[i].id,
+  });
+  const items = virtualizer.getVirtualItems();
+  const padTop = items.length ? items[0].start - margin : 0;
+  const padBottom = items.length
+    ? virtualizer.getTotalSize() - (items[items.length - 1].end - margin)
+    : 0;
+  const capped = rows.length >= MAX_LINES;
+  // Load older lines before the reader reaches the end.
+  const sentinel = useRef<HTMLDivElement>(null);
+  const autoLoad = older.more && !older.loading && !capped;
+  const loadOlder = older.load;
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!el || !autoLoad) return;
+    const io = new IntersectionObserver(
+      ([entry]) => entry.isIntersecting && loadOlder(),
+      { rootMargin: "800px 0px" },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [autoLoad, loadOlder]);
+  // Keep the first line where it was on screen when newer lines are added
+  // above it.
+  const keep = useRef<{ id: number; top: number } | null>(null);
+  const firstId = rows[0]?.id;
+  useLayoutEffect(() => {
+    const k = keep.current;
+    if (!k) return;
+    const i = rows.findIndex((r) => r.id === k.id);
+    const offset =
+      i > 0 ? virtualizer.getOffsetForIndex(i, "start") : undefined;
+    if (offset) {
+      keep.current = null;
+      window.scrollTo({ top: offset[0] - k.top });
+    }
+  }, [firstId, rows, virtualizer]);
+  // Bring the anchor of lines-around, or the selection, into view.
+  const indexOf = (id?: number) =>
+    id ? rows.findIndex((r) => r.id === id) : -1;
+  const anchorIndex = indexOf(anchor);
+  useEffect(() => {
+    if (anchorIndex >= 0)
+      virtualizer.scrollToIndex(anchorIndex, { align: "center" });
+  }, [anchor, anchorIndex, virtualizer]);
+  // The anchor's own centring wins when it is also the selection.
+  const selectedIndex = selected === anchor ? -1 : indexOf(selected);
+  useEffect(() => {
+    if (selectedIndex >= 0)
+      virtualizer.scrollToIndex(selectedIndex, { align: "auto" });
+  }, [selectedIndex, virtualizer]);
+  // After jumping to a time, show the start of the list.
+  useEffect(() => {
+    if (jump) top.current?.scrollIntoView({ block: "start" });
+  }, [jump]);
+  const rowClass = (r: ServerLog) =>
+    cn(
+      rowTint[r.level],
+      fresh(r.id) && "animate-in fade-in-0 bg-hover",
+      (r.id === selected || r.id === anchor) &&
+        "bg-accent hover:bg-accent outline outline-1 -outline-offset-1 outline-ring/40",
+    );
+  return (
+    // overflow-anchor: none stops the browser shifting the scroll as rows are
+    // swapped in and out; the virtualizer keeps the position itself.
+    <div ref={top} className="scroll-mt-20 [overflow-anchor:none]">
+      {newer.more && (
+        <div className={cn("border-b py-2 text-center", cardX)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={newer.loading}
+            onClick={() => {
+              const first = rows[0];
+              const el =
+                first &&
+                body.current?.querySelector(`[data-log-id="${first.id}"]`);
+              if (first && el)
+                keep.current = {
+                  id: first.id,
+                  top: el.getBoundingClientRect().top,
+                };
+              newer.load();
+            }}
+          >
+            <ArrowUp />
+            {newer.loading ? "Loading…" : "Load newer lines"}
+          </Button>
+        </div>
+      )}
+      {view === "json" ? (
+        <div
+          ref={(el) => {
+            body.current = el;
+          }}
+          role="list"
+          aria-label="Log lines as JSON"
+          className="font-mono text-xs"
+        >
+          <div style={{ height: padTop }} aria-hidden="true" />
+          {items.map((v) => {
+            const r = rows[v.index];
+            return (
+              <button
+                key={v.key}
+                ref={virtualizer.measureElement}
+                data-index={v.index}
+                data-log-id={r.id}
+                type="button"
+                role="listitem"
+                aria-current={r.id === selected || undefined}
+                onClick={() => select(r.id)}
+                className={cn(
+                  "block w-full border-b py-2 text-left whitespace-pre-wrap [overflow-wrap:anywhere] hover:bg-hover",
+                  cardX,
+                  rowClass(r),
+                )}
+              >
+                {JSON.stringify(jsonLine(r))}
+              </button>
+            );
+          })}
+          <div style={{ height: padBottom }} aria-hidden="true" />
+        </div>
+      ) : (
+        <Table className="table-fixed">
+          <TableHeader>
+            <TableRow>
+              <TableHead className={withDate ? "w-[170px]" : "w-[120px]"}>
+                Time ({zone})
+              </TableHead>
+              <TableHead className="hidden w-[76px] sm:table-cell">
+                Level
+              </TableHead>
+              <TableHead>Message</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody
+            ref={(el) => {
+              body.current = el;
+            }}
+            className="font-mono text-xs"
+          >
+            {padTop > 0 && <tr aria-hidden="true" style={{ height: padTop }} />}
+            {items.map((v) => {
+              const r = rows[v.index];
+              return (
+                <TableRow
+                  key={v.key}
+                  data-index={v.index}
+                  data-log-id={r.id}
+                  aria-selected={r.id === selected}
+                  onClick={() => select(r.id)}
+                  style={{ height: ROW_HEIGHT }}
+                  className={cn("cursor-pointer", rowClass(r))}
+                >
+                  <TableCell
+                    className={cn(cell, "text-muted-foreground tabular-nums")}
+                  >
+                    <button
+                      type="button"
+                      className="inline-flex items-center gap-2 text-left outline-none focus-visible:underline"
+                      aria-label={`Open log line from ${fullStamp(r.time)}`}
+                    >
+                      <StatusDot
+                        tone={levelTones[r.level] ?? "muted"}
+                        className="sm:hidden"
+                      />
+                      {stamp(r.time, withDate)}
+                    </button>
+                  </TableCell>
+                  <TableCell className={cn(cell, "hidden sm:table-cell")}>
+                    <StateBadge state={r.level.toLowerCase()} />
+                  </TableCell>
+                  <TableCell className={cn(cell, "truncate")}>
+                    <span className="text-foreground">{r.message}</span>
+                    {r.attrs.length > 0 && (
+                      <span className="ml-3 text-muted-foreground">
+                        {r.attrs.map((a) => `${a.key}=${a.value}`).join(" ")}
+                      </span>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {padBottom > 0 && (
+              <tr aria-hidden="true" style={{ height: padBottom }} />
+            )}
+          </TableBody>
+        </Table>
+      )}
+      <div ref={sentinel} aria-hidden="true" />
+      {(older.loading || (older.more && capped)) && (
+        <p
+          className={cn(
+            "border-t py-3 text-center text-xs text-muted-foreground",
+            cardX,
+          )}
+        >
+          {older.loading
+            ? "Loading older lines…"
+            : `Showing ${number(rows.length)} lines. Click the histogram to jump to an earlier time, or narrow the range.`}
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -524,7 +733,7 @@ function Toolbar({
         className="min-w-0 flex-1"
         onSubmit={(e) => {
           e.preventDefault();
-          set({ q: draft.trim(), log: 0, around: 0 });
+          set({ q: draft.trim(), log: 0, around: 0, at: "" });
         }}
       >
         <InputGroup className="bg-card">
@@ -568,7 +777,7 @@ function Toolbar({
             aria-pressed={!win.custom && search.range === r}
             className={segment}
             onClick={() => {
-              set({ range: r, from: "", to: "", log: 0 });
+              set({ range: r, from: "", to: "", log: 0, at: "" });
               win.refresh();
             }}
           >
@@ -590,7 +799,7 @@ function Toolbar({
           }
           className={cn(segment, "h-9 border bg-card px-3")}
           onClick={() => {
-            set({ live: !live, from: "", to: "", log: 0 });
+            set({ live: !live, from: "", to: "", log: 0, at: "" });
             win.refresh();
           }}
         >
@@ -700,7 +909,13 @@ function CustomRange({
           onSubmit={(e) => {
             e.preventDefault();
             if (!valid) return;
-            set({ from: iso(start), to: iso(end), log: 0, live: false });
+            set({
+              from: iso(start),
+              to: iso(end),
+              log: 0,
+              live: false,
+              at: "",
+            });
             setOpen(false);
           }}
         >
@@ -742,6 +957,7 @@ function Histogram({
   retry,
   shown,
   more,
+  at,
   win,
   set,
 }: {
@@ -750,6 +966,7 @@ function Histogram({
   retry: () => void;
   shown: number;
   more: boolean;
+  at: string;
   win: ReturnType<typeof useWindow>;
   set: ReturnType<typeof useLogSearch>["set"];
 }) {
@@ -761,12 +978,16 @@ function Histogram({
       to: iso(Math.min(end, now)),
       log: 0,
       live: false,
+      at: "",
     });
   const bars = (data?.buckets ?? []).map((b) => ({
     ...b,
     t: Date.parse(b.start),
   }));
   const step = (data?.step_seconds ?? 60) * 1000;
+  const atMs = at ? Date.parse(at) : NaN;
+  // The bucket holding the jump point, for its marker line.
+  const marked = bars.find((b) => b.t < atMs && atMs <= b.t + step)?.t;
   const tick = (t: number) =>
     new Date(t).toLocaleString(
       undefined,
@@ -819,6 +1040,18 @@ function Histogram({
           {number(shown)}
           {more ? "+" : ""} shown, newest first
         </span>
+        {at && (
+          <span className="inline-flex items-center gap-1.5 rounded-md border bg-card py-0.5 pr-0.5 pl-2 text-foreground">
+            From {stamp(at, span > spans["24h"])}
+            <button
+              type="button"
+              className="rounded-sm px-1.5 py-0.5 text-muted-foreground hover:bg-hover hover:text-foreground"
+              onClick={() => set({ at: "", log: 0 })}
+            >
+              Show newest
+            </button>
+          </span>
+        )}
         <span className="ml-auto flex items-center gap-3">
           {(["error", "warn", "info"] as const).map((l) => (
             <span key={l} className="inline-flex items-center gap-1.5">
@@ -849,12 +1082,23 @@ function Histogram({
               data={bars}
               margin={{ top: 4, right: 8, bottom: 0, left: 0 }}
               barCategoryGap={1}
-              onClick={(state) => {
+              onClick={(state, event) => {
                 const b = bars[Number(state?.activeIndex)];
-                // Zoom into a bucket, unless it is already one second wide.
-                if (b && step > 1000) custom(b.t, b.t + step);
+                if (!b) return;
+                // Shift-click zooms into a bucket; a click lists lines from
+                // the end of it, keeping the range.
+                if ((event as { shiftKey?: boolean } | undefined)?.shiftKey) {
+                  if (step > 1000) custom(b.t, b.t + step);
+                } else if (b.error + b.warn + b.info + b.debug > 0) {
+                  set({
+                    at: iso(Math.min(b.t + step, win.end)),
+                    log: 0,
+                    live: false,
+                    around: 0,
+                  });
+                }
               }}
-              className="cursor-zoom-in"
+              className="cursor-pointer"
             >
               <CartesianGrid
                 stroke="var(--grid)"
@@ -899,6 +1143,13 @@ function Histogram({
                   isAnimationActive={false}
                 />
               ))}
+              {marked !== undefined && (
+                <ReferenceLine
+                  x={marked}
+                  stroke="var(--foreground)"
+                  strokeDasharray="3 3"
+                />
+              )}
             </BarChart>
           </ChartContainer>
         </div>

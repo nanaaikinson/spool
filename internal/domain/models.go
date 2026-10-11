@@ -269,11 +269,13 @@ type LogAttr struct {
 }
 
 // ServerLogList is one page of log records, newest first. HasMore means older
-// matching records exist; pass the last ID as before to read them.
+// matching records exist (pass the last ID as before to read them); HasNewer
+// means newer ones exist (pass the first ID as after).
 type ServerLogList struct {
-	Data    []ServerLog `json:"data"`
-	Limit   int         `json:"limit"`
-	HasMore bool        `json:"has_more"`
+	Data     []ServerLog `json:"data"`
+	Limit    int         `json:"limit"`
+	HasMore  bool        `json:"has_more"`
+	HasNewer bool        `json:"has_newer"`
 }
 
 // LogHistogram counts matching log records per level over time.

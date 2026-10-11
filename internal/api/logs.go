@@ -5,6 +5,7 @@ import (
 	"time"
 
 	z "github.com/Oudwins/zog"
+	"github.com/nanaaikinson/spool/internal/domain"
 	"github.com/nanaaikinson/spool/internal/store"
 )
 
@@ -56,7 +57,19 @@ func (a *API) listServerLogs(w http.ResponseWriter, r *http.Request, p params) {
 		a.json(w, v)
 		return
 	}
-	v, e := a.Store.ServerLogs(r.Context(), q, int64(p.int("before", 0)), limit)
+	c := store.LogCursor{Before: int64(p.int("before", 0)), After: int64(p.int("after", 0))}
+	if s := r.URL.Query().Get("at"); s != "" {
+		var e error
+		if c.At, e = time.Parse(time.RFC3339, s); e != nil {
+			a.fail(w, r, 422, "INVALID_RANGE", "Give at as an RFC 3339 time.", nil)
+			return
+		}
+	}
+	if (c.Before > 0 && c.After > 0) || ((c.Before > 0 || c.After > 0) && !c.At.IsZero()) {
+		a.invalid(w, "Use only one of before, after and at.", []domain.FieldError{})
+		return
+	}
+	v, e := a.Store.ServerLogs(r.Context(), q, c, limit)
 	if e != nil {
 		a.failure(w, r, e)
 		return

@@ -15,7 +15,7 @@ What Spool shows:
 - **Queues**, **All tasks**, **Scheduled** and **Failed** views, with payload and error inspection, retry/archive/delete/cancel/clone actions where the task state allows them, confirmed bulk actions, and saved views.
 - **Servers**: each Asynq server process, its queues and its busy worker slots.
 - **Periodic schedules**: cron specs with plain-English descriptions. Tasks link back to the schedule entry that enqueued them, and those links are kept in SQLite after Asynq drops its enqueue history.
-- **Logs**: Spool's own log lines for the administrator, with search, a level histogram, live tail, JSON views, and a detail panel with lines around, same-message filtering and copy actions.
+- **Logs**: Spool's own log lines for the administrator, with search, a level histogram you can click to jump to a time, live tail, table and JSON views, a virtualized list that loads older lines as you scroll (and newer ones on request), and a detail panel with lines around, same-message filtering and copy actions.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
 ## Install on your own Docker host

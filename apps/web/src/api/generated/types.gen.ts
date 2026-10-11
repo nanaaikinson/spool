@@ -255,6 +255,7 @@ export type ServerLog = {
 export type ServerLogList = {
     data: Array<ServerLog>;
     has_more: boolean;
+    has_newer: boolean;
     limit: number;
 };
 
@@ -548,6 +549,14 @@ export type ListServerLogsData = {
          * Return records older than this record ID
          */
         before?: number;
+        /**
+         * Return the records just newer than this record ID
+         */
+        after?: number;
+        /**
+         * RFC3339 time; return records logged before it, newest first
+         */
+        at?: string;
         /**
          * Return the records logged around this record ID, ignoring q, start and end
          */

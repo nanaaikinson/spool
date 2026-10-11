@@ -364,6 +364,8 @@ func Endpoints() []Endpoint {
 			append(
 				logParams(),
 				n("before", "Return records older than this record ID", 1, math.MaxInt32),
+				n("after", "Return the records just newer than this record ID", 1, math.MaxInt32),
+				Parameter{Name: "at", Type: "string", Description: "RFC3339 time; return records logged before it, newest first"},
 				n("around", "Return the records logged around this record ID, ignoring q, start and end", 1, math.MaxInt32),
 				n("limit", "Records to return; with around, records on each side is half of this", 1, 500),
 			),

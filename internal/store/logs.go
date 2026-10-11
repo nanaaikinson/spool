@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
@@ -84,29 +85,70 @@ type LogQuery struct {
 	Start, End time.Time
 }
 
-// ServerLogs returns up to limit matching records, newest first, older than
-// the record with ID before when before is set.
-func (s *Store) ServerLogs(ctx context.Context, q LogQuery, before int64, limit int) (domain.ServerLogList, error) {
+// LogCursor picks where a page of log records starts. Before and After are
+// record IDs; At is a time. At most one is set; none means the newest.
+type LogCursor struct {
+	Before, After int64
+	At            time.Time
+}
+
+// ServerLogs returns up to limit matching records, newest first: the newest
+// ones, those older than Before or logged before At, or the oldest ones newer
+// than After. HasMore and HasNewer say whether matching records lie beyond
+// the page in either direction.
+func (s *Store) ServerLogs(ctx context.Context, q LogQuery, c LogCursor, limit int) (domain.ServerLogList, error) {
 	out := domain.ServerLogList{Data: []domain.ServerLog{}, Limit: limit}
 	if s == nil {
 		return out, ErrUnavailable
 	}
 	var rows []logModel
-	sel := s.DB.NewSelect().Model(&rows).OrderExpr("id DESC").Limit(limit + 1)
+	sel := s.DB.NewSelect().Model(&rows).Limit(limit)
 	q.apply(sel)
-	if before > 0 {
-		sel.Where("id < ?", before)
+	switch {
+	case c.After > 0:
+		sel.Where("id > ?", c.After).OrderExpr("id")
+	case c.Before > 0:
+		sel.Where("id < ?", c.Before).OrderExpr("id DESC")
+	case !c.At.IsZero():
+		sel.Where("time < ?", c.At.UnixMicro()).OrderExpr("id DESC")
+	default:
+		sel.OrderExpr("id DESC")
 	}
 	if e := sel.Scan(ctx); e != nil {
 		return out, e
 	}
-	if len(rows) > limit {
-		out.HasMore, rows = true, rows[:limit]
+	if c.After > 0 {
+		slices.Reverse(rows)
 	}
 	for _, r := range rows {
 		out.Data = append(out.Data, r.entry())
 	}
-	return out, nil
+	newest, oldest := c.After, c.Before
+	if len(rows) > 0 {
+		newest, oldest = rows[0].ID, rows[len(rows)-1].ID
+	}
+	var e error
+	if out.HasMore, e = s.logsBeyond(ctx, q, "id < ?", oldest, len(rows) == 0 && c.After == 0); e != nil {
+		return out, e
+	}
+	// An At page with no rows may still have newer records at or after At.
+	if newest == 0 && !c.At.IsZero() {
+		out.HasNewer, e = s.logsBeyond(ctx, q, "time >= ?", c.At.UnixMicro(), false)
+		return out, e
+	}
+	out.HasNewer, e = s.logsBeyond(ctx, q, "id > ?", newest, newest == 0)
+	return out, e
+}
+
+// logsBeyond reports whether a matching record satisfies cond. none short-
+// circuits to false when the page is empty and nothing lies past it.
+func (s *Store) logsBeyond(ctx context.Context, q LogQuery, cond string, arg int64, none bool) (bool, error) {
+	if none {
+		return false, nil
+	}
+	sel := s.DB.NewSelect().Model((*logModel)(nil)).Where(cond, arg)
+	q.apply(sel)
+	return sel.Exists(ctx)
 }
 
 // LogsAround returns the records logged just before and after id, newest

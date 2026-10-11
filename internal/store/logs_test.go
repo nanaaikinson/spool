@@ -83,13 +83,13 @@ func TestServerLogSearch(t *testing.T) {
 		"actor:admin level:info":          {"INFO signed in"},
 	}
 	for search, want := range cases {
-		got, e := s.ServerLogs(ctx, q(search), 0, 50)
+		got, e := s.ServerLogs(ctx, q(search), LogCursor{}, 50)
 		if e != nil || !reflect.DeepEqual(messages(got), want) {
 			t.Errorf("%q = %v, %v; want %v", search, messages(got), e, want)
 		}
 	}
 	// The range is start-inclusive and end-exclusive.
-	got, _ := s.ServerLogs(ctx, LogQuery{Start: base.Add(time.Minute), End: base.Add(3 * time.Minute)}, 0, 50)
+	got, _ := s.ServerLogs(ctx, LogQuery{Start: base.Add(time.Minute), End: base.Add(3 * time.Minute)}, LogCursor{}, 50)
 	if !reflect.DeepEqual(messages(got), []string{"ERROR request failed", "WARN cannot reach Redis yet"}) {
 		t.Errorf("range = %v", messages(got))
 	}
@@ -99,13 +99,30 @@ func TestServerLogPagingAroundAndHistogram(t *testing.T) {
 	s, base := openLogs(t)
 	ctx := context.Background()
 	all := LogQuery{Start: base.Add(-time.Hour), End: base.Add(time.Hour)}
-	first, e := s.ServerLogs(ctx, all, 0, 2)
+	first, e := s.ServerLogs(ctx, all, LogCursor{}, 2)
 	if e != nil || len(first.Data) != 2 || !first.HasMore {
 		t.Fatalf("first page = %+v, %v", first, e)
 	}
-	rest, e := s.ServerLogs(ctx, all, first.Data[1].ID, 10)
-	if e != nil || len(rest.Data) != 3 || rest.HasMore {
+	rest, e := s.ServerLogs(ctx, all, LogCursor{Before: first.Data[1].ID}, 10)
+	if e != nil || len(rest.Data) != 3 || rest.HasMore || !rest.HasNewer {
 		t.Fatalf("older page = %+v, %v", rest, e)
+	}
+	if first.HasNewer {
+		t.Fatal("newest page reports newer records")
+	}
+	// Reading forward from the oldest record returns the next ones, newest first.
+	newer, e := s.ServerLogs(ctx, all, LogCursor{After: rest.Data[2].ID}, 2)
+	if e != nil || !reflect.DeepEqual(messages(newer), []string{"ERROR request failed", "WARN cannot reach Redis yet"}) || !newer.HasNewer || !newer.HasMore {
+		t.Fatalf("newer page = %v %+v, %v", messages(newer), newer, e)
+	}
+	// A page at a time starts with the records logged just before it.
+	at, e := s.ServerLogs(ctx, all, LogCursor{At: base.Add(3 * time.Minute)}, 2)
+	if e != nil || !reflect.DeepEqual(messages(at), []string{"ERROR request failed", "WARN cannot reach Redis yet"}) || !at.HasNewer || !at.HasMore {
+		t.Fatalf("at page = %v %+v, %v", messages(at), at, e)
+	}
+	early, e := s.ServerLogs(ctx, all, LogCursor{At: base.Add(-time.Minute)}, 2)
+	if e != nil || len(early.Data) != 0 || !early.HasNewer || early.HasMore {
+		t.Fatalf("page before every record = %+v, %v", early, e)
 	}
 	around, e := s.LogsAround(ctx, rest.Data[0].ID, 1)
 	if e != nil || !reflect.DeepEqual(messages(around), []string{"ERROR request failed", "ERROR request failed", "WARN cannot reach Redis yet"}) {

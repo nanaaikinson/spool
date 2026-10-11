@@ -31,5 +31,7 @@ export const searchSchema = z.object({
   to: z.string().catch(""),
   log: z.coerce.number().int().min(0).catch(0),
   around: z.coerce.number().int().min(0).catch(0),
+  // Logs: list lines logged before this ISO time, keeping the range.
+  at: z.string().catch(""),
   live: z.boolean().catch(false),
 });

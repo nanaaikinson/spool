@@ -973,6 +973,9 @@
           "has_more": {
             "type": "boolean"
           },
+          "has_newer": {
+            "type": "boolean"
+          },
           "limit": {
             "type": "integer"
           }
@@ -980,7 +983,8 @@
         "required": [
           "data",
           "limit",
-          "has_more"
+          "has_more",
+          "has_newer"
         ],
         "type": "object"
       },
@@ -1840,6 +1844,26 @@
               "maximum": 2147483647,
               "minimum": 1,
               "type": "integer"
+            }
+          },
+          {
+            "description": "Return the records just newer than this record ID",
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "maximum": 2147483647,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "RFC3339 time; return records logged before it, newest first",
+            "in": "query",
+            "name": "at",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
