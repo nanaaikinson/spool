@@ -141,7 +141,10 @@ func TestOpenAppliesPragmasAndReopens(t *testing.T) {
 	if e != nil || list.Total != 1 {
 		t.Fatalf("after reopen: %+v, %v", list, e)
 	}
-	if _, e := Open(ctx, filepath.Join(t.TempDir(), "missing", "spool.db")); e == nil {
-		t.Fatal("opened a database in a missing directory")
+	// Missing directories are created along with the file.
+	nested, e := Open(ctx, filepath.Join(t.TempDir(), "missing", "dir", "spool.db"))
+	if e != nil {
+		t.Fatal(e)
 	}
+	nested.DB.Close()
 }

@@ -26,7 +26,7 @@ import (
 )
 
 func main() {
-	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{AddSource: true, ReplaceAttr: caller}))
 	if e := run(log); e != nil {
 		log.Error("startup failed", "reason", e.Error())
 		os.Exit(1)
@@ -47,7 +47,7 @@ func run(log *slog.Logger) error {
 	db, e := store.Open(startup, c.DatabasePath)
 	cancel()
 	if e != nil {
-		return fmt.Errorf("could not open the database or apply migrations; check that DATABASE_PATH is in a writable directory: %w", e)
+		return fmt.Errorf("could not open the database or apply migrations; check that DATABASE_PATH is writable: %w", e)
 	}
 	if db != nil {
 		defer db.DB.Close()
@@ -113,6 +113,14 @@ func run(log *slog.Logger) error {
 		return server.Shutdown(shutdown)
 	}
 	return nil
+}
+
+// caller replaces slog's source group with "caller": "/full/path/file.go:line".
+func caller(groups []string, a slog.Attr) slog.Attr {
+	if s, ok := a.Value.Any().(*slog.Source); ok && a.Key == slog.SourceKey && len(groups) == 0 {
+		return slog.String("caller", fmt.Sprintf("%s:%d", s.File, s.Line))
+	}
+	return a
 }
 
 // checkRedis reports early whether Spool can see the Asynq data. It never stops

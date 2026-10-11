@@ -459,6 +459,31 @@ func (s *disconnectedSource) Queues(context.Context) ([]domain.Queue, error) {
 	return nil, fmt.Errorf("redis://user:private-password@secret-host/0")
 }
 
+func TestFailureLogsCallerAndRedactsCredentials(t *testing.T) {
+	var out bytes.Buffer
+	a := testAPI(&disconnectedSource{})
+	a.Log = slog.New(slog.NewJSONHandler(&out, &slog.HandlerOptions{AddSource: true}))
+	if w := call(a.Handler(http.NotFoundHandler()), "GET", "/api/v1/queues", "", nil); w.Code != 503 {
+		t.Fatalf("status = %d", w.Code)
+	}
+	var entry struct {
+		Msg    string
+		Error  string
+		Source struct{ File string }
+	}
+	for _, line := range bytes.Split(bytes.TrimSpace(out.Bytes()), []byte("\n")) {
+		if json.Unmarshal(line, &entry) == nil && entry.Msg == "request failed" {
+			break
+		}
+	}
+	if entry.Msg != "request failed" || !strings.HasSuffix(entry.Source.File, "/internal/api/queues.go") {
+		t.Fatalf("caller = %q in %s", entry.Source.File, out.String())
+	}
+	if strings.Contains(entry.Error, "private-password") || !strings.Contains(entry.Error, "secret-host") {
+		t.Fatalf("error = %q", entry.Error)
+	}
+}
+
 func TestDeploymentDiagnostics(t *testing.T) {
 	a := testAPI(&fakeSource{})
 	a.Config.InstanceName, a.Config.Environment = "Acme operations", "production"

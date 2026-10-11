@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
+	"path/filepath"
 	"time"
 
 	cdb "github.com/nanaaikinson/chandlery/db"
@@ -51,11 +53,15 @@ type Store struct {
 	views  cdb.Repository[*viewModel]
 }
 
-// Open opens the SQLite database at path, creating the file when missing, and
-// applies migrations. An empty path returns a nil Store: Spool runs read-only.
+// Open opens the SQLite database at path, creating the file and its directory
+// when missing, and applies migrations. An empty path returns a nil Store:
+// Spool runs read-only.
 func Open(ctx context.Context, path string) (*Store, error) {
 	if path == "" {
 		return nil, nil
+	}
+	if e := os.MkdirAll(filepath.Dir(path), 0o700); e != nil {
+		return nil, e
 	}
 	// Pragmas go in the DSN so every connection gets them. Immediate
 	// transactions take the write lock up front instead of failing on upgrade.

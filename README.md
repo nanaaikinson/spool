@@ -135,7 +135,7 @@ The defaults below are for the standalone Go server. The installer provisions th
 | --- | --- | --- |
 | `SPOOL_ADDR` | HTTP listen address | `127.0.0.1:8088` |
 | `REDIS_URL` | Asynq connection URI, including DB index | `redis://127.0.0.1:6388/0` |
-| `DATABASE_PATH` | SQLite file for the audit log, saved views and schedule links, created if missing in an existing writable directory; without it Spool is read-only | unset |
+| `DATABASE_PATH` | SQLite file for the audit log, saved views and schedule links, created with its directory if missing; without it Spool is read-only | unset |
 | `REDIS_TLS_CA_FILE` | PEM file with the CA that signed your Redis server certificate | unset |
 | `REDIS_TLS_CERT_FILE`, `REDIS_TLS_KEY_FILE` | Client certificate and key for Redis mutual TLS | unset |
 | `PROMETHEUS_URL` | Prometheus base URL, with optional URI credentials | unset |

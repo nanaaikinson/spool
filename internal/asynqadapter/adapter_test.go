@@ -63,6 +63,9 @@ func TestRealRedisLifecycle(t *testing.T) {
 	inspector := asynq.NewInspector(opt)
 	defer inspector.Close()
 	defer inspector.DeleteQueue(q, true)
+	if _, e := a.Queue(ctx, q); !errors.Is(e, ErrNotFound) {
+		t.Fatalf("missing queue: %v", e)
+	}
 	var ids []string
 	for i := 0; i < 3; i++ {
 		task, e := a.client.EnqueueContext(ctx, asynq.NewTask("test:inspect", []byte("raw payload")), asynq.Queue(q))

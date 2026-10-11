@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -128,16 +129,26 @@ func (a *API) json(w http.ResponseWriter, v any) {
 }
 
 func (a *API) fail(w http.ResponseWriter, r *http.Request, status int, code, message string, cause error) {
-	if cause != nil {
-		a.Log.Error(
-			"request failed",
-			"request_id",
-			middleware.GetReqID(r.Context()),
-			"code",
-			code,
-			"error_type",
-			fmt.Sprintf("%T", cause),
+	a.reply(w, r, status, code, message, cause)
+}
+
+// urlCredentials matches the user info of URLs that dependency errors may echo.
+var urlCredentials = regexp.MustCompile(`://[^/@\s]+@`)
+
+// reply writes an error response, logging the cause against the handler that
+// called fail or failure. Both add exactly one frame above reply.
+func (a *API) reply(w http.ResponseWriter, r *http.Request, status int, code, message string, cause error) {
+	if cause != nil && a.Log.Enabled(r.Context(), slog.LevelError) {
+		var pcs [1]uintptr
+		runtime.Callers(3, pcs[:]) // runtime.Callers, reply, fail or failure
+		rec := slog.NewRecord(time.Now(), slog.LevelError, "request failed", pcs[0])
+		rec.AddAttrs(
+			slog.String("request_id", middleware.GetReqID(r.Context())),
+			slog.String("code", code),
+			slog.String("error", urlCredentials.ReplaceAllString(cause.Error(), "://REDACTED@")),
+			slog.String("error_type", fmt.Sprintf("%T", cause)),
 		)
+		_ = a.Log.Handler().Handle(r.Context(), rec)
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -170,7 +181,7 @@ var errAuditOutcome = errors.New("audit outcome unknown")
 func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 	switch {
 	case errors.Is(e, errAuditOutcome):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			500,
@@ -179,9 +190,9 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			e,
 		)
 	case errors.Is(e, asynqadapter.ErrNotFound):
-		a.fail(w, r, 404, "NOT_FOUND", "The queue or task no longer exists.", nil)
+		a.reply(w, r, 404, "NOT_FOUND", "The queue or task no longer exists.", nil)
 	case errors.Is(e, asynqadapter.ErrConflict):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			409,
@@ -190,7 +201,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			nil,
 		)
 	case errors.Is(e, asynqadapter.ErrCursor):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			422,
@@ -199,7 +210,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			nil,
 		)
 	case errors.Is(e, store.ErrUnavailable):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			503,
@@ -208,7 +219,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			e,
 		)
 	case errors.Is(e, metrics.ErrUnavailable):
-		a.fail(
+		a.reply(
 			w,
 			r,
 			503,
@@ -217,7 +228,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			e,
 		)
 	default:
-		a.fail(
+		a.reply(
 			w,
 			r,
 			503,

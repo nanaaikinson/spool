@@ -16,7 +16,6 @@ self-host: ## Guided self-hosted setup with optional bundled Prometheus
 test-install: ## Check self-hosted setup and Compose configuration without starting containers
 	python3 scripts/test-install.py
 dev: ## Run the API server, rebuilding on change with Air when installed
-	@mkdir -p tmp
 	@if command -v $(AIR) >/dev/null 2>&1; then \
 		$(AIR); \
 	else \
