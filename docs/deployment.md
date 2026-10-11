@@ -49,7 +49,7 @@ REDIS_URL=redis-sentinel://:URL_ENCODED_PASSWORD@sentinel-1.example.com:26379,se
 
 Percent-encode special characters in URI usernames/passwords, including `@`, `:`, `/`, `#`, and `%`. Use your provider's endpoint and TLS settings. Publicly trusted TLS certificates work with the image's CA bundle. For Redis behind a private CA, mount the CA file read-only and set `REDIS_TLS_CA_FILE` to its path; for mutual TLS also set `REDIS_TLS_CERT_FILE` and `REDIS_TLS_KEY_FILE`. These apply to `rediss://` and `redis-sentinel://` URLs. Redis Cluster is not supported yet.
 
-`DATABASE_PATH` names the SQLite file that holds the audit log, saved views and the links between tasks and the periodic schedules that enqueued them. Tasks remain in your Asynq Redis. Spool creates the file, and any missing directories, and runs its embedded migrations on startup; the location must be writable by the container's `spool` user, so no separate migration command is needed. The path must not contain `?` or `#`. Without `DATABASE_PATH`, Spool runs read-only: no audit log, saved views or schedule links, and every change is refused.
+`DATABASE_PATH` names the SQLite file that holds the audit log, saved views, the links between tasks and the periodic schedules that enqueued them, and Spool's own log lines for the Logs page (kept for `SPOOL_LOG_RETENTION`, `3d` by default). Tasks remain in your Asynq Redis. Spool creates the file, and any missing directories, and runs its embedded migrations on startup; the location must be writable by the container's `spool` user, so no separate migration command is needed. The path must not contain `?` or `#`. Without `DATABASE_PATH`, Spool runs read-only: no audit log, saved views, schedule links or Logs page history, and every change is refused.
 
 Run exactly one Spool instance per database file. Keep the file on local storage, not NFS, SMB or another network filesystem; SQLite relies on file locking those filesystems do not reliably provide.
 
@@ -138,7 +138,7 @@ Set `PROMETHEUS_URL` only if you have Prometheus. Its scrape target should reach
 
 The optional `compose.production.prometheus.yaml` already configures this target and persistent storage. Keep that service private without a published port. With external Prometheus, restrict its Spool queries/scrape targets to the intended Asynq environment; the current metric expressions do not distinguish multiple environments sharing queue names.
 
-Back up the database file and keep the `spool-data` volume. Keep the same Compose project name/resource across redeployments. Do not use `docker compose down -v` unless you intend to delete the audit log, saved views and periodic schedule links.
+Back up the database file and keep the `spool-data` volume. Keep the same Compose project name/resource across redeployments. Do not use `docker compose down -v` unless you intend to delete the audit log, saved views, periodic schedule links and server logs.
 
 After updates, rebuild/redeploy and verify `/ready` and the HTTPS login. `/health` only confirms the process is running; `/ready` checks Redis and, when configured, that the SQLite database opens. If startup fails, inspect logs for Redis reachability, a missing or unwritable database directory, or an invalid session key.
 

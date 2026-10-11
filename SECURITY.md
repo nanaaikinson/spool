@@ -17,7 +17,7 @@ Only the latest release receives security fixes while Spool is below 1.0.
 - Use long random values for passwords and `SPOOL_SESSION_KEY` (`openssl rand -hex 32`).
 - Keep `/metrics` off public ingress when no scrape token is configured. `SPOOL_METRICS_TOKEN` requires bearer authentication on that path; use an independent random token of at least 32 characters without whitespace. It does not grant access to console APIs.
 - Give Spool its own Redis credentials, and use `SPOOL_READ_ONLY=true` or a viewer account where people only need to look.
-- Restrict access to the SQLite database file and its volume with filesystem permissions; it holds the audit log.
+- Restrict access to the SQLite database file and its volume with filesystem permissions; it holds the audit log and Spool's own log lines, whose error details can name internal hosts. The Logs page is served only to the administrator account, and credentials in URLs are redacted before logging.
 
 ## Installation credentials and storage
 
@@ -25,7 +25,7 @@ The [guided installer](README.md#install-on-your-own-docker-host) generates sepa
 
 Configuration is passed to the Go server at runtime. Keep Redis and Prometheus credentials out of frontend configuration, Docker build arguments and baked images. Settings and connection URLs remain server-side. Separate deployments are required for distinct Asynq environments.
 
-The database lives in the `spool-data` named volume; bundled Prometheus has no published host port and uses its own persistent named volume. Database backups contain the audit log: keep them private. Without `SPOOL_METRICS_TOKEN`, the scrape path is unauthenticated even when the console requires sign-in. External Prometheus must contain only the intended environment's Asynq metrics; current queries do not isolate multiple environments sharing queue names.
+The database lives in the `spool-data` named volume; bundled Prometheus has no published host port and uses its own persistent named volume. Database backups contain the audit log and server logs: keep them private. Without `SPOOL_METRICS_TOKEN`, the scrape path is unauthenticated even when the console requires sign-in. External Prometheus must contain only the intended environment's Asynq metrics; current queries do not isolate multiple environments sharing queue names.
 
 After changing credentials, redeploy with the same configuration file and project name. Rotate `SPOOL_SESSION_KEY` to invalidate existing signed sessions. See [connection and account changes](docs/deployment.md#connection-and-account-changes) for the procedure.
 
