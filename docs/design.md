@@ -4,11 +4,13 @@ Spool is an incident console for Asynq operators. Neutral surfaces, inset cards,
 
 ## Layout
 
-A left sidebar groups pages under **Monitor** (Dashboard, Live activity, Metrics), **Tasks** (Queues, All tasks, Scheduled, Failed) and **Infrastructure** (Servers, Periodic schedules), with Settings, the signed-in account and a subtle environment and version line in the footer. Alt+1 to Alt+9 open the pages in sidebar order. The sidebar collapses to icons with ⌘B or Ctrl+B and becomes a sheet on phones.
+A left sidebar groups pages under **Monitor** (Dashboard, Live activity, Metrics, and Logs for the administrator only), **Tasks** (Queues, All tasks, Scheduled, Failed) and **Infrastructure** (Servers, Periodic schedules). The footer holds Settings, an account menu for the signed-in account (Settings & audit, Sign out) and a subtle environment and version line. Alt+1 to Alt+9 open the pages in sidebar order. The sidebar collapses to icons with ⌘B or Ctrl+B and becomes a sheet on phones.
 
 A sticky topbar holds the sidebar toggle, a breadcrumb for the current page, search (the command palette, ⌘K or Ctrl+K), the live connection status and the theme toggle. On phones the breadcrumb shows only the current page and the controls become icons.
 
 Pages follow one pattern: a heading with a one-line description and actions, an optional row of figures, then cards holding tables, lists or charts. The task page adds a status panel with a lifecycle line, a wide payload column and a narrow details column.
+
+The Logs page is denser: a search field with field:value syntax, a time range picker, a stacked level histogram (click a bar to jump to that time, Shift-click to zoom into it), then a virtualized table or JSON list beside a detail panel. Table rows have a fixed height so live lines can be added above without moving the reader; lines that arrive during live tail are briefly highlighted. `/` focuses search, `j`/`k` or the arrow keys move the selection, and Esc closes the detail panel. Viewers who open the page are told only the administrator can view logs.
 
 ## Installation and first sign-in
 

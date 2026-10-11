@@ -15,7 +15,7 @@ What Spool shows:
 - **Queues**, **All tasks**, **Scheduled** and **Failed** views, with payload and error inspection, retry/archive/delete/cancel/clone actions where the task state allows them, confirmed bulk actions, and saved views.
 - **Servers**: each Asynq server process, its queues and its busy worker slots.
 - **Periodic schedules**: cron specs with plain-English descriptions. Tasks link back to the schedule entry that enqueued them, and those links are kept in SQLite after Asynq drops its enqueue history.
-- **Logs**: Spool's own log lines for the administrator, with search, a level histogram you can click to jump to a time, live tail, table and JSON views, a virtualized list that loads older lines as you scroll (and newer ones on request), and a detail panel with lines around, same-message filtering and copy actions.
+- **Logs**: Spool's own log lines for the administrator, with search, a level histogram you can click to jump to a time, live tail, table and JSON views, a virtualized list that loads older lines as you scroll (and newer ones on request), keyboard navigation (`/` to search, `j`/`k` to move, Esc to close), and a detail panel with lines around, same-message filtering and copy actions.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
 ## Install on your own Docker host
@@ -38,7 +38,7 @@ The app is published on loopback only; bundled Prometheus has no published host 
 
 See the [deployment guide](docs/deployment.md) for upgrades, backups, connection changes, and manual Compose deployments.
 
-Settings now shows Redis, database and metrics collection checks. Set `SPOOL_INSTANCE_NAME` and `SPOOL_SUPPORT_URL` at runtime to identify the instance and provide a public support contact; these appear before sign-in. See [runtime metadata](docs/deployment.md#instance-identity-support-and-diagnostics).
+Settings shows Redis, database and metrics collection checks. Set `SPOOL_INSTANCE_NAME` and `SPOOL_SUPPORT_URL` at runtime to identify the instance and provide a public support contact; these appear before sign-in. See [runtime metadata](docs/deployment.md#instance-identity-support-and-diagnostics).
 
 ## Try the published image
 
@@ -148,6 +148,10 @@ The defaults below are for the standalone Go server. The installer provisions th
 | `SPOOL_SESSION_KEY` | Session signing secret; at least 32 characters when accounts are set | unset |
 | `SPOOL_SECURE_COOKIE` | HTTPS-only session cookie | `false` |
 | `SPOOL_LOG_RETENTION` | How long the Logs page keeps Spool's own log lines, such as `3d` or `36h` (1h to 365d) | `3d` |
+| `SPOOL_INSTANCE_NAME` | Public instance name shown before sign-in, at most 80 characters | `SPOOL_ENV` |
+| `SPOOL_SUPPORT_URL` | Public HTTPS or mailto support link shown before sign-in | unset |
+| `SPOOL_METRICS_JOB` | Prometheus scrape job checked by Settings diagnostics | `spool` |
+| `SPOOL_METRICS_TOKEN` | Bearer token required on `/metrics`; at least 32 characters, no whitespace | unset |
 
 Accounts are required when `SPOOL_ADDR` is not a loopback address. Use long random account passwords and a random signing secret. For remote access, use TLS termination and `SPOOL_SECURE_COOKIE=true`; the installer's localhost HTTP option uses `false`. Protect Redis with its own network and credentials, and the database file with filesystem permissions. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
 
@@ -175,6 +179,7 @@ make api-check     # Regenerate and compare the canonical contract and committed
 make lint          # go vet, ESLint, TypeScript
 make test          # Backend and frontend unit tests
 make build         # Build the web UI and the Go server and demo binaries
+make image         # Build the Docker image locally, tagged spool:VERSION
 make e2e           # Build the web UI and run the Playwright browser tests
 make test-install  # Installer and Compose checks; Python 3 + Docker Compose, no running containers
 (cd apps/web && pnpm exec prettier --write src e2e '*.ts')
@@ -189,10 +194,10 @@ SPOOL_TEST_REDIS=redis://127.0.0.1:6388/15 go test -race ./internal/...
 make e2e
 ```
 
-Playwright seeds only the `spool-e2e` queue in Redis database 15, starts isolated API instances on ports 8188/8189 and Vite on 5188, then tests themes, persistence, queue status tabs, task navigation, scheduled summaries, advanced filters, archive/retry, failures, a command palette, non-JSON payloads, mobile layout, session roles and saved-view creation/restoration/deletion. It also verifies shadcn Select keyboard navigation, filter restoration and validation, Checkbox selection, confirmation cancellation, clone forms and the mobile Sidebar/Sheet. It saves screenshots in `apps/web/test-results`. The CI workflow runs generation checks, lint/types, tests, builds and these essential browser workflows. Avoid parallel test suites sharing the same fixture queue.
+Playwright seeds only the `spool-e2e` queue in Redis database 15, starts isolated API instances on ports 8188/8189 and Vite on 5188, then tests themes, persistence, queue status tabs, task navigation, scheduled summaries, advanced filters, archive/retry, failures, a command palette, non-JSON payloads, mobile layout, session roles, the administrator-only Logs page (search, line detail, viewer restriction) and saved-view creation/restoration/deletion. It also verifies shadcn Select keyboard navigation, filter restoration and validation, Checkbox selection, confirmation cancellation, clone forms and the mobile Sidebar/Sheet. It saves screenshots in `apps/web/test-results`. The CI workflow runs generation checks, lint/types, tests, builds and these essential browser workflows. Avoid parallel test suites sharing the same fixture queue.
 
 Generated code lives in `apps/web/src/api/generated` and is disposable. Change domain DTOs and the endpoint registry in `internal/api/contract.go`, then regenerate. Do not edit or format generated files. TypeScript 6 is pinned because Hey API currently requires its JavaScript compiler API; TypeScript 7 is not compatible with this generator version.
 
-See [architecture and data provenance](docs/architecture.md) and [interface design](docs/design.md). The backend uses Chandlery's environment and Zog error helpers and `db.Repository[*Model]` for audit log and saved-view reads and writes, with Bun for migrations, audit finalization and schedule links.
+See [architecture and data provenance](docs/architecture.md) and [interface design](docs/design.md). The backend uses Chandlery's environment and Zog error helpers and `db.Repository[*Model]` for audit log and saved-view reads and writes, with Bun for migrations, audit finalization, schedule links and server logs. Pages are TanStack Router file routes in `apps/web/src/routes`.
 
 Upstream references: [Asynq Inspector](https://github.com/hibiken/asynq/blob/master/inspector.go), [native metrics collector](https://github.com/hibiken/asynq/tree/master/x/metrics), [Chandlery](https://github.com/nanaaikinson/chandlery), [Bun](https://bun.uptrace.dev/guide/), [Zog](https://zog.dev/), [Hey API](https://heyapi.dev/docs/openapi/typescript/), [TanStack Router](https://tanstack.com/router/latest/docs/), [TanStack Query](https://tanstack.com/query/latest/docs/framework/react/overview).
