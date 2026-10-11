@@ -11,6 +11,11 @@ services:
     networks:
       - default
     environment:
+      SPOOL_MULTI_ORG: ${SPOOL_MULTI_ORG:-false}
+      SPOOL_ORGANIZATION_NAME: ${SPOOL_ORGANIZATION_NAME:-My organization}
+      SPOOL_DATA_KEY: ${SPOOL_DATA_KEY:-}
+      SPOOL_METRICS_TOKEN: ${SPOOL_METRICS_TOKEN:-}
+      SPOOL_SETUP_TOKEN: ${SPOOL_SETUP_TOKEN:-}
       SPOOL_ADDR: 0.0.0.0:8080
       SPOOL_ENV: ${SPOOL_ENV:-production}
       SPOOL_INSTANCE_NAME: ${SPOOL_INSTANCE_NAME:-}
@@ -20,8 +25,8 @@ services:
       REDIS_URL: ${REDIS_URL:?Set REDIS_URL to your existing Asynq Redis URI}
       DATABASE_URL: postgres://spool:${POSTGRES_PASSWORD:?Set a URL-safe POSTGRES_PASSWORD}@postgres:5432/spool?sslmode=disable
       PROMETHEUS_URL: ${PROMETHEUS_URL:-}
-      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER:-admin}
-      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:?Set SPOOL_ADMIN_PASSWORD}
+      SPOOL_ADMIN_USER: ${SPOOL_ADMIN_USER-admin}
+      SPOOL_ADMIN_PASSWORD: ${SPOOL_ADMIN_PASSWORD:-}
       SPOOL_SESSION_KEY: ${SPOOL_SESSION_KEY:?Set a signing key of at least 32 characters}
       SPOOL_VIEWER_USER: ${SPOOL_VIEWER_USER:-}
       SPOOL_VIEWER_PASSWORD: ${SPOOL_VIEWER_PASSWORD:-}

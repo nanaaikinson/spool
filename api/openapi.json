@@ -42,6 +42,35 @@
         ],
         "type": "object"
       },
+      "AdministrationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "grant",
+              "revoke",
+              "transfer"
+            ],
+            "type": "string"
+          },
+          "confirm": {
+            "enum": [
+              true
+            ],
+            "type": "boolean"
+          },
+          "current_password": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "action",
+          "current_password",
+          "confirm"
+        ],
+        "type": "object"
+      },
       "Audit": {
         "additionalProperties": false,
         "properties": {
@@ -396,7 +425,8 @@
         "additionalProperties": false,
         "properties": {
           "password": {
-            "type": "string"
+            "type": "string",
+            "writeOnly": true
           },
           "username": {
             "type": "string"
@@ -405,6 +435,93 @@
         "required": [
           "username",
           "password"
+        ],
+        "type": "object"
+      },
+      "Member": {
+        "additionalProperties": false,
+        "properties": {
+          "disabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "operator",
+              "viewer"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "role",
+          "disabled"
+        ],
+        "type": "object"
+      },
+      "MemberList": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Member"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "MemberRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "role": {
+            "enum": [
+              "admin",
+              "operator",
+              "viewer"
+            ],
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password",
+          "role"
+        ],
+        "type": "object"
+      },
+      "MemberRoleRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "role": {
+            "enum": [
+              "admin",
+              "operator",
+              "viewer"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
         ],
         "type": "object"
       },
@@ -475,6 +592,80 @@
         ],
         "type": "object"
       },
+      "Organization": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "OrganizationList": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Organization"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "OrganizationNameRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "type": "object"
+      },
+      "OrganizationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "prometheus_url": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "redis_url": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "name",
+          "redis_url",
+          "prometheus_url"
+        ],
+        "type": "object"
+      },
       "Overview": {
         "additionalProperties": false,
         "properties": {
@@ -528,6 +719,24 @@
           "has_more",
           "total",
           "scope"
+        ],
+        "type": "object"
+      },
+      "PasswordRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "current_password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "current_password",
+          "password"
         ],
         "type": "object"
       },
@@ -868,6 +1077,22 @@
           "instance_name": {
             "type": "string"
           },
+          "managed": {
+            "type": "boolean"
+          },
+          "organization": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Organization"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "platform_admin": {
+            "type": "boolean"
+          },
           "read_only": {
             "type": "boolean"
           },
@@ -877,10 +1102,14 @@
           "role": {
             "enum": [
               "admin",
+              "operator",
               "viewer",
               ""
             ],
             "type": "string"
+          },
+          "setup_required": {
+            "type": "boolean"
           },
           "support_url": {
             "type": "string"
@@ -890,6 +1119,10 @@
           }
         },
         "required": [
+          "managed",
+          "setup_required",
+          "platform_admin",
+          "organization",
           "authenticated",
           "auth_required",
           "actor",
@@ -901,6 +1134,44 @@
           "version",
           "read_only",
           "read_only_reason"
+        ],
+        "type": "object"
+      },
+      "SetupRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "organization": {
+            "$ref": "#/components/schemas/OrganizationRequest"
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "token": {
+            "type": "string",
+            "writeOnly": true
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "organization",
+          "username",
+          "password"
+        ],
+        "type": "object"
+      },
+      "SwitchOrganizationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
         ],
         "type": "object"
       },
@@ -1190,6 +1461,74 @@
         ],
         "type": "object"
       },
+      "User": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "disabled": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "platform_admin": {
+            "type": "boolean"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "disabled",
+          "platform_admin",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "UserList": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/User"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "type": "object"
+      },
+      "UserUpdateRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "disabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "password": {
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "disabled",
+          "password"
+        ],
+        "type": "object"
+      },
       "ViewList": {
         "additionalProperties": false,
         "properties": {
@@ -1283,10 +1622,162 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/account/password": {
+      "post": {
+        "operationId": "changePassword",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Change own password and revoke sessions",
+        "tags": [
+          "account"
+        ]
+      }
+    },
     "/api/v1/audit": {
       "get": {
         "operationId": "listAudit",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Page number, starting at 1",
             "in": "query",
@@ -1421,7 +1912,26 @@
     "/api/v1/events": {
       "get": {
         "operationId": "events",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Organization ID for EventSource clients; membership is verified on every stream update",
+            "in": "query",
+            "name": "organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1534,6 +2044,15 @@
       "get": {
         "operationId": "listErrorGroups",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Optional queue scope",
             "in": "query",
@@ -1663,10 +2182,589 @@
         ]
       }
     },
+    "/api/v1/members": {
+      "get": {
+        "operationId": "listMembers",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberList"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Members of the selected organization (organization administrator)",
+        "tags": [
+          "members"
+        ]
+      },
+      "post": {
+        "operationId": "addMember",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Create a user or add an existing user to this organization",
+        "tags": [
+          "members"
+        ]
+      }
+    },
+    "/api/v1/members/{id}": {
+      "delete": {
+        "operationId": "removeMember",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Validated resource identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Remove a membership",
+        "tags": [
+          "members"
+        ]
+      },
+      "patch": {
+        "operationId": "changeMember",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Validated resource identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberRoleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Change a member's organization role",
+        "tags": [
+          "members"
+        ]
+      }
+    },
     "/api/v1/metrics": {
       "get": {
         "operationId": "metricsHealth",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -1779,6 +2877,15 @@
       "get": {
         "operationId": "queryMetric",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "",
             "in": "query",
@@ -1920,6 +3027,15 @@
       "get": {
         "operationId": "queryMetricRange",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "",
             "in": "query",
@@ -2086,10 +3202,569 @@
         ]
       }
     },
+    "/api/v1/organization": {
+      "patch": {
+        "operationId": "renameOrganization",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationNameRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Rename the selected organization",
+        "tags": [
+          "organization"
+        ]
+      }
+    },
+    "/api/v1/organization/connection": {
+      "put": {
+        "operationId": "updateOrganizationConnection",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Replace selected organization connection (deployment administrator)",
+        "tags": [
+          "organization"
+        ]
+      }
+    },
+    "/api/v1/organizations": {
+      "get": {
+        "operationId": "listOrganizations",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationList"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Organizations accessible to the signed-in user",
+        "tags": [
+          "organizations"
+        ]
+      },
+      "post": {
+        "operationId": "createOrganization",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Create an organization (deployment administrator)",
+        "tags": [
+          "organizations"
+        ]
+      }
+    },
     "/api/v1/overview": {
       "get": {
         "operationId": "getOverview",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2201,7 +3876,17 @@
     "/api/v1/queues": {
       "get": {
         "operationId": "listQueues",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2314,6 +3999,15 @@
       "get": {
         "operationId": "getQueue",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Validated resource identifier",
             "in": "path",
@@ -2438,6 +4132,15 @@
       "post": {
         "operationId": "pauseQueue",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Validated resource identifier",
             "in": "path",
@@ -2584,6 +4287,15 @@
         "operationId": "resumeQueue",
         "parameters": [
           {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Validated resource identifier",
             "in": "path",
             "name": "queue",
@@ -2727,7 +4439,17 @@
     "/api/v1/schedulers": {
       "get": {
         "operationId": "listSchedulers",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2839,7 +4561,17 @@
     "/api/v1/servers": {
       "get": {
         "operationId": "listServers",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2952,6 +4684,15 @@
       "delete": {
         "operationId": "logout",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "X-Spool-Action",
@@ -3314,10 +5055,298 @@
         ]
       }
     },
+    "/api/v1/session/organization": {
+      "post": {
+        "operationId": "switchOrganization",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SwitchOrganizationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Select an accessible organization",
+        "tags": [
+          "session"
+        ]
+      }
+    },
+    "/api/v1/setup": {
+      "post": {
+        "operationId": "setup",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Organization"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "security": [],
+        "summary": "Create the first organization and deployment administrator",
+        "tags": [
+          "setup"
+        ]
+      }
+    },
     "/api/v1/status": {
       "get": {
         "operationId": "getDeploymentStatus",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -3430,6 +5459,15 @@
       "get": {
         "operationId": "listTasks",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Queue name; combine with id for direct lookup",
             "in": "query",
@@ -3639,6 +5677,15 @@
         "operationId": "bulkAction",
         "parameters": [
           {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "header",
             "name": "X-Spool-Action",
             "required": true,
@@ -3772,6 +5819,15 @@
       "delete": {
         "operationId": "deleteTask",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Validated resource identifier",
             "in": "path",
@@ -3927,6 +5983,15 @@
         "operationId": "getTask",
         "parameters": [
           {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Validated resource identifier",
             "in": "path",
             "name": "queue",
@@ -4061,6 +6126,15 @@
       "post": {
         "operationId": "archiveTask",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Validated resource identifier",
             "in": "path",
@@ -4218,6 +6292,15 @@
         "operationId": "cancelTask",
         "parameters": [
           {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Validated resource identifier",
             "in": "path",
             "name": "queue",
@@ -4373,6 +6456,15 @@
       "post": {
         "operationId": "cloneTask",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Validated resource identifier",
             "in": "path",
@@ -4530,6 +6622,15 @@
         "operationId": "retryTask",
         "parameters": [
           {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Validated resource identifier",
             "in": "path",
             "name": "queue",
@@ -4681,10 +6782,450 @@
         ]
       }
     },
+    "/api/v1/users": {
+      "get": {
+        "operationId": "listUsers",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserList"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Deployment accounts (deployment administrator)",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}": {
+      "patch": {
+        "operationId": "updateUser",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Validated resource identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Disable or reset an account (deployment administrator)",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/api/v1/users/{id}/administration": {
+      "post": {
+        "operationId": "changeAdministration",
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Validated resource identifier",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Spool-Action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "confirmed"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdministrationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OK"
+                }
+              }
+            },
+            "description": "Successful response"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Malformed request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Authentication required"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Insufficient permission"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Resource not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "State conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Request limit reached"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal failure"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Dependency unavailable"
+          }
+        },
+        "summary": "Grant, revoke or transfer deployment administration",
+        "tags": [
+          "users"
+        ]
+      }
+    },
     "/api/v1/views": {
       "get": {
         "operationId": "listViews",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4795,6 +7336,15 @@
       "post": {
         "operationId": "saveView",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "in": "header",
             "name": "X-Spool-Action",
@@ -4929,6 +7479,15 @@
       "delete": {
         "operationId": "deleteView",
         "parameters": [
+          {
+            "description": "Organization ID; defaults to the signed session selection. Membership is checked on every request.",
+            "in": "header",
+            "name": "X-Spool-Organization",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
           {
             "description": "Validated resource identifier",
             "in": "path",

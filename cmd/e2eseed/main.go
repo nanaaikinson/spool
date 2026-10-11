@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -9,9 +10,28 @@ import (
 	"time"
 
 	"github.com/hibiken/asynq"
+	"github.com/nanaaikinson/spool/internal/store"
 )
 
 func main() {
+	identity := flag.Bool("identity", false, "reset the isolated browser identity schema")
+	flag.Parse()
+	if *identity {
+		dsn := os.Getenv("SPOOL_TEST_DATABASE")
+		if dsn == "" {
+			log.Fatal("SPOOL_TEST_DATABASE is required for isolated identity fixtures")
+		}
+		db, e := store.Open(context.Background(), dsn)
+		if e != nil {
+			log.Fatal("could not open browser test database")
+		}
+		defer db.DB.Close()
+		if _, e := db.DB.ExecContext(context.Background(), "DROP SCHEMA IF EXISTS spool_e2e_identity CASCADE; CREATE SCHEMA spool_e2e_identity"); e != nil {
+			log.Fatal("could not reset browser identity schema")
+		}
+		return
+	}
+
 	address := os.Getenv("SPOOL_TEST_REDIS")
 	if address == "" || !strings.HasSuffix(address, "/15") {
 		log.Fatal("SPOOL_TEST_REDIS must select the dedicated test database 15 (for example redis://127.0.0.1:6388/15)")

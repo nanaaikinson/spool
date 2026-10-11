@@ -22,8 +22,10 @@ class InstallationTest(unittest.TestCase):
         # Installation configuration must win over inherited development values.
         self.environment.update(REDIS_URL="redis://wrong:6379/9", SPOOL_SESSION_KEY="wrong")
 
-    def install(self, answers="", configure=True, success=True):
+    def install(self, answers="", configure=True, success=True, browser=False):
         command = ["bash", str(ROOT / "scripts/install.sh"), "--env-file", str(self.config)]
+        if browser:
+            command.append("--browser-setup")
         if configure:
             command.append("--configure-only")
         result = subprocess.run(command, input=answers, text=True, capture_output=True,
@@ -69,7 +71,7 @@ class InstallationTest(unittest.TestCase):
     def test_bundled_services_literal_credentials_and_rerun(self):
         marker = self.directory / "should-not-exist"
         redis = f"rediss://spool:$SECRET$(touch {marker})`id`#pass@redis.example:6380/2"
-        output = self.install(redis + "\n" * 6)
+        output = self.install(redis + "\n" * 7)
         self.assertNotIn(redis, output)
         self.assertFalse(marker.exists())
         self.assertEqual(self.config.stat().st_mode & 0o777, 0o600)
@@ -80,8 +82,11 @@ class InstallationTest(unittest.TestCase):
         self.assertEqual(settings["PROMETHEUS_URL"], "http://prometheus:9090")
         self.assertEqual(settings["SPOOL_SECURE_COOKIE"], "false")
         self.assertEqual(settings["SPOOL_ENV"], "production")
+        self.assertEqual(settings["SPOOL_MULTI_ORG"], "true")
+        self.assertEqual(settings["SPOOL_METRICS_TOKEN"], services["prometheus"]["environment"]["SPOOL_METRICS_TOKEN"])
+        self.assertEqual(settings["SPOOL_ORGANIZATION_NAME"], "My organization")
         self.assertTrue(all(len(settings[key]) >= 32 for key in
-                            ("SPOOL_ADMIN_PASSWORD", "SPOOL_SESSION_KEY")))
+                            ("SPOOL_ADMIN_PASSWORD", "SPOOL_SESSION_KEY", "SPOOL_DATA_KEY", "SPOOL_SETUP_TOKEN", "SPOOL_METRICS_TOKEN")))
         self.assertNotEqual(settings["SPOOL_ADMIN_PASSWORD"], settings["SPOOL_SESSION_KEY"])
         self.assertIn("://spool:" + services["postgres"]["environment"]["POSTGRES_PASSWORD"] + "@",
                       settings["DATABASE_URL"])
@@ -101,7 +106,7 @@ class InstallationTest(unittest.TestCase):
         postgres = "postgres://spool:pa$ss@postgres.example:5432/spool?sslmode=verify-full"
         metrics = "https://metrics.example"
         self.install("\n".join(["redis://redis.example:6379/3", "external", postgres,
-                                "external", metrics, "owner", "8090", "https://spool.example", ""]))
+                                "external", metrics, "owner", "8090", "https://spool.example", "Acme operations", ""]))
         services = self.model()["services"]
         self.assertEqual(set(services), {"app"})
         settings = services["app"]["environment"]
@@ -121,10 +126,10 @@ class InstallationTest(unittest.TestCase):
         self.assertEqual(self.config.read_bytes(), original)
 
     def test_mixed_services(self):
-        self.install("redis://redis.example:6379/0\nexternal\npostgres://spool:secret@db.example/spool\n" + "\n" * 4)
+        self.install("redis://redis.example:6379/0\nexternal\npostgres://spool:secret@db.example/spool\n" + "\n" * 5)
         self.assertEqual(set(self.model()["services"]), {"app", "prometheus"})
         self.config.unlink()
-        self.install("redis://redis.example:6379/0\n\nexternal\nhttp://metrics.example:9090\n" + "\n" * 3)
+        self.install("redis://redis.example:6379/0\n\nexternal\nhttp://metrics.example:9090\n" + "\n" * 4)
         self.assertEqual(set(self.model()["services"]), {"app", "postgres"})
 
     def test_remote_http_and_incomplete_input_do_not_save(self):
@@ -132,6 +137,15 @@ class InstallationTest(unittest.TestCase):
         self.assertFalse(self.config.exists())
         self.install("redis://redis.example:6379/0\n", success=False)
         self.assertFalse(self.config.exists())
+
+    def test_browser_setup_preserves_private_bootstrap_token(self):
+        self.install("redis://redis.example:6379/0" + "\n" * 5, browser=True)
+        settings = self.model()["services"]["app"]["environment"]
+        self.assertEqual(settings["SPOOL_ADMIN_USER"], "")
+        self.assertEqual(settings["SPOOL_ADMIN_PASSWORD"], "")
+        self.assertEqual(settings["SPOOL_MULTI_ORG"], "true")
+        self.assertGreaterEqual(len(settings["SPOOL_SETUP_TOKEN"]), 32)
+        self.assertNotEqual(settings["SPOOL_SETUP_TOKEN"], settings["SPOOL_DATA_KEY"])
 
     def test_existing_configuration_and_symlinks_are_not_overwritten(self):
         self.config.write_text("SPOOL_ADMIN_PASSWORD=keep-me\n")

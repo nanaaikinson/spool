@@ -16,7 +16,8 @@ import { useSession } from "./session";
 /** Only public deployment metadata belongs here; connections stay server-side. */
 export function InstanceIdentity({ session }: { session?: Session }) {
   if (!session) return null;
-  const name = session.instance_name || session.environment;
+  const name =
+    session.organization?.name || session.instance_name || session.environment;
   return (
     <span
       className="grid min-w-0 text-left leading-tight"
@@ -60,7 +61,9 @@ export function DeploymentHelp({
       .
       {account &&
         !hosted &&
-        " If you installed Spool, use the account saved in your private installation configuration."}
+        (session?.managed
+          ? " A deployment administrator can reset your password. If you operate this deployment and cannot sign in, use administrator recovery from the host."
+          : " If you installed Spool, use the account saved in your private installation configuration.")}
     </span>
   );
 }

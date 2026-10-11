@@ -34,5 +34,8 @@ jobs:
       - run: make install
       - run: make test-install test-hosted
       - run: make api-check lint test build
+      - name: Build the production image for the hosted rehearsal
+        run: docker build --build-arg VERSION=ci -t spool:hosted-ci .
+      - run: make smoke-hosted HOSTED_IMAGE=spool:hosted-ci
       - run: cd apps/web && pnpm exec playwright install --with-deps chromium
       - run: cd apps/web && pnpm exec playwright test

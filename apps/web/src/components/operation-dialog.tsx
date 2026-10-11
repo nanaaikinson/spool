@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { ReactNode, RefObject } from "react";
 import {
   Dialog,
   DialogContent,
@@ -25,6 +25,7 @@ export function OperationDialog({
   description,
   children,
   kind = "confirm",
+  finalFocus,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -32,6 +33,7 @@ export function OperationDialog({
   description: string;
   children: ReactNode;
   kind?: "confirm" | "form";
+  finalFocus?: RefObject<HTMLElement | null>;
 }) {
   const session = useSession();
   const identity = (
@@ -42,7 +44,7 @@ export function OperationDialog({
   if (kind === "form")
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent>
+        <DialogContent finalFocus={finalFocus}>
           <DialogHeader>
             {identity}
             <DialogTitle>{title}</DialogTitle>
@@ -54,7 +56,7 @@ export function OperationDialog({
     );
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
+      <AlertDialogContent finalFocus={finalFocus}>
         <AlertDialogHeader>
           {identity}
           <AlertDialogTitle>{title}</AlertDialogTitle>

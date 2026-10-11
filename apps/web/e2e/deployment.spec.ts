@@ -6,6 +6,10 @@ import type {
 } from "../src/api/generated/types.gen";
 
 const session: Session = {
+  managed: false,
+  setup_required: false,
+  platform_admin: false,
+  organization: null,
   authenticated: true,
   auth_required: true,
   actor: "admin",
@@ -96,14 +100,12 @@ test("hosted diagnostics, first samples, empty queues and mobile identity", asyn
   await expect(
     page.getByRole("link", { name: "Contact support" }).first(),
   ).toHaveAttribute("href", session.support_url);
-  const section = page
-    .locator('[data-slot="card"]')
-    .filter({
-      has: page.getByRole("heading", {
-        name: "Connection status",
-        exact: true,
-      }),
-    });
+  const section = page.locator('[data-slot="card"]').filter({
+    has: page.getByRole("heading", {
+      name: "Connection status",
+      exact: true,
+    }),
+  });
   metrics = {
     ...health,
     scrape_status: "down",
