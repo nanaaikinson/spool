@@ -95,14 +95,12 @@ test("diagnostics, first samples, empty queues and mobile identity", async ({
   await expect(
     page.getByRole("link", { name: "Contact your operator" }).first(),
   ).toHaveAttribute("href", session.support_url);
-  const section = page
-    .locator('[data-slot="card"]')
-    .filter({
-      has: page.getByRole("heading", {
-        name: "Connection status",
-        exact: true,
-      }),
-    });
+  const section = page.locator('[data-slot="card"]').filter({
+    has: page.getByRole("heading", {
+      name: "Connection status",
+      exact: true,
+    }),
+  });
   metrics = {
     ...health,
     scrape_status: "down",
