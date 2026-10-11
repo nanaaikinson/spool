@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { AddMemberData, AddMemberErrors, AddMemberResponses, ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, ChangeAdministrationData, ChangeAdministrationErrors, ChangeAdministrationResponses, ChangeMemberData, ChangeMemberErrors, ChangeMemberResponses, ChangePasswordData, ChangePasswordErrors, ChangePasswordResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, CreateOrganizationData, CreateOrganizationErrors, CreateOrganizationResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListOrganizationsData, ListOrganizationsErrors, ListOrganizationsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListUsersData, ListUsersErrors, ListUsersResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RenameOrganizationData, RenameOrganizationErrors, RenameOrganizationResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses, SetupData, SetupErrors, SetupResponses, SwitchOrganizationData, SwitchOrganizationErrors, SwitchOrganizationResponses, UpdateOrganizationConnectionData, UpdateOrganizationConnectionErrors, UpdateOrganizationConnectionResponses, UpdateUserData, UpdateUserErrors, UpdateUserResponses } from './types.gen';
+import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -17,23 +17,6 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
      */
     meta?: keyof ClientMeta extends never ? Record<string, unknown> : ClientMeta;
 };
-
-/**
- * Change own password and revoke sessions
- */
-export const changePassword = <ThrowOnError extends boolean = false>(options: Options<ChangePasswordData, ThrowOnError>): RequestResult<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError> => (options.client ?? client).post<ChangePasswordResponses, ChangePasswordErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/account/password',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
 
 /**
  * Administrative audit intents, newest first
@@ -75,70 +58,6 @@ export const listErrorGroups = <ThrowOnError extends boolean = false>(options?: 
 });
 
 /**
- * Members of the selected organization (organization administrator)
- */
-export const listMembers = <ThrowOnError extends boolean = false>(options?: Options<ListMembersData, ThrowOnError>): RequestResult<ListMembersResponses, ListMembersErrors, ThrowOnError> => (options?.client ?? client).get<ListMembersResponses, ListMembersErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/members',
-    ...options
-});
-
-/**
- * Create a user or add an existing user to this organization
- */
-export const addMember = <ThrowOnError extends boolean = false>(options: Options<AddMemberData, ThrowOnError>): RequestResult<AddMemberResponses, AddMemberErrors, ThrowOnError> => (options.client ?? client).post<AddMemberResponses, AddMemberErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/members',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Remove a membership
- */
-export const removeMember = <ThrowOnError extends boolean = false>(options: Options<RemoveMemberData, ThrowOnError>): RequestResult<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError> => (options.client ?? client).delete<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/members/{id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Change a member's organization role
- */
-export const changeMember = <ThrowOnError extends boolean = false>(options: Options<ChangeMemberData, ThrowOnError>): RequestResult<ChangeMemberResponses, ChangeMemberErrors, ThrowOnError> => (options.client ?? client).patch<ChangeMemberResponses, ChangeMemberErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/members/{id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Historical metrics availability
  */
 export const metricsHealth = <ThrowOnError extends boolean = false>(options?: Options<MetricsHealthData, ThrowOnError>): RequestResult<MetricsHealthResponses, MetricsHealthErrors, ThrowOnError> => (options?.client ?? client).get<MetricsHealthResponses, MetricsHealthErrors, ThrowOnError>({
@@ -175,70 +94,6 @@ export const queryMetricRange = <ThrowOnError extends boolean = false>(options: 
         }],
     url: '/api/v1/metrics/query-range',
     ...options
-});
-
-/**
- * Rename the selected organization
- */
-export const renameOrganization = <ThrowOnError extends boolean = false>(options: Options<RenameOrganizationData, ThrowOnError>): RequestResult<RenameOrganizationResponses, RenameOrganizationErrors, ThrowOnError> => (options.client ?? client).patch<RenameOrganizationResponses, RenameOrganizationErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/organization',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Replace selected organization connection (deployment administrator)
- */
-export const updateOrganizationConnection = <ThrowOnError extends boolean = false>(options: Options<UpdateOrganizationConnectionData, ThrowOnError>): RequestResult<UpdateOrganizationConnectionResponses, UpdateOrganizationConnectionErrors, ThrowOnError> => (options.client ?? client).put<UpdateOrganizationConnectionResponses, UpdateOrganizationConnectionErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/organization/connection',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Organizations accessible to the signed-in user
- */
-export const listOrganizations = <ThrowOnError extends boolean = false>(options?: Options<ListOrganizationsData, ThrowOnError>): RequestResult<ListOrganizationsResponses, ListOrganizationsErrors, ThrowOnError> => (options?.client ?? client).get<ListOrganizationsResponses, ListOrganizationsErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/organizations',
-    ...options
-});
-
-/**
- * Create an organization (deployment administrator)
- */
-export const createOrganization = <ThrowOnError extends boolean = false>(options: Options<CreateOrganizationData, ThrowOnError>): RequestResult<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError> => (options.client ?? client).post<CreateOrganizationResponses, CreateOrganizationErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/organizations',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
 });
 
 /**
@@ -367,35 +222,6 @@ export const getSession = <ThrowOnError extends boolean = false>(options?: Optio
  */
 export const login = <ThrowOnError extends boolean = false>(options: Options<LoginData, ThrowOnError>): RequestResult<LoginResponses, LoginErrors, ThrowOnError> => (options.client ?? client).post<LoginResponses, LoginErrors, ThrowOnError>({
     url: '/api/v1/session',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Select an accessible organization
- */
-export const switchOrganization = <ThrowOnError extends boolean = false>(options: Options<SwitchOrganizationData, ThrowOnError>): RequestResult<SwitchOrganizationResponses, SwitchOrganizationErrors, ThrowOnError> => (options.client ?? client).post<SwitchOrganizationResponses, SwitchOrganizationErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/session/organization',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Create the first organization and deployment administrator
- */
-export const setup = <ThrowOnError extends boolean = false>(options: Options<SetupData, ThrowOnError>): RequestResult<SetupResponses, SetupErrors, ThrowOnError> => (options.client ?? client).post<SetupResponses, SetupErrors, ThrowOnError>({
-    url: '/api/v1/setup',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -537,53 +363,6 @@ export const retryTask = <ThrowOnError extends boolean = false>(options: Options
             type: 'apiKey'
         }],
     url: '/api/v1/tasks/{queue}/{id}/retry',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Deployment accounts (deployment administrator)
- */
-export const listUsers = <ThrowOnError extends boolean = false>(options?: Options<ListUsersData, ThrowOnError>): RequestResult<ListUsersResponses, ListUsersErrors, ThrowOnError> => (options?.client ?? client).get<ListUsersResponses, ListUsersErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/users',
-    ...options
-});
-
-/**
- * Disable or reset an account (deployment administrator)
- */
-export const updateUser = <ThrowOnError extends boolean = false>(options: Options<UpdateUserData, ThrowOnError>): RequestResult<UpdateUserResponses, UpdateUserErrors, ThrowOnError> => (options.client ?? client).patch<UpdateUserResponses, UpdateUserErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/users/{id}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Grant, revoke or transfer deployment administration
- */
-export const changeAdministration = <ThrowOnError extends boolean = false>(options: Options<ChangeAdministrationData, ThrowOnError>): RequestResult<ChangeAdministrationResponses, ChangeAdministrationErrors, ThrowOnError> => (options.client ?? client).post<ChangeAdministrationResponses, ChangeAdministrationErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'spool_session',
-            type: 'apiKey'
-        }],
-    url: '/api/v1/users/{id}/administration',
     ...options,
     headers: {
         'Content-Type': 'application/json',

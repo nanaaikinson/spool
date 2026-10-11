@@ -214,27 +214,3 @@ func TestDeploymentMetadata(t *testing.T) {
 		}
 	}
 }
-
-func TestManagedConfiguration(t *testing.T) {
-	t.Setenv("SPOOL_MULTI_ORG", "true")
-	t.Setenv("SPOOL_METRICS_TOKEN", strings.Repeat("m", 32))
-	t.Setenv("SPOOL_ADDR", "0.0.0.0:8080")
-	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
-	t.Setenv("SPOOL_DATA_KEY", strings.Repeat("d", 32))
-	t.Setenv("SPOOL_SESSION_KEY", strings.Repeat("s", 32))
-	t.Setenv("SPOOL_SETUP_TOKEN", strings.Repeat("t", 32))
-	t.Setenv("SPOOL_ADMIN_USER", "")
-	t.Setenv("SPOOL_ADMIN_PASSWORD", "")
-	c, e := Load()
-	if e != nil || !c.MultiOrg {
-		t.Fatal("browser setup config", e)
-	}
-	for _, key := range []string{"DATABASE_URL", "SPOOL_DATA_KEY", "SPOOL_SESSION_KEY", "SPOOL_METRICS_TOKEN"} {
-		value := os.Getenv(key)
-		t.Setenv(key, "")
-		if _, e := Load(); e == nil {
-			t.Fatal("missing managed secret accepted", key)
-		}
-		t.Setenv(key, value)
-	}
-}

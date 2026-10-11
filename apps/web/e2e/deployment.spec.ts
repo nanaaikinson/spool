@@ -6,10 +6,6 @@ import type {
 } from "../src/api/generated/types.gen";
 
 const session: Session = {
-  managed: false,
-  setup_required: false,
-  platform_admin: false,
-  organization: null,
   authenticated: true,
   auth_required: true,
   actor: "admin",

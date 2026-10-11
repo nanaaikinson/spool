@@ -1,4 +1,3 @@
-import { AccessSettings } from "./access";
 import {
   Meter,
   PageHeader,
@@ -387,19 +386,13 @@ export function SettingsPage() {
         />
         <StatTile
           label="Access"
-          value={
-            session.data?.role === "admin"
-              ? "Full access"
-              : session.data?.role === "operator"
-                ? "Operator"
-                : "Read only"
-          }
+          value={session.data?.role === "admin" ? "Full access" : "Read only"}
           detail={
             noDatabase
               ? "No database configured"
               : session.data?.read_only_reason === "configured"
                 ? "Read-only mode is on"
-                : session.data?.role !== "viewer"
+                : session.data?.role === "admin"
                   ? "Can pause queues and act on tasks"
                   : "Can view, but not change"
           }
@@ -418,7 +411,6 @@ export function SettingsPage() {
           detail={<DeploymentHelp session={session.data} />}
         />
       </div>
-      <AccessSettings />
       <ConnectionDiagnostics />
       <Section>
         <SectionHeader
@@ -474,12 +466,7 @@ export function SettingsPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      disabled={
-                        !(
-                          session.data?.role === "admin" ||
-                          session.data?.role === "operator"
-                        )
-                      }
+                      disabled={session.data?.role !== "admin"}
                       onClick={() => setDeleteID(v.id)}
                       aria-label={`Delete ${v.name}`}
                     >

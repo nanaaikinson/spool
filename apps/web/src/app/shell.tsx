@@ -18,16 +18,8 @@ import { AppSidebar } from "./app-sidebar";
 import { Topbar } from "./topbar";
 import { CommandPalette } from "./command-palette";
 import { LoginScreen } from "./login";
-import { SetupScreen, NoOrganizationScreen } from "../features/access";
 export function Shell() {
   const session = useSession();
-  if (session.data?.setup_required) return <SetupScreen />;
-  if (
-    session.data?.managed &&
-    session.data.authenticated &&
-    !session.data.organization
-  )
-    return <NoOrganizationScreen />;
   // Signed-out visitors get the sign-in screen without any of the app frame.
   if (session.data && !session.data.authenticated)
     return <LoginScreen session={session.data} />;
@@ -90,7 +82,7 @@ function ShellContent() {
         if (
           event.type === "updated" &&
           event.action.type === "error" &&
-          ["AUTH_REQUIRED", "FORBIDDEN"].includes(errorCode(event.action.error))
+          errorCode(event.action.error) === "AUTH_REQUIRED"
         )
           queryClient.invalidateQueries({ queryKey: getSessionQueryKey() });
       }),
@@ -105,12 +97,7 @@ function ShellContent() {
         setLive(false);
         return;
       }
-      source = new EventSource(
-        "/api/v1/events" +
-          (session.data?.organization?.id
-            ? `?organization=${encodeURIComponent(session.data.organization.id)}`
-            : ""),
-      );
+      source = new EventSource("/api/v1/events");
       source.addEventListener("connected", () => {
         setLive(true);
         invalidateOperational();
@@ -128,7 +115,7 @@ function ShellContent() {
       source?.close();
       document.removeEventListener("visibilitychange", open);
     };
-  }, [session.data?.authenticated, session.data?.organization?.id]);
+  }, [session.data?.authenticated]);
   return (
     <>
       <a

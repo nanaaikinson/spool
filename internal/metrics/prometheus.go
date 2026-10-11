@@ -25,10 +25,9 @@ type Provider interface {
 }
 
 type Prometheus struct {
-	Organization string
-	URL          string
-	Job          string
-	Client       *http.Client
+	URL    string
+	Job    string
+	Client *http.Client
 }
 
 func New(address string) *Prometheus {
@@ -221,7 +220,7 @@ func decode(b []byte, metric, unit string) (domain.MetricResult, error) {
 }
 
 func (p *Prometheus) Query(ctx context.Context, metric, queue string) (domain.MetricResult, error) {
-	expr, unit, e := p.expression(metric, queue)
+	expr, unit, e := expression(metric, queue)
 	if e != nil {
 		return domain.MetricResult{}, e
 	}
@@ -241,7 +240,7 @@ func (p *Prometheus) QueryRange(
 	if !end.After(start) || end.Sub(start) > 7*24*time.Hour || step < 15*time.Second || end.Sub(start)/step > 1500 {
 		return domain.MetricResult{}, fmt.Errorf("invalid metrics range")
 	}
-	expr, unit, e := p.expression(metric, queue)
+	expr, unit, e := expression(metric, queue)
 	if e != nil {
 		return domain.MetricResult{}, e
 	}
@@ -259,22 +258,4 @@ func (p *Prometheus) QueryRange(
 		return domain.MetricResult{}, e
 	}
 	return decode(b, metric, unit)
-}
-
-// Organization selectors are server-owned; never accept arbitrary PromQL from users.
-func (p *Prometheus) expression(metric, queue string) (string, string, error) {
-	expr, unit, e := expression(metric, queue)
-	if e != nil || p.Organization == "" {
-		return expr, unit, e
-	}
-	labels := "organization=" + strconv.Quote(p.Organization) + ",job=" + strconv.Quote(p.Job)
-	names := []string{"asynq_queue_size", "asynq_tasks_enqueued_total", "asynq_queue_latency_seconds", "asynq_tasks_processed_total", "asynq_tasks_failed_total"}
-	for _, name := range names {
-		if strings.Contains(expr, name+"{") {
-			expr = strings.Replace(expr, name+"{", name+"{"+labels+",", 1)
-		} else if strings.Contains(expr, name) {
-			expr = strings.Replace(expr, name, name+"{"+labels+"}", 1)
-		}
-	}
-	return expr, unit, nil
 }

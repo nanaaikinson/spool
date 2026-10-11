@@ -23,7 +23,7 @@ import {
   loginMutation,
 } from "../api/generated/@tanstack/react-query.gen";
 import type { Session } from "../api/generated/types.gen";
-import { selectOrganization, errorMessage } from "../api/client";
+import { errorMessage } from "../api/client";
 import { queryClient } from "../features/queries";
 import { envTone, versionLabel } from "../lib/utils";
 import { cn } from "@/lib/utils";
@@ -67,7 +67,6 @@ export function LoginScreen({ session }: { session?: Session }) {
   const mutation = useMutation({
     ...loginMutation(),
     onSuccess: (data) => {
-      selectOrganization(data.organization?.id ?? null);
       // Drop everything cached for the previous identity, except the session.
       queryClient.removeQueries({
         predicate: (q) => {

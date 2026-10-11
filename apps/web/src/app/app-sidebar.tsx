@@ -35,7 +35,6 @@ import { envTone, versionLabel } from "../lib/utils";
 import { cn } from "@/lib/utils";
 
 import { InstanceIdentity } from "../features/deployment";
-import { OrganizationSwitcher } from "../features/access";
 const navLink =
   "h-9 gap-2.5 text-muted-foreground data-active:bg-surface data-active:shadow-[0_0_0_1px_var(--border),0_1px_2px_rgba(0,0,0,0.06)]";
 const navBadge =
@@ -73,9 +72,7 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
     ? "Not signed in"
     : readOnly
       ? "Read only"
-      : session.data?.role === "operator"
-        ? "Operator"
-        : "Full access";
+      : "Full access";
   return (
     <Sidebar collapsible="icon" aria-label="Primary navigation">
       <SidebarHeader className="gap-2.5 px-2 pt-3 pb-1.5">
@@ -101,7 +98,6 @@ export function AppSidebar({ onSignOut }: { onSignOut: () => void }) {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
-        <OrganizationSwitcher />
       </SidebarHeader>
       <SidebarContent>
         <nav aria-label="Primary navigation">

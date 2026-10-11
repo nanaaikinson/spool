@@ -19,40 +19,36 @@ var ErrUnavailable = errors.New("audit database unavailable")
 type auditModel struct {
 	bun.BaseModel `bun:"table:audit_logs"`
 	cdb.IdentityModel
-	OrganizationID string
-	Actor          string
-	Action         string
-	Queue          string
-	TaskID         string
-	Status         string
-	CreatedAt      time.Time
+	Actor     string
+	Action    string
+	Queue     string
+	TaskID    string
+	Status    string
+	CreatedAt time.Time
 }
 
 type viewModel struct {
 	bun.BaseModel `bun:"table:saved_views"`
 	cdb.IdentityModel
-	OrganizationID string
-	Actor          string
-	Name           string
-	Path           string
-	CreatedAt      time.Time
+	Actor     string
+	Name      string
+	Path      string
+	CreatedAt time.Time
 }
 
 type scheduleEntryModel struct {
-	bun.BaseModel  `bun:"table:schedule_entries"`
-	OrganizationID string    `bun:"organization_id,pk"`
-	EntryID        string    `bun:"entry_id,pk"`
-	Spec           string    `bun:"spec"`
-	TaskType       string    `bun:"task_type"`
-	FirstSeen      time.Time `bun:"first_seen"`
-	LastSeen       time.Time `bun:"last_seen"`
+	bun.BaseModel `bun:"table:schedule_entries"`
+	EntryID       string    `bun:"entry_id,pk"`
+	Spec          string    `bun:"spec"`
+	TaskType      string    `bun:"task_type"`
+	FirstSeen     time.Time `bun:"first_seen"`
+	LastSeen      time.Time `bun:"last_seen"`
 }
 
 type Store struct {
-	DB             *bun.DB
-	OrganizationID string
-	audits         cdb.Repository[*auditModel]
-	views          cdb.Repository[*viewModel]
+	DB     *bun.DB
+	audits cdb.Repository[*auditModel]
+	views  cdb.Repository[*viewModel]
 }
 
 func Open(ctx context.Context, dsn string) (*Store, error) {
@@ -71,7 +67,7 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		if _, e := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(74290311)"); e != nil {
 			return e
 		}
-		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries, migrations.Organizations} {
+		for _, m := range []string{migrations.Initial, migrations.ScheduleEntries} {
 			if _, e := tx.ExecContext(ctx, m); e != nil {
 				return e
 			}
@@ -82,7 +78,7 @@ func Open(ctx context.Context, dsn string) (*Store, error) {
 		db.Close()
 		return nil, e
 	}
-	return &Store{DB: db, audits: cdb.NewRepository[*auditModel](db), views: cdb.NewRepository[*viewModel](db)}, nil
+	return &Store{db, cdb.NewRepository[*auditModel](db), cdb.NewRepository[*viewModel](db)}, nil
 }
 
 func (s *Store) Ping(ctx context.Context) error {
@@ -97,13 +93,12 @@ func (s *Store) Begin(ctx context.Context, actor, action, q, id string) (string,
 		return "", ErrUnavailable
 	}
 	a := &auditModel{
-		OrganizationID: s.OrganizationID,
-		Actor:          actor,
-		Action:         action,
-		Queue:          q,
-		TaskID:         id,
-		Status:         "pending",
-		CreatedAt:      time.Now(),
+		Actor:     actor,
+		Action:    action,
+		Queue:     q,
+		TaskID:    id,
+		Status:    "pending",
+		CreatedAt: time.Now(),
 	}
 	if e := s.audits.Create(ctx, a); e != nil {
 		return "", ErrUnavailable
@@ -119,7 +114,7 @@ func (s *Store) Finish(ctx context.Context, id string, success bool) error {
 	res, e := s.DB.NewUpdate().
 		Model((*auditModel)(nil)).
 		Set("status = ?", status).
-		Where("id = ? AND status = 'pending' AND organization_id = ?", id, s.OrganizationID).
+		Where("id = ? AND status = 'pending'", id).
 		Exec(ctx)
 	if e != nil {
 		return e
@@ -144,7 +139,6 @@ func (s *Store) Audits(ctx context.Context, page, limit int) (domain.AuditList, 
 	var rows []auditModel
 	total, e := s.DB.NewSelect().
 		Model(&rows).
-		Where("organization_id = ?", s.OrganizationID).
 		OrderExpr("created_at DESC, id DESC").
 		Limit(limit).
 		Offset((page - 1) * limit).
@@ -175,7 +169,7 @@ func (s *Store) Views(ctx context.Context, actor string) ([]domain.SavedView, er
 		return nil, ErrUnavailable
 	}
 	rows, e := s.views.GetMany(ctx, func(q *bun.SelectQuery) *bun.SelectQuery {
-		return q.Where("actor = ? AND organization_id = ?", actor, s.OrganizationID).OrderExpr("created_at DESC").Limit(100)
+		return q.Where("actor = ?", actor).OrderExpr("created_at DESC").Limit(100)
 	})
 	out := make([]domain.SavedView, 0, len(rows))
 	for _, r := range rows {
@@ -191,7 +185,7 @@ func (s *Store) SaveView(ctx context.Context, actor string, r domain.ViewRequest
 	if s == nil {
 		return domain.SavedView{}, ErrUnavailable
 	}
-	v := &viewModel{OrganizationID: s.OrganizationID, Actor: actor, Name: r.Name, Path: r.Path, CreatedAt: time.Now()}
+	v := &viewModel{Actor: actor, Name: r.Name, Path: r.Path, CreatedAt: time.Now()}
 	e := s.views.Create(ctx, v)
 	return domain.SavedView{ID: v.ID, Actor: v.Actor, Name: v.Name, Path: v.Path, CreatedAt: v.CreatedAt}, e
 }
@@ -200,7 +194,7 @@ func (s *Store) DeleteView(ctx context.Context, actor, id string) error {
 	if s == nil {
 		return ErrUnavailable
 	}
-	_, e := s.DB.NewDelete().Model((*viewModel)(nil)).Where("id = ? AND actor = ? AND organization_id = ?", id, actor, s.OrganizationID).Exec(ctx)
+	_, e := s.DB.NewDelete().Model((*viewModel)(nil)).Where("id = ? AND actor = ?", id, actor).Exec(ctx)
 	return e
 }
 
@@ -215,22 +209,21 @@ func (s *Store) RecordScheduleEntries(ctx context.Context, entries []domain.Sche
 	now := time.Now()
 	rows := make([]scheduleEntryModel, 0, len(entries))
 	for _, e := range entries {
-		rows = append(rows, scheduleEntryModel{OrganizationID: s.OrganizationID, EntryID: e.ID, Spec: e.Spec, TaskType: e.Type, FirstSeen: now, LastSeen: now})
+		rows = append(rows, scheduleEntryModel{EntryID: e.ID, Spec: e.Spec, TaskType: e.Type, FirstSeen: now, LastSeen: now})
 	}
 	_, e := s.DB.NewInsert().
 		Model(&rows).
-		On("CONFLICT (organization_id, entry_id) DO UPDATE").
+		On("CONFLICT (entry_id) DO UPDATE").
 		Set("spec = EXCLUDED.spec, task_type = EXCLUDED.task_type, last_seen = EXCLUDED.last_seen").
 		Exec(ctx)
 	return e
 }
 
 type scheduleLinkModel struct {
-	bun.BaseModel  `bun:"table:schedule_links"`
-	OrganizationID string    `bun:"organization_id,pk"`
-	TaskID         string    `bun:"task_id,pk"`
-	EntryID        string    `bun:"entry_id,pk"`
-	EnqueuedAt     time.Time `bun:"enqueued_at"`
+	bun.BaseModel `bun:"table:schedule_links"`
+	TaskID        string    `bun:"task_id,pk"`
+	EntryID       string    `bun:"entry_id,pk"`
+	EnqueuedAt    time.Time `bun:"enqueued_at"`
 }
 
 // RecordScheduleLinks stores task-to-entry links; existing links are left unchanged.
@@ -243,7 +236,7 @@ func (s *Store) RecordScheduleLinks(ctx context.Context, links []domain.Schedule
 	}
 	rows := make([]scheduleLinkModel, 0, len(links))
 	for _, l := range links {
-		rows = append(rows, scheduleLinkModel{OrganizationID: s.OrganizationID, TaskID: l.TaskID, EntryID: l.EntryID, EnqueuedAt: l.EnqueuedAt})
+		rows = append(rows, scheduleLinkModel{TaskID: l.TaskID, EntryID: l.EntryID, EnqueuedAt: l.EnqueuedAt})
 	}
 	_, e := s.DB.NewInsert().Model(&rows).On("CONFLICT DO NOTHING").Exec(ctx)
 	return e
@@ -262,9 +255,9 @@ func (s *Store) ScheduleLinks(ctx context.Context, taskIDs []string) (map[string
 	}
 	e := s.DB.NewSelect().
 		TableExpr("schedule_links AS l").
-		Join("JOIN schedule_entries AS e ON e.entry_id = l.entry_id AND e.organization_id = l.organization_id").
+		Join("JOIN schedule_entries AS e ON e.entry_id = l.entry_id").
 		ColumnExpr("l.task_id, l.entry_id, e.spec").
-		Where("l.task_id IN (?) AND l.organization_id = ?", bun.In(taskIDs), s.OrganizationID).
+		Where("l.task_id IN (?)", bun.In(taskIDs)).
 		OrderExpr("l.enqueued_at").
 		Scan(ctx, &rows)
 	if e != nil {
@@ -284,24 +277,14 @@ func (s *Store) PruneSchedules(ctx context.Context, before time.Time) error {
 		return ErrUnavailable
 	}
 	return s.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		if _, e := tx.NewDelete().Model((*scheduleLinkModel)(nil)).Where("enqueued_at < ? AND organization_id = ?", before, s.OrganizationID).Exec(ctx); e != nil {
+		if _, e := tx.NewDelete().Model((*scheduleLinkModel)(nil)).Where("enqueued_at < ?", before).Exec(ctx); e != nil {
 			return e
 		}
 		_, e := tx.NewDelete().
 			Model((*scheduleEntryModel)(nil)).
-			Where("last_seen < ? AND organization_id = ?", before, s.OrganizationID).
-			Where("NOT EXISTS (SELECT 1 FROM schedule_links AS l WHERE l.entry_id = ?TableAlias.entry_id AND l.organization_id = ?TableAlias.organization_id)").
+			Where("last_seen < ?", before).
+			Where("NOT EXISTS (SELECT 1 FROM schedule_links AS l WHERE l.entry_id = ?TableAlias.entry_id)").
 			Exec(ctx)
 		return e
 	})
-}
-
-// Scoped shares the pool while enforcing organization ownership on operational records.
-func (s *Store) Scoped(id string) *Store {
-	if s == nil {
-		return nil
-	}
-	out := *s
-	out.OrganizationID = id
-	return &out
 }
