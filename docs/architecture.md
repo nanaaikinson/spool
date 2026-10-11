@@ -1,6 +1,6 @@
 # Architecture and data provenance
 
-The React/Vite client uses TanStack Router for typed routing, TanStack Query for server state and the generated Hey API SDK. Chi serves a versioned API and the compiled single-page app. Public contracts are application-owned DTOs; Asynq and Bun types never cross the HTTP boundary. `cmd/openapi` generates the canonical OpenAPI document from the explicit endpoint registry and DTOs. The TypeScript client is generated and committed, and CI regenerates it to check for drift.
+The React/Vite client uses TanStack Router for typed file-based routing (one file per page in `apps/web/src/routes`; the Vite plugin generates and code-splits `src/routeTree.gen.ts`, which is committed so type checks work before a build), TanStack Query for server state and the generated Hey API SDK. Chi serves a versioned API and the compiled single-page app. Public contracts are application-owned DTOs; Asynq and Bun types never cross the HTTP boundary. `cmd/openapi` generates the canonical OpenAPI document from the explicit endpoint registry and DTOs. The TypeScript client is generated and committed, and CI regenerates it to check for drift.
 
 ```mermaid
 flowchart TD
