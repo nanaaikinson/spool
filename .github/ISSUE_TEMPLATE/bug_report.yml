@@ -37,7 +37,6 @@ body:
       options:
         - Published container image
         - Docker Compose from this repository
-        - Dokploy or Coolify
         - Built from source
         - Other
   - type: textarea

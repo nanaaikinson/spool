@@ -274,7 +274,6 @@ export type Session = {
     actor: string;
     auth_required: boolean;
     authenticated: boolean;
-    deployment_mode: string;
     environment: string;
     instance_name: string;
     managed: boolean;

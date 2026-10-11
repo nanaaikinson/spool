@@ -172,7 +172,6 @@ func (a *API) session(r *http.Request) domain.Session {
 		Role:           c.Role,
 		Environment:    a.Config.Environment,
 		InstanceName:   a.Config.InstanceName,
-		DeploymentMode: a.Config.DeploymentMode,
 		SupportURL:     a.Config.SupportURL,
 		Version:        version.Version,
 		ReadOnly:       a.Config.ReadOnly,

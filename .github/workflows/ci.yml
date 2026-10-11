@@ -32,7 +32,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: apps/web/pnpm-lock.yaml
       - run: make install
-      - run: make test-install test-hosted
+      - run: make test-install
       - run: make api-check lint test build
       - name: Build the production image for the hosted rehearsal
         run: docker build --build-arg VERSION=ci -t spool:hosted-ci .

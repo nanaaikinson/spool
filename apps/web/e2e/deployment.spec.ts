@@ -16,7 +16,6 @@ const session: Session = {
   role: "admin",
   environment: "production",
   instance_name: "Acme operations",
-  deployment_mode: "hosted",
   support_url: "https://support.example.com/spool",
   version: "test",
   read_only: false,
@@ -48,7 +47,7 @@ const status: DeploymentStatus = {
   checked_at: new Date().toISOString(),
 };
 
-test("hosted diagnostics, first samples, empty queues and mobile identity", async ({
+test("diagnostics, first samples, empty queues and mobile identity", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -98,7 +97,7 @@ test("hosted diagnostics, first samples, empty queues and mobile identity", asyn
     page.getByText("Collecting first samples", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Contact support" }).first(),
+    page.getByRole("link", { name: "Contact your operator" }).first(),
   ).toHaveAttribute("href", session.support_url);
   const section = page.locator('[data-slot="card"]').filter({
     has: page.getByRole("heading", {
@@ -152,7 +151,7 @@ test("hosted diagnostics, first samples, empty queues and mobile identity", asyn
   expect(errors).toEqual([]);
 });
 
-test("login uses runtime instance identity and hosted support, with self-hosted guidance", async ({
+test("login uses runtime instance identity, support link and installation guidance", async ({
   page,
 }) => {
   let metadata = { ...session, authenticated: false, actor: "", role: "" };
@@ -167,16 +166,13 @@ test("login uses runtime instance identity and hosted support, with self-hosted 
     page.getByText("Use the account set up for Acme operations."),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Contact support" }),
+    page.getByRole("link", { name: "Contact your operator" }),
   ).toHaveAttribute("href", session.support_url);
-  await expect(
-    page.getByText(/private installation configuration/),
-  ).not.toBeVisible();
   await page.screenshot({
-    path: "test-results/deployment-login-hosted.png",
+    path: "test-results/deployment-login.png",
     fullPage: true,
   });
-  metadata = { ...metadata, deployment_mode: "self-hosted", support_url: "" };
+  metadata = { ...metadata, support_url: "" };
   await page.reload();
   await expect(
     page.getByText(/private installation configuration/),

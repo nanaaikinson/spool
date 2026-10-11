@@ -194,14 +194,12 @@ func TestMetricsTokenValidation(t *testing.T) {
 func TestDeploymentMetadata(t *testing.T) {
 	t.Setenv("SPOOL_ENV", "staging")
 	t.Setenv("SPOOL_INSTANCE_NAME", "")
-	t.Setenv("SPOOL_DEPLOYMENT_MODE", "self-hosted")
 	t.Setenv("SPOOL_SUPPORT_URL", "")
 	c, err := Load()
-	if err != nil || c.InstanceName != "staging" || c.DeploymentMode != "self-hosted" {
+	if err != nil || c.InstanceName != "staging" {
 		t.Fatalf("metadata defaults: %v", err)
 	}
 	t.Setenv("SPOOL_INSTANCE_NAME", "Acme operations")
-	t.Setenv("SPOOL_DEPLOYMENT_MODE", "hosted")
 	for _, link := range []string{"https://support.example.com/help", "mailto:support@example.com"} {
 		t.Setenv("SPOOL_SUPPORT_URL", link)
 		c, err = Load()
@@ -214,11 +212,6 @@ func TestDeploymentMetadata(t *testing.T) {
 		if _, err = Load(); err == nil {
 			t.Fatal("unsafe support link accepted")
 		}
-	}
-	t.Setenv("SPOOL_SUPPORT_URL", "")
-	t.Setenv("SPOOL_DEPLOYMENT_MODE", "other")
-	if _, err = Load(); err == nil {
-		t.Fatal("unknown deployment mode accepted")
 	}
 }
 

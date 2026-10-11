@@ -271,19 +271,14 @@ type ViewList struct {
 }
 
 type Session struct {
-	Managed        bool          `json:"managed"`
-	SetupRequired  bool          `json:"setup_required"`
-	PlatformAdmin  bool          `json:"platform_admin"`
-	Organization   *Organization `json:"organization"`
-	Authenticated  bool          `json:"authenticated"`
-	AuthRequired   bool          `json:"auth_required"`
-	Actor          string        `json:"actor"`
-	Role           string        `json:"role"`
-	Environment    string        `json:"environment"`
-	InstanceName   string        `json:"instance_name"`
-	DeploymentMode string        `json:"deployment_mode"`
-	SupportURL     string        `json:"support_url"`
-	Version        string        `json:"version"`
+	Authenticated bool   `json:"authenticated"`
+	AuthRequired  bool   `json:"auth_required"`
+	Actor         string `json:"actor"`
+	Role          string `json:"role"`
+	Environment   string `json:"environment"`
+	InstanceName  string `json:"instance_name"`
+	SupportURL    string `json:"support_url"`
+	Version       string `json:"version"`
 	// ReadOnly is true when no changes are allowed for anyone, with the reason
 	// in ReadOnlyReason: "configured" or "no_database".
 	ReadOnly       bool   `json:"read_only"`

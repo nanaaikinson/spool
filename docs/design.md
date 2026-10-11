@@ -12,7 +12,7 @@ Pages follow one pattern: a heading with a one-line description and actions, an 
 
 ## Installation and first sign-in
 
-Self-hosted setup runs in the terminal through `scripts/install.sh`. It collects the Asynq Redis connection, bundled/external service choices, administrator username, organization name and console access settings, then saves generated credentials before starting the app. With `--browser-setup`, a first-run form collects the organization and administrator using a private setup token, then returns to sign-in. Deployment administrators can create organizations and replace connections in Settings; existing connection secrets are never displayed. Safe instance metadata is returned with the session so sign-in can identify the deployment and provide its configured support contact.
+Self-hosted setup runs in the terminal through `scripts/install.sh`. It collects the Asynq Redis connection, bundled/external service choices, administrator username and console access settings, then saves generated credentials before starting the app. The console's first screen is the existing sign-in page; browser connection editing is not implemented. Safe instance metadata is returned with the session so sign-in can identify the deployment and provide its configured support contact.
 
 Installation instructions should point operators to `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` in their private `.env.installation` file. The console URL defaults to localhost HTTP; remote access uses the operator's HTTPS proxy. Keep credential entry and infrastructure details in the installation flow, with the sign-in form focused on the account.
 
@@ -20,7 +20,7 @@ An installation is ready when Redis and PostgreSQL are reachable and the install
 
 Settings includes a connection-status section using labelled rows, existing status dots and refresh controls. Diagnostics distinguish an absent service from an unavailable one and verify Spool's scrape separately from Prometheus reachability. Empty queues link to connection status without assuming a configuration error. Empty charts distinguish verified collection warm-up from an empty selected range. Historical data may remain usable when current collection is failing.
 
-Instance identity shows the public friendly name and environment at sign-in, in the sidebar and topbar, in Settings and in operational confirmation/form dialogs. Long labels truncate in navigation and remain available in the title. Hosted account guidance uses the configured support link; self-hosted guidance points to the operator and private installation configuration. Connection credentials are write-only inputs for deployment administrators; no API returns stored credentials. The selected organization appears in action dialogs and navigation. A sidebar selector switches organizations with a full navigation, clearing previous data and drafts. Settings contains organization membership, account management and password forms; role changes, removals and disabling require confirmation.
+Instance identity shows the public friendly name and environment at sign-in, in the sidebar and topbar, in Settings and in operational confirmation/form dialogs. Long labels truncate in navigation and remain available in the title. Account guidance uses the configured support link when set and points to the operator and private installation configuration. Connections and credentials remain server-side.
 
 ## Responsive behavior
 

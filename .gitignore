@@ -51,7 +51,6 @@ go.work.sum
 logs
 .netrc
 tmp/
-deployments/
 
 # Added by code-review-graph
 .code-review-graph/

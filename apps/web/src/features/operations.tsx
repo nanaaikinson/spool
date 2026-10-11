@@ -414,11 +414,7 @@ export function SettingsPage() {
               </InfoTip>
             </span>
           }
-          value={
-            session.data?.deployment_mode === "hosted"
-              ? "Hosted"
-              : "Self-hosted"
-          }
+          value="Self-hosted"
           detail={<DeploymentHelp session={session.data} />}
         />
       </div>
