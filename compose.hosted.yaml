@@ -1,11 +1,11 @@
-# One platform resource per customer. Route only app:8080 through HTTPS.
+# One platform resource per customer. Route only app:8003 through HTTPS.
 # Pin SPOOL_IMAGE to a release built from code supporting SPOOL_METRICS_TOKEN.
 services:
   app:
     image: ${SPOOL_IMAGE:?Set a tested full release tag or digest}
     restart: unless-stopped
     stop_grace_period: 30s
-    expose: ["8080"]
+    expose: ["8003"]
     networks: [default, storage]
     read_only: true
     tmpfs: [/tmp]
@@ -19,7 +19,7 @@ services:
       SPOOL_ORGANIZATION_NAME: ${SPOOL_ORGANIZATION_NAME:-My organization}
       SPOOL_DATA_KEY: ${SPOOL_DATA_KEY:-}
       SPOOL_SETUP_TOKEN: ${SPOOL_SETUP_TOKEN:-}
-      SPOOL_ADDR: 0.0.0.0:8080
+      SPOOL_ADDR: 0.0.0.0:8003
       SPOOL_ENV: ${SPOOL_ENV:-production}
       SPOOL_INSTANCE_NAME: ${SPOOL_INSTANCE_NAME:-${SPOOL_CUSTOMER:?Set a unique customer slug}}
       SPOOL_DEPLOYMENT_MODE: hosted
@@ -88,7 +88,7 @@ services:
             authorization:
               credentials_file: /tmp/spool-metrics-token
             static_configs:
-              - targets: ["app:8080"]
+              - targets: ["app:8003"]
         CONFIG
         exec /bin/prometheus --config.file=/tmp/spool-prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d --storage.tsdb.retention.size=2GB
     volumes: [prometheus-data:/prometheus]

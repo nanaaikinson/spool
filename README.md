@@ -29,7 +29,7 @@ cd spool
 
 The terminal wizard asks for your Redis URL, administrator username, organization name, local port and console URL. It bundles PostgreSQL and Prometheus by default; choose external services if you already operate them. It enables organization management and generates separate administrator, database, session, data-encryption, setup and scrape secrets, builds the frontend and backend inside Docker, then waits for Redis/PostgreSQL readiness and checks metrics connectivity. Local Go, Node and pnpm installations are unnecessary.
 
-Open the console URL you chose (default `http://localhost:8080`) and sign in using `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` from `.env.installation`. That file has owner-only permissions and also records the selected Compose files and project name. Rerunning the installer preserves it and reuses the same persistent volumes.
+Open the console URL you chose (default `http://localhost:8003`) and sign in using `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` from `.env.installation`. That file has owner-only permissions and also records the selected Compose files and project name. Rerunning the installer preserves it and reuses the same persistent volumes.
 
 To prepare configuration before starting, run `./scripts/install.sh --configure-only`. Use `--env-file PATH` for a custom configuration location and pass the same path on reruns. `make self-host` runs the default installer; `make install` installs frontend development dependencies.
 
@@ -54,17 +54,17 @@ Settings now shows Redis, database and metrics collection checks. Set `SPOOL_INS
 Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. The quickest way to try it is the published image with a Redis URL and an account (Spool always requires sign-in when it listens beyond localhost, as it does in a container):
 
 ```sh
-docker run --rm -p 127.0.0.1:8080:8080 \
+docker run --rm -p 127.0.0.1:8003:8003 \
   -e REDIS_URL='redis://:PASSWORD@redis.internal:6379/0' \
   -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD='choose-a-long-password' \
   -e SPOOL_SESSION_KEY="$(openssl rand -hex 32)" \
   ghcr.io/nanaaikinson/spool:latest
 ```
 
-Open http://127.0.0.1:8080 and sign in. Without a database Spool runs **read-only**: everything is visible, but pausing queues and acting on tasks are off. Add `DATABASE_URL` (PostgreSQL) to turn on actions, the audit log, saved views and schedule links:
+Open http://127.0.0.1:8003 and sign in. Without a database Spool runs **read-only**: everything is visible, but pausing queues and acting on tasks are off. Add `DATABASE_URL` (PostgreSQL) to turn on actions, the audit log, saved views and schedule links:
 
 ```sh
-docker run -d --name spool -p 127.0.0.1:8080:8080 \
+docker run -d --name spool -p 127.0.0.1:8003:8003 \
   -e REDIS_URL='rediss://spool:PASSWORD@redis.internal:6380/0' \
   -e DATABASE_URL='postgres://spool:PASSWORD@postgres.internal:5432/spool?sslmode=verify-full' \
   -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD='choose-a-long-password' \
@@ -138,9 +138,9 @@ The [guided installer](#install-on-your-own-docker-host) manages configuration o
 | Your Redis + bundled PostgreSQL | [compose.production.redis.yaml](compose.production.redis.yaml) | [.env.production.redis.example](.env.production.redis.example) |
 | Your Redis + your PostgreSQL | [compose.production.external.yaml](compose.production.external.yaml) | [.env.production.external.example](.env.production.external.example) |
 
-Both build the root Dockerfile, require production credentials, and expose port 8080 only to the container network. The optional [host override](compose.production.host.yaml) publishes it on loopback for a host-installed HTTPS proxy.
+Both build the root Dockerfile, require production credentials, and expose port 8003 only to the container network. The optional [host override](compose.production.host.yaml) publishes it on loopback for a host-installed HTTPS proxy.
 
-Add the [Prometheus override](compose.production.prometheus.yaml) to either base file to bundle private metrics storage. It scrapes `app:8080` and retains 15 days of history in a persistent volume. The guided installer includes it unless you choose external Prometheus.
+Add the [Prometheus override](compose.production.prometheus.yaml) to either base file to bundle private metrics storage. It scrapes `app:8003` and retains 15 days of history in a persistent volume. The guided installer includes it unless you choose external Prometheus.
 
 See the [production deployment guide](docs/deployment.md) for exact commands, Dokploy/Coolify settings, Dockerfile-only hosting, connection URLs, HTTPS, metrics routing, and persistent storage.
 

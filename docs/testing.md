@@ -53,7 +53,7 @@ For the [setup CLI](organizations.md#cli-setup), prepare its private JSON and ru
 
 ```sh
 docker compose --env-file .env.rbac exec -T app \
-  /app/spool setup --url http://127.0.0.1:8080 < private-setup.json
+  /app/spool setup --url http://127.0.0.1:8003 < private-setup.json
 ```
 
 ## Stop or reset

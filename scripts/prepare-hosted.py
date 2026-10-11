@@ -99,7 +99,7 @@ def main():
     finally:
         os.umask(old_mask)
     print(f"Prepared {path}. Copy its values into this customer's platform runtime environment.")
-    print("Route only app:8080 through HTTPS. Keep PostgreSQL and Prometheus private.")
+    print("Route only app:8003 through HTTPS. Keep PostgreSQL and Prometheus private.")
 
 
 if __name__ == "__main__":

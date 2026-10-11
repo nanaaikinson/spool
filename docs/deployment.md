@@ -1,6 +1,6 @@
 # Production deployment
 
-Spool ships as one non-root container image that serves both the UI and the API on **8080**. You do not need a separate Node server or frontend deployment.
+Spool ships as one non-root container image that serves both the UI and the API on **8003**. You do not need a separate Node server or frontend deployment.
 
 For a Docker host you operate, start with the guided installer below. Use the manual Compose files when you need custom networks/mounts or deploy through Dokploy/Coolify. The published image runs Spool with dependencies you provision separately.
 
@@ -15,7 +15,7 @@ The wizard asks for:
 1. Your existing Asynq Redis URL, including the database index your workers use. Secret URLs are hidden when entered in a terminal.
 2. Bundled PostgreSQL (default), or an external PostgreSQL URL containing an existing database.
 3. Bundled Prometheus (default), or an external Prometheus URL whose scraper collects Spool's metrics.
-4. An administrator username, the loopback host port, console URL, and organization name. Local access defaults to `http://localhost:8080`; for a remote server, enter your HTTPS proxy's origin.
+4. An administrator username, the loopback host port, console URL, and organization name. Local access defaults to `http://localhost:8003`; for a remote server, enter your HTTPS proxy's origin.
 
 The installer generates separate random administrator, PostgreSQL, session, data-encryption, setup and scrape secrets and saves them in `.env.installation` with permissions `600`. Read `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD` in that file to sign in; you can set your own administrator password there before startup. Keep it private and backed up alongside your database. It is a **Compose dotenv file**, with literal single-quoted values; do not source it or use it with `docker run --env-file`.
 
@@ -23,9 +23,9 @@ Add `--browser-setup` to choose the first organization name and administrator in
 
 Use `./scripts/install.sh --configure-only` to save and validate configuration before starting. The installer never replaces an existing configuration file or regenerates secrets on reruns. A file created outside the wizard is left untouched; use `--env-file PATH` to choose a different file. Cancelled or incomplete prompts do not save configuration. Re-running without `--configure-only` builds and starts services, waits for Redis and PostgreSQL readiness, and checks that bundled Prometheus can scrape Spool (or that an external Prometheus responds to a query). Historical charts fill as samples accumulate.
 
-Bundled PostgreSQL and Prometheus each use a persistent named volume, have no published host ports, and restart after host restarts. Prometheus scrapes `app:8080` on the private Compose network and retains 15 days of metrics. An external service that is configured but unavailable does not cause a fallback to a bundled service.
+Bundled PostgreSQL and Prometheus each use a persistent named volume, have no published host ports, and restart after host restarts. Prometheus scrapes `app:8003` on the private Compose network and retains 15 days of metrics. An external service that is configured but unavailable does not cause a fallback to a bundled service.
 
-For local access, the wizard disables HTTPS-only cookies and publishes the app on `127.0.0.1` only. For remote access, it enables HTTPS-only cookies: configure your host's [HTTPS reverse proxy](#https-and-proxy-routing) before signing in. The wizard does not install a proxy, provision certificates or change DNS. For remote setup without a proxy, keep the localhost URL and use an SSH tunnel, for example `ssh -L 8080:127.0.0.1:8080 user@server`, then browse to `http://localhost:8080` on your computer.
+For local access, the wizard disables HTTPS-only cookies and publishes the app on `127.0.0.1` only. For remote access, it enables HTTPS-only cookies: configure your host's [HTTPS reverse proxy](#https-and-proxy-routing) before signing in. The wizard does not install a proxy, provision certificates or change DNS. For remote setup without a proxy, keep the localhost URL and use an SSH tunnel, for example `ssh -L 8003:127.0.0.1:8003 user@server`, then browse to `http://localhost:8003` on your computer.
 
 The saved `COMPOSE_FILE` list selects the production dependency files and loopback port override, and `COMPOSE_PROJECT_NAME=spool-production` keeps the same volumes across deployments. From this checkout:
 
@@ -49,7 +49,7 @@ The generated file also contains these deployment settings:
 | `COMPOSE_PATH_SEPARATOR` | `:` for the file list created by the installer |
 | `COMPOSE_PROJECT_NAME` | Stack/network/volume identity; defaults to `spool-production` |
 | `POSTGRES_PASSWORD` | Bundled PostgreSQL role password; ignored by the external-database base file |
-| `SPOOL_HOST_PORT` | Host loopback port, mapped to container port 8080 |
+| `SPOOL_HOST_PORT` | Host loopback port, mapped to container port 8003 |
 | `SPOOL_INSTALL_URL` | Console URL printed by the installer; does not configure DNS, proxy routing or cookie settings |
 
 Server settings such as `REDIS_URL`, account credentials and `SPOOL_SECURE_COOKIE` are described in the [README configuration reference](../README.md#configuration).
@@ -66,7 +66,7 @@ chmod 600 .env.production
 # Edit .env.production: fill both connection URLs, admin password and signing key.
 docker run -d --name spool --restart unless-stopped \
   --stop-timeout 30 --env-file .env.production \
-  -p 127.0.0.1:8080:8080 ghcr.io/nanaaikinson/spool:0.1.0
+  -p 127.0.0.1:8003:8003 ghcr.io/nanaaikinson/spool:0.1.0
 docker logs spool
 ```
 
@@ -88,7 +88,7 @@ Add `-f compose.production.prometheus.yaml` to either production deployment to b
 | Optional override | Purpose |
 | --- | --- |
 | `compose.production.prometheus.yaml` | Private Prometheus, 15-day retention and persistent metrics volume |
-| `compose.production.host.yaml` | Publish the app on `127.0.0.1:${SPOOL_HOST_PORT:-8080}` for local access or a host proxy |
+| `compose.production.host.yaml` | Publish the app on `127.0.0.1:${SPOOL_HOST_PORT:-8003}` for local access or a host proxy |
 
 Manual base files do not include Prometheus unless you add its override or set an external `PROMETHEUS_URL`. Supply runtime values through `.env.production` or your platform's environment dashboard; do not use the installer's file on a hosting platform without adapting its absolute paths and host-port choices.
 
@@ -148,7 +148,7 @@ Containers have their own loopback interface. A URL containing `localhost` or `1
 1. Put the project in your Git repository. Create a **Docker Compose** resource and connect that repository and branch.
 2. Select Compose mode and the chosen root-level production file. Stack mode cannot build this source-based configuration.
 3. In **Environment**, enter the values from the matching template. These files explicitly pass environment variables to containers.
-4. In **Domains**, target service `app`, path `/`, container port **8080**, and enable HTTPS with your certificate provider. Point your domain's DNS at the server.
+4. In **Domains**, target service `app`, path `/`, container port **8003**, and enable HTTPS with your certificate provider. Point your domain's DNS at the server.
 5. Preview the generated Compose definition. Keep `app` and `postgres` on their shared `default` network; Dokploy also connects `app` to its proxy network. Deploy after domain changes.
 
 For bundled metrics, merge the Prometheus override into the Compose definition selected by the resource and keep service `prometheus` without a domain. The override generates its configuration inside the container and uses a private credentials file when `SPOOL_METRICS_TOKEN` is set; no repository bind mount or File Mount is required. Do not add the host-port override; the platform proxy connects to the app's internal port. Dokploy adds the proxy labels. Leave PostgreSQL without a domain or published port. See the official [Compose guide](https://docs.dokploy.com/docs/core/docker-compose) and [Compose domains guide](https://docs.dokploy.com/docs/core/docker-compose/domains).
@@ -158,7 +158,7 @@ For bundled metrics, merge the Prometheus override into the Compose definition s
 1. Create a resource from the project's **Git repository** and select the **Docker Compose** build pack.
 2. Set Base Directory to `/` and Docker Compose Location to `/compose.production.redis.yaml` or `/compose.production.external.yaml`.
 3. Save/load the definition, then fill **Environment Variables** from the matching template. Required values must be populated before deploying.
-4. Set service `app`'s domain to `https://spool.example.com:8080`. The suffix selects the internal container port; visitors use ordinary HTTPS on 443.
+4. Set service `app`'s domain to `https://spool.example.com:8003`. The suffix selects the internal container port; visitors use ordinary HTTPS on 443.
 5. Keep **Raw Compose Deployment** disabled and deploy. Image-defined health checks apply to Compose deployments.
 
 For bundled metrics, merge the Prometheus override into the Compose file selected by the resource and keep service `prometheus` without a domain. The override generates its configuration and optional scrape credentials file inside the container, so no repository-preservation setting is required for metrics. Do not add the host-port override. If connecting to another Coolify database resource, enable **Connect To Predefined Network** and use its actual internal hostname. The bundled PostgreSQL already shares this resource's network. See the official [Compose guide](https://coolify.io/docs/applications/builds/docker-compose).
@@ -173,11 +173,11 @@ Use this when PostgreSQL and Redis are provisioned separately, including databas
 | Build type/pack | Dockerfile | Dockerfile |
 | Build context/base directory | Repository root | `/` |
 | Dockerfile | Root `Dockerfile` | `/Dockerfile` |
-| Container port | Domain target port `8080` | Ports Exposes `8080` |
+| Container port | Domain target port `8003` | Ports Exposes `8003` |
 | Runtime environment | Values from `.env.production.external.example` | Values from `.env.production.external.example` |
 | Domain | HTTPS domain for this application | HTTPS domain for this application |
 
-The image already listens on `0.0.0.0:8080` and checks `/ready`. Supply secrets at runtime. The platform builds the frontend automatically; no custom start command is needed.
+The image already listens on `0.0.0.0:8003` and checks `/ready`. Supply secrets at runtime. The platform builds the frontend automatically; no custom start command is needed.
 
 The Dockerfile requires the **whole repository as build context** because it copies the Go and frontend source. Pasting only its text into a deployment without source files cannot build this app. For deployment without a Git checkout, build and push an image to your registry, then use the platform's Docker Image resource.
 
@@ -203,7 +203,7 @@ For your own Redis and PostgreSQL, copy `.env.production.external.example` inste
 
 For external Prometheus, omit `-f compose.production.prometheus.yaml` from both commands, set `PROMETHEUS_URL`, and configure the external server to scrape Spool. For localhost HTTP access, set `SPOOL_SECURE_COOKIE=false` before starting and browse to the loopback port; retain `true` when using an HTTPS proxy.
 
-The optional `compose.production.host.yaml` override publishes **127.0.0.1:8080** for a reverse proxy installed on the host. Set `SPOOL_HOST_PORT` if that port is occupied. Omit this override on Dokploy/Coolify, or when a containerized proxy connects directly to `app:8080` on the Compose network.
+The optional `compose.production.host.yaml` override publishes **127.0.0.1:8003** for a reverse proxy installed on the host. Set `SPOOL_HOST_PORT` if that port is occupied. Omit this override on Dokploy/Coolify, or when a containerized proxy connects directly to `app:8003` on the Compose network.
 
 ## Dockerfile on your own Docker host
 
@@ -216,7 +216,7 @@ chmod 600 .env.production
 docker build -t spool:production .
 docker run -d --name spool --restart unless-stopped \
   --stop-timeout 30 --env-file .env.production \
-  -p 127.0.0.1:8080:8080 spool:production
+  -p 127.0.0.1:8003:8003 spool:production
 docker inspect --format '{{.State.Health.Status}}' spool
 docker logs spool
 ```
@@ -244,7 +244,7 @@ spool.example.com {
         respond 404
     }
     handle {
-        reverse_proxy 127.0.0.1:8080
+        reverse_proxy 127.0.0.1:8003
     }
 }
 ```
@@ -253,7 +253,7 @@ Caddy preserves Host for this HTTP upstream and streams SSE responses. See its [
 
 ## Metrics, persistence and updates
 
-Set `PROMETHEUS_URL` only if you have Prometheus. Its scrape target should reach this app's internal `:8080/metrics`; for a shared Docker network, use `app:8080`. Without Prometheus, queues, tasks, live activity and the dashboard checks still work, but the charts, the Metrics page and the archive-growth check have no data.
+Set `PROMETHEUS_URL` only if you have Prometheus. Its scrape target should reach this app's internal `:8003/metrics`; for a shared Docker network, use `app:8003`. Without Prometheus, queues, tasks, live activity and the dashboard checks still work, but the charts, the Metrics page and the archive-growth check have no data.
 
 The optional `compose.production.prometheus.yaml` already configures this target and persistent storage. On Dokploy/Coolify, merge it into the selected deployment definition and follow the platform-specific configuration-mount instructions above; keep that service private without a domain. With external Prometheus, restrict its Spool queries/scrape targets to the intended Asynq environment; legacy metric expressions do not distinguish multiple environments sharing queue names. Organization mode requires the `organization` label and filters by it and `SPOOL_METRICS_JOB`.
 

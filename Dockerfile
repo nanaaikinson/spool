@@ -29,9 +29,9 @@ RUN apk add --no-cache ca-certificates && addgroup -S spool && adduser -S spool 
 WORKDIR /app
 COPY --from=backend /out/ /app/
 COPY --from=web /src/apps/web/dist /app/web
-ENV SPOOL_STATIC_DIR=/app/web SPOOL_ADDR=0.0.0.0:8080
+ENV SPOOL_STATIC_DIR=/app/web SPOOL_ADDR=0.0.0.0:8003
 USER spool
-EXPOSE 8080
+EXPOSE 8003
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-    CMD wget -q -O /dev/null http://127.0.0.1:8080/ready || exit 1
+    CMD wget -q -O /dev/null http://127.0.0.1:8003/ready || exit 1
 ENTRYPOINT ["/app/spool"]

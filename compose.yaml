@@ -19,9 +19,9 @@ services:
     extra_hosts: ["host.docker.internal:host-gateway"]
   app:
     build: .
-    ports: ["127.0.0.1:8088:8080"]
+    ports: ["127.0.0.1:8088:8003"]
     environment:
-      SPOOL_ADDR: 0.0.0.0:8080
+      SPOOL_ADDR: 0.0.0.0:8003
       REDIS_URL: redis://redis:6379/0
       DATABASE_URL: postgres://spool:spool-local@postgres:5432/spool?sslmode=disable
       PROMETHEUS_URL: http://prometheus:9090

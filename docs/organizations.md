@@ -44,7 +44,7 @@ umask 077
 bin/spool setup --url https://spool.example.com < private-setup.json
 # From a running Compose app, use its loopback URL:
 docker compose --env-file .env.installation exec -T app \
-  /app/spool setup --url http://127.0.0.1:8080 < private-setup.json
+  /app/spool setup --url http://127.0.0.1:8003 < private-setup.json
 ```
 
 ```json

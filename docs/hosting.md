@@ -14,7 +14,7 @@ Live Dokploy/Coolify validation is tracked in the [backlog](backlog.md). Until a
 | PostgreSQL | Separate service, credentials and persistent volume for audit, views and schedule links |
 | Prometheus | Separate service and volume; 15-day retention capped at 2 GB |
 | Redis | Customer-owned Asynq Redis, accessed directly; tasks are never mirrored into PostgreSQL |
-| Domain | Separate HTTPS hostname routed to that customer's app on port 8080 |
+| Domain | Separate HTTPS hostname routed to that customer's app on port 8003 |
 
 Separate Compose resources scope network and volume names. The template has no global container names, host ports or external shared volumes. PostgreSQL and Prometheus attach only to the internal `storage` network; the app also joins the resource's default network for Redis egress and platform proxy access. Avoid attaching storage services to a platform-wide network. Review the platform's final rendered Compose definition before deployment.
 
@@ -59,7 +59,7 @@ For private CAs or mutual TLS, add platform-managed read-only certificate mounts
 
 1. Create a separate project/resource for this customer on the chosen server. Select **Docker Compose** mode, connect the repository at a reviewed ref, and set the Compose path to `compose.hosted.yaml`. You can also paste the standalone definition into a Compose resource. Use Compose mode rather than Swarm Stack for this tested template.
 2. In **Environment**, enter the prepared runtime values. The template explicitly interpolates each required variable; no `env_file` mount or source build is needed. Configure registry credentials if the image is private.
-3. In **Domains**, select service **app**, path `/`, container port **8080**, and enable HTTPS. Point DNS to the destination. Do not add domains or ports for PostgreSQL or Prometheus.
+3. In **Domains**, select service **app**, path `/`, container port **8003**, and enable HTTPS. Point DNS to the destination. Do not add domains or ports for PostgreSQL or Prometheus.
 4. Review generated networks/volumes and deploy. Preserve this resource's project identity across redeployments. AutoDeploy should follow a controlled release ref; avoid deploying unreviewed changes to every customer at once.
 
 The Prometheus configuration is generated inside its container, so this definition needs no repository bind mounts or File Mounts. See [Dokploy's Compose guide](https://docs.dokploy.com/docs/core/docker-compose) and [domain settings](https://docs.dokploy.com/docs/core/docker-compose/domains).
@@ -68,7 +68,7 @@ The Prometheus configuration is generated inside its container, so this definiti
 
 1. Create a separate customer resource from the Git repository with the **Docker Compose** build pack. Set Base Directory to `/` and Docker Compose Location to `/compose.hosted.yaml`. Alternatively, use **Docker Compose Empty** and paste the definition; that service has no Git automation.
 2. Load the definition and fill the required **Environment Variables** with prepared values. Configure access to a private registry if needed.
-3. Give service **app** the domain `https://acme.spool.example.com:8080`. The port suffix selects the internal container port; visitors use HTTPS on 443. Leave the other services without domains.
+3. Give service **app** the domain `https://acme.spool.example.com:8003`. The port suffix selects the internal container port; visitors use HTTPS on 443. Leave the other services without domains.
 4. Keep **Raw Compose Deployment** disabled so Coolify manages proxy routing. Do not enable a shared predefined network for the storage services. Review the generated definition and deploy.
 
 The template pulls an image, uses named volumes, and generates Prometheus configuration internally. It does not require preserving the repository for file mounts. See [Coolify's Compose guide](https://coolify.io/docs/applications/builds/docker-compose).

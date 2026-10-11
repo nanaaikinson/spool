@@ -225,7 +225,7 @@ func TestDeploymentMetadata(t *testing.T) {
 func TestManagedConfiguration(t *testing.T) {
 	t.Setenv("SPOOL_MULTI_ORG", "true")
 	t.Setenv("SPOOL_METRICS_TOKEN", strings.Repeat("m", 32))
-	t.Setenv("SPOOL_ADDR", "0.0.0.0:8080")
+	t.Setenv("SPOOL_ADDR", "0.0.0.0:8003")
 	t.Setenv("DATABASE_URL", "postgres://test@localhost/test")
 	t.Setenv("SPOOL_DATA_KEY", strings.Repeat("d", 32))
 	t.Setenv("SPOOL_SESSION_KEY", strings.Repeat("s", 32))

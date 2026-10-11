@@ -7,7 +7,7 @@ services:
     restart: unless-stopped
     stop_grace_period: 30s
     expose:
-      - "8080"
+      - "8003"
     networks:
       - default
     environment:
@@ -16,7 +16,7 @@ services:
       SPOOL_DATA_KEY: ${SPOOL_DATA_KEY:-}
       SPOOL_METRICS_TOKEN: ${SPOOL_METRICS_TOKEN:-}
       SPOOL_SETUP_TOKEN: ${SPOOL_SETUP_TOKEN:-}
-      SPOOL_ADDR: 0.0.0.0:8080
+      SPOOL_ADDR: 0.0.0.0:8003
       SPOOL_ENV: ${SPOOL_ENV:-production}
       SPOOL_INSTANCE_NAME: ${SPOOL_INSTANCE_NAME:-}
       SPOOL_DEPLOYMENT_MODE: self-hosted

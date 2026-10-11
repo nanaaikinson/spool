@@ -62,7 +62,7 @@ http {
     ssl_certificate_key /pilot/tls.key;
     location = /pilot-redirect { return 307 https://elsewhere.invalid; }
     location / {
-      set $spool_upstream app:8080;
+      set $spool_upstream app:8003;
       proxy_pass http://$spool_upstream;
       proxy_set_header Host $http_host;
       proxy_set_header X-Forwarded-Proto https;

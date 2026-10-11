@@ -103,7 +103,7 @@ else
   else
     admin_user=''
   fi
-  ask 'Local host port' 8080
+  ask 'Local host port' 8003
   port=$answer
   if [[ ! "$port" =~ ^[1-9][0-9]{0,4}$ ]] || ((port > 65535)); then
     fail 'Choose a port between 1 and 65535.'

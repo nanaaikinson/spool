@@ -24,7 +24,7 @@ services:
           printf '%s' "$$SPOOL_METRICS_TOKEN" > /tmp/spool-metrics-token
           printf '    authorization:\n      credentials_file: /tmp/spool-metrics-token\n' >> /tmp/spool-prometheus.yml
         fi
-        printf '    static_configs:\n      - targets: ["app:8080"]\n' >> /tmp/spool-prometheus.yml
+        printf '    static_configs:\n      - targets: ["app:8003"]\n' >> /tmp/spool-prometheus.yml
         exec /bin/prometheus --config.file=/tmp/spool-prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d
     volumes:
       - prometheus-data:/prometheus
