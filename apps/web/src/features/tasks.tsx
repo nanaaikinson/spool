@@ -784,12 +784,7 @@ export function TasksPage({
                 key={a}
                 size="sm"
                 variant={a === "delete" ? "destructive" : "secondary"}
-                disabled={
-                  !(
-                    session.data?.role === "admin" ||
-                    session.data?.role === "operator"
-                  )
-                }
+                disabled={session.data?.role !== "admin"}
                 onClick={() => setBulk(a)}
               >
                 {a[0].toUpperCase() + a.slice(1)} selected
@@ -946,12 +941,7 @@ export function TasksPage({
               )}
               <Button
                 variant="secondary"
-                disabled={
-                  !(
-                    session.data?.role === "admin" ||
-                    session.data?.role === "operator"
-                  )
-                }
+                disabled={session.data?.role !== "admin"}
                 onClick={() => setSave(true)}
               >
                 <Save size={14} />
@@ -1452,10 +1442,7 @@ export function TaskPage() {
             key={a}
             variant={a === "delete" ? "destructive" : "secondary"}
             disabled={
-              !(
-                session.data?.role === "admin" ||
-                session.data?.role === "operator"
-              ) ||
+              session.data?.role !== "admin" ||
               (a === "clone" &&
                 (task.payload.truncated || task.payload.encoding === "base64"))
             }

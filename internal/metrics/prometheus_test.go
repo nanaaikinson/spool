@@ -99,17 +99,3 @@ func TestScrapeHealth(t *testing.T) {
 		})
 	}
 }
-
-func TestOrganizationSelectors(t *testing.T) {
-	p := New("http://prometheus")
-	p.Organization = "organization-a"
-	p.Job = "spool"
-	for _, name := range []string{"depth", "pending", "active", "retry", "archived", "latency", "processed", "failed"} {
-		for _, queue := range []string{"", `queue"name`} {
-			expr, _, e := p.expression(name, queue)
-			if e != nil || !strings.Contains(expr, `organization="organization-a"`) || !strings.Contains(expr, `job="spool"`) {
-				t.Fatal("metric was not scoped", name, expr, e)
-			}
-		}
-	}
-}

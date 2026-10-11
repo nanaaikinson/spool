@@ -33,8 +33,7 @@ services:
   demo:
     build: .
     entrypoint: ["/app/spool-demo"]
-    environment: {REDIS_URL: "redis://redis:6379/0", SPOOL_ADDR: "127.0.0.1:8088"}
-    healthcheck: {disable: true}
+    environment: {REDIS_URL: "redis://redis:6379/0"}
     depends_on: {redis: {condition: service_healthy}}
     profiles: [demo]
 volumes:

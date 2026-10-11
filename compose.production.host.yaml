@@ -1,5 +1,4 @@
 # Optional override for a reverse proxy running directly on the Docker host.
-# Do not add this override on Dokploy or Coolify; their proxy uses expose.
 services:
   app:
     ports:

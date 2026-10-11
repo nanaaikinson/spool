@@ -23,7 +23,6 @@ For installation work, use `./scripts/install.sh --configure-only --env-file /pa
 ```sh
 make lint test api-check
 make test-install  # real Compose parsing; does not need the Docker daemon or network services
-make test-hosted   # customer secrets and hosted resource isolation; no daemon required
 make e2e        # browser tests; needs `cd apps/web && pnpm exec playwright install chromium` once
 ```
 
@@ -33,7 +32,7 @@ make e2e        # browser tests; needs `cd apps/web && pnpm exec playwright inst
 - **Tests:** add or update tests with behaviour changes. Integration tests use isolated services through `SPOOL_TEST_REDIS` and `SPOOL_TEST_DATABASE`; see the README.
 - **Installation changes:** keep `scripts/install.sh`, the production Compose files, environment templates and deployment guide consistent. Run `make test-install` for bundled/external combinations, literal credential handling, file permissions, reruns and failure handling. ShellCheck is useful for changes to the Bash installer. Test live startup against isolated Redis/PostgreSQL services, never a production Asynq database.
 
-CI runs installer and hosted checks alongside API generation, lint, unit tests, builds and browser tests. The installer suite parses real Compose configurations and mocks daemon operations; the hosted suite verifies secrets, resource separation and template parsing without a daemon. For hosted changes, keep `compose.hosted.yaml`, `scripts/prepare-hosted.py` and [docs/hosting.md](docs/hosting.md) consistent. Live container readiness and authenticated metrics scraping need a separate smoke test when deployment behavior changes.
+CI runs installer checks alongside API generation, lint, unit tests, builds and browser tests. The installer suite parses real Compose configurations and mocks daemon operations; live container readiness and metrics scraping need a separate smoke test when deployment behavior changes.
 
 Keep pull requests focused, and explain the problem and how you verified the fix. Write commit messages in the [Conventional Commits](https://www.conventionalcommits.org/) style (`fix:`, `feat:`, `docs:`).
 

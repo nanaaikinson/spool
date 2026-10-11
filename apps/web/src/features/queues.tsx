@@ -703,13 +703,7 @@ export function QueuePage() {
           <Button
             variant="secondary"
             onClick={() => setConfirm(true)}
-            disabled={
-              !query.data ||
-              !(
-                session.data?.role === "admin" ||
-                session.data?.role === "operator"
-              )
-            }
+            disabled={!query.data || session.data?.role !== "admin"}
           >
             {paused ? <Play size={14} /> : <Pause size={14} />}{" "}
             {paused ? "Resume" : "Pause"} queue

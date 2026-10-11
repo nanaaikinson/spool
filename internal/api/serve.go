@@ -124,22 +124,8 @@ func (a *API) events(w http.ResponseWriter, r *http.Request, _ params) {
 		case <-r.Context().Done():
 			return
 		case ev := <-ch:
-			fresh, ok := a.identity(r)
-			if !ok {
+			if _, ok := a.identity(r); !ok {
 				return
-			}
-			if a.Config.MultiOrg {
-				original, _ := r.Context().Value(authKey{}).(claims)
-				if fresh.OrganizationID != original.OrganizationID {
-					return
-				}
-			}
-			if a.Config.MultiOrg && strings.HasPrefix(ev, "changed:") {
-				c, _ := r.Context().Value(authKey{}).(claims)
-				if ev != "changed:"+c.OrganizationID {
-					continue
-				}
-				ev = "changed"
 			}
 			if _, e := fmt.Fprintf(w, "event: %s\ndata: {}\n\n", ev); e != nil {
 				return

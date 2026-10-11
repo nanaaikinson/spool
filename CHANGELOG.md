@@ -6,23 +6,9 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
-- Isolated local organization/RBAC Compose setup with two Redis instances, demo workers and a manual permission-testing guide; track live Dokploy/Coolify validation in the backlog.
-
-- Hosted pilot rehearsal for HTTPS, Redis TLS, redeployment, database restore and administrator recovery, plus a deployed-console verification command and CI coverage.
-- Operator PostgreSQL backup command with exact customer-container selection, private files, checksums and removal of failed partial dumps; the hosted rehearsal restores its output.
-
-- Deployment administrator grants, revocation and atomic handover with current-password verification, session revocation and organization audit entries.
-- Operator-only `spool admin recover` for an existing administrator’s password recovery, without Redis or public recovery endpoints.
-
-- Multiple organizations with separate Redis connections, encrypted connection settings, organization-scoped persistence and historical metrics.
-- PostgreSQL-backed accounts, admin/operator/viewer RBAC, membership management, account disabling, password resets and session revocation.
-- Organization setup in the guided installer, protected browser onboarding and `spool setup` CLI.
-
 - Live connection diagnostics in Settings, verified metrics scrape and warm-up states, and guidance for empty Asynq environments.
-- Runtime instance identity and hosted/self-hosted support guidance across sign-in, navigation, Settings and action dialogs.
-
-- Dedicated hosted Compose deployment for Dokploy/Coolify, per-customer credential preparation, and an operator guide.
-- Optional `SPOOL_METRICS_TOKEN` bearer authentication on `/metrics`; organization mode and the hosted stack require it; bundled Prometheus configures authenticated scrapes automatically.
+- Runtime instance identity and support guidance across sign-in, navigation, Settings and action dialogs.
+- Optional `SPOOL_METRICS_TOKEN` bearer authentication on `/metrics`.
 - Guided self-hosted installation with generated credentials, bundled PostgreSQL and Prometheus, optional external services, and startup readiness checks.
 - Audit log pagination: `GET /api/v1/audit` takes `page` and `limit` (default 25, at most 100) and returns the total; Settings pages through it.
 - Account menu in the sidebar footer, holding Settings and Sign out.

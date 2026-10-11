@@ -462,7 +462,7 @@ func (s *disconnectedSource) Queues(context.Context) ([]domain.Queue, error) {
 func TestDeploymentDiagnostics(t *testing.T) {
 	a := testAPI(&fakeSource{})
 	a.Config.InstanceName, a.Config.Environment = "Acme operations", "production"
-	a.Config.DeploymentMode, a.Config.SupportURL = "hosted", "https://support.example.com"
+	a.Config.SupportURL = "https://support.example.com"
 	h := a.Handler(http.NotFoundHandler())
 	w := call(h, "GET", "/api/v1/status", "", nil)
 	var status domain.DeploymentStatus
@@ -484,7 +484,7 @@ func TestDeploymentDiagnostics(t *testing.T) {
 	}
 	w = call(h, "GET", "/api/v1/session", "", nil)
 	var session domain.Session
-	if json.Unmarshal(w.Body.Bytes(), &session) != nil || session.InstanceName != "Acme operations" || session.SupportURL != a.Config.SupportURL || session.DeploymentMode != "hosted" {
+	if json.Unmarshal(w.Body.Bytes(), &session) != nil || session.InstanceName != "Acme operations" || session.SupportURL != a.Config.SupportURL {
 		t.Fatal("safe sign-in metadata missing")
 	}
 	if strings.Contains(w.Body.String(), "private-password") || strings.Contains(w.Body.String(), "secret-host") {

@@ -6,16 +6,14 @@ umask 077
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 env_file="$root/.env.installation"
 configure_only=false
-browser_setup=false
 while (($#)); do
   case "$1" in
-    --browser-setup) browser_setup=true; shift ;;
     --configure-only) configure_only=true; shift ;;
     --env-file)
       [[ $# -ge 2 ]] || { echo 'Missing path after --env-file.' >&2; exit 1; }
       env_file=$2; shift 2 ;;
     --help|-h)
-      echo 'Usage: scripts/install.sh [--configure-only] [--browser-setup] [--env-file PATH]'
+      echo 'Usage: scripts/install.sh [--configure-only] [--env-file PATH]'
       echo 'Creates configuration, builds Spool, and waits for Redis/PostgreSQL readiness.'
       echo 'Reruns reuse saved credentials. --configure-only saves and validates without starting services.'
       exit 0 ;;
@@ -32,8 +30,7 @@ docker compose version >/dev/null || fail 'Docker Compose is required (with supp
 compose() (
   unset COMPOSE_FILE COMPOSE_PATH_SEPARATOR COMPOSE_PROJECT_NAME COMPOSE_PROFILES
   unset REDIS_URL DATABASE_URL PROMETHEUS_URL POSTGRES_PASSWORD
-  unset SPOOL_METRICS_TOKEN SPOOL_MULTI_ORG SPOOL_ORGANIZATION_NAME SPOOL_DATA_KEY SPOOL_SETUP_TOKEN
-  unset SPOOL_INSTANCE_NAME SPOOL_SUPPORT_URL SPOOL_METRICS_JOB SPOOL_DEPLOYMENT_MODE
+  unset SPOOL_INSTANCE_NAME SPOOL_SUPPORT_URL SPOOL_METRICS_JOB
   unset SPOOL_ADDR SPOOL_ENV SPOOL_ADMIN_USER SPOOL_ADMIN_PASSWORD SPOOL_SESSION_KEY
   unset SPOOL_VIEWER_USER SPOOL_VIEWER_PASSWORD SPOOL_READ_ONLY SPOOL_SECURE_COOKIE SPOOL_HOST_PORT
   cd "$root"
@@ -96,13 +93,9 @@ else
       [[ "$prometheus_url" =~ ^https?://[^/]+ ]] || fail 'Enter an http:// or https:// Prometheus URL.' ;;
     *) fail 'Choose bundled or external for Prometheus.' ;;
   esac
-  if [[ "$browser_setup" == false ]]; then
   ask 'Administrator username' admin
   admin_user=$answer
   [[ "$admin_user" =~ ^[a-zA-Z0-9_.@-]+$ ]] || fail 'Use letters, digits, underscores, dots, @ or hyphens for the username.'
-  else
-    admin_user=''
-  fi
   ask 'Local host port' 8003
   port=$answer
   if [[ ! "$port" =~ ^[1-9][0-9]{0,4}$ ]] || ((port > 65535)); then
@@ -118,21 +111,11 @@ else
     *) fail 'Use localhost HTTP or an HTTPS origin. Remote HTTP is not supported.' ;;
   esac
 
-  organization_name='My organization'
-  if [[ "$browser_setup" == false ]]; then
-    ask 'Organization name' 'My organization'
-    organization_name=$answer
-    ((${#organization_name} <= 80)) || fail 'Organization name must be at most 80 characters.'
-  fi
   files="$root/$base"
   [[ "$metrics_mode" != bundled ]] || files+=":$root/compose.production.prometheus.yaml"
   files+=":$root/compose.production.host.yaml"
   [[ "$files" != *"'"* && "$files" != *\\* && "$files" != *$'\n'* ]] || fail 'The checkout path contains unsupported characters.'
   admin_password=$(openssl rand -hex 24)
-  [[ "$browser_setup" == false ]] || admin_password=''
-  metrics_token=$(openssl rand -hex 32)
-  data_key=$(openssl rand -hex 32)
-  setup_token=$(openssl rand -hex 32)
   session_key=$(openssl rand -hex 32)
   postgres_password=$(openssl rand -hex 32)
   # noclobber prevents concurrent installers from replacing existing credentials.
@@ -150,11 +133,6 @@ DATABASE_URL='$database_url'
 POSTGRES_PASSWORD='$postgres_password'
 PROMETHEUS_URL='$prometheus_url'
 SPOOL_ENV='production'
-SPOOL_MULTI_ORG='true'
-SPOOL_ORGANIZATION_NAME='$organization_name'
-SPOOL_DATA_KEY='$data_key'
-SPOOL_METRICS_TOKEN='$metrics_token'
-SPOOL_SETUP_TOKEN='$setup_token'
 SPOOL_INSTANCE_NAME=''
 SPOOL_SUPPORT_URL=''
 SPOOL_METRICS_JOB='spool'
@@ -175,7 +153,7 @@ fi
 compose config --quiet || fail "Configuration validation failed. Correct $env_file and rerun; secrets were preserved."
 printf 'Manage this installation with: docker compose --env-file %q <command>\n' "$env_file"
 echo 'Use ps for status, logs for diagnostics, and stop to stop services while keeping data.'
-echo "Accounts and setup tokens are in $env_file. Keep SPOOL_DATA_KEY stable and backed up with PostgreSQL."
+echo "The administrator username and generated password are in $env_file."
 if [[ "$configure_only" == true ]]; then
   echo 'Configuration validated. Rerun without --configure-only to build and start.'
   exit 0
@@ -203,7 +181,7 @@ else
   echo 'External Prometheus: configure its scraper to reach the private /metrics endpoint of this installation.'
 fi
 console_url=$(sed -n "s/^SPOOL_INSTALL_URL='\([^']*\)'$/\1/p" "$env_file")
-echo "Spool is ready. Open $console_url and sign in with the credentials in $env_file, or complete browser setup with the saved setup token."
+echo "Spool is ready. Open $console_url and sign in with the credentials in $env_file."
 if [[ "$console_url" == https://* ]]; then
   echo 'Route your HTTPS proxy to the saved loopback port, preserve Host, allow SSE, and block public /metrics.'
 fi

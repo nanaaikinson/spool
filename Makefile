@@ -1,4 +1,4 @@
-.PHONY: help install self-host test-install test-hosted smoke-hosted dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
+.PHONY: help install self-host test-install dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
 .DEFAULT_GOAL := help
 GO ?= go
 PNPM ?= pnpm
@@ -15,10 +15,6 @@ self-host: ## Guided self-hosted setup with optional bundled PostgreSQL and Prom
 	./scripts/install.sh
 test-install: ## Check self-hosted setup and Compose configuration without starting containers
 	python3 scripts/test-install.py
-test-hosted: ## Check customer credential preparation and hosted Compose isolation
-	python3 scripts/test-hosted.py
-smoke-hosted: ## Rehearse a built image behind HTTPS, including backup/restore (HOSTED_IMAGE=...)
-	python3 scripts/smoke_hosted.py --image "$(HOSTED_IMAGE)"
 dev: ## Run the API server, rebuilding on change with Air when installed
 	@if command -v $(AIR) >/dev/null 2>&1; then \
 		$(AIR); \
