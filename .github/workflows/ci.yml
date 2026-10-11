@@ -11,13 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     services:
       redis: {image: 'redis:7.4-alpine', ports: ['6379:6379']}
-      postgres:
-        image: postgres:17-alpine
-        ports: ['5448:5432']
-        env: {POSTGRES_USER: spool, POSTGRES_PASSWORD: spool-local, POSTGRES_DB: spool}
     env:
       SPOOL_TEST_REDIS: redis://localhost:6379/15
-      SPOOL_TEST_DATABASE: postgres://spool:spool-local@localhost:5448/spool?sslmode=disable
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

@@ -338,7 +338,7 @@ export function MetricsPage() {
 const auditPageSize = 25;
 export function SettingsPage() {
   const session = useSession();
-  // Saved views and the audit log live in PostgreSQL.
+  // Saved views and the audit log live in the SQLite database.
   const noDatabase = session.data?.read_only_reason === "no_database";
   const [auditPage, setAuditPage] = useState(1);
   const audit = useQuery({

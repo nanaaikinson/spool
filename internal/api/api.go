@@ -57,7 +57,7 @@ func (a *API) Handler(scrape http.Handler) http.Handler {
 		}
 		if a.Store != nil {
 			if e := a.Store.Ping(ctx); e != nil {
-				a.fail(w, r, 503, "NOT_READY", "Cannot reach PostgreSQL. Check DATABASE_URL and that PostgreSQL is running.", e)
+				a.fail(w, r, 503, "NOT_READY", "Cannot use the database. Check DATABASE_PATH and that its volume is writable.", e)
 				return
 			}
 		}
@@ -204,7 +204,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			503,
 			"AUDIT_UNAVAILABLE",
-			"Changes are disabled because the audit log is unavailable. Set DATABASE_URL to a reachable PostgreSQL database.",
+			"Changes are disabled because the audit log is unavailable. Set DATABASE_PATH to a writable file on persistent storage.",
 			e,
 		)
 	case errors.Is(e, metrics.ErrUnavailable):
@@ -222,7 +222,7 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			r,
 			503,
 			"DEPENDENCY_UNAVAILABLE",
-			"The request failed. Check that Redis and PostgreSQL are reachable, then try again.",
+			"The request failed. Check that Redis is reachable and the database is writable, then try again.",
 			e,
 		)
 	}

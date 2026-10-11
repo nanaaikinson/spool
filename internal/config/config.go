@@ -17,7 +17,7 @@ import (
 type Config struct {
 	Addr           string
 	RedisURL       string
-	DatabaseURL    string
+	DatabasePath   string
 	PrometheusURL  string
 	Environment    string
 	InstanceName   string
@@ -50,7 +50,7 @@ func Load() (Config, error) {
 	c := Config{
 		Addr:           env.Get("SPOOL_ADDR", "127.0.0.1:8088"),
 		RedisURL:       env.Get("REDIS_URL", "redis://127.0.0.1:6388/0"),
-		DatabaseURL:    env.Get("DATABASE_URL"),
+		DatabasePath:   env.Get("DATABASE_PATH"),
 		PrometheusURL:  env.Get("PROMETHEUS_URL"),
 		Environment:    env.Get("SPOOL_ENV", "development"),
 		InstanceName:   env.Get("SPOOL_INSTANCE_NAME"),
@@ -103,6 +103,12 @@ func Load() (Config, error) {
 			return c, fmt.Errorf("SPOOL_SESSION_KEY must be at least 32 characters when sign-in is enabled")
 		}
 	}
+	if env.Get("DATABASE_URL") != "" {
+		return c, fmt.Errorf("DATABASE_URL is no longer supported: Spool stores its data in SQLite; unset DATABASE_URL and set DATABASE_PATH to a file path such as /data/spool.db")
+	}
+	if strings.ContainsAny(c.DatabasePath, "?#") {
+		return c, fmt.Errorf("DATABASE_PATH must be a file path without ? or #")
+	}
 	if _, err := asynq.ParseRedisURI(c.RedisURL); err != nil {
 		return c, fmt.Errorf("invalid REDIS_URL")
 	}
@@ -122,11 +128,11 @@ func Load() (Config, error) {
 	}
 	c.RedisTLS = tlsConfig
 	// Every change is recorded in the audit log before it runs, so without
-	// PostgreSQL Spool can only observe.
+	// a database Spool can only observe.
 	switch {
 	case c.ReadOnly:
 		c.ReadOnlyReason = "configured"
-	case c.DatabaseURL == "":
+	case c.DatabasePath == "":
 		c.ReadOnly, c.ReadOnlyReason = true, "no_database"
 	}
 	if c.PrometheusURL != "" {

@@ -58,6 +58,7 @@ func TestRedisCredentials(t *testing.T) {
 func TestReadOnlyWithoutDatabase(t *testing.T) {
 	t.Setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
 	t.Setenv("DATABASE_URL", "")
+	t.Setenv("DATABASE_PATH", "")
 	t.Setenv("SPOOL_READ_ONLY", "false")
 	c, e := Load()
 	if e != nil {
@@ -66,10 +67,16 @@ func TestReadOnlyWithoutDatabase(t *testing.T) {
 	if !c.ReadOnly || c.ReadOnlyReason != "no_database" {
 		t.Fatalf("read only = %v (%q), want no_database", c.ReadOnly, c.ReadOnlyReason)
 	}
-	t.Setenv("DATABASE_URL", "postgres://spool@localhost/spool")
+	t.Setenv("DATABASE_PATH", "/data/spool.db")
 	if c, e = Load(); e != nil || c.ReadOnly || c.ReadOnlyReason != "" {
 		t.Fatalf("with database: %v %v %q", e, c.ReadOnly, c.ReadOnlyReason)
 	}
+	// A leftover PostgreSQL URL must not silently drop to read-only.
+	t.Setenv("DATABASE_URL", "postgres://spool@localhost/spool")
+	if _, e = Load(); e == nil || !strings.Contains(e.Error(), "DATABASE_URL") {
+		t.Fatalf("legacy DATABASE_URL accepted: %v", e)
+	}
+	t.Setenv("DATABASE_URL", "")
 	t.Setenv("SPOOL_READ_ONLY", "true")
 	if c, e = Load(); e != nil || !c.ReadOnly || c.ReadOnlyReason != "configured" {
 		t.Fatalf("configured: %v %v %q", e, c.ReadOnly, c.ReadOnlyReason)

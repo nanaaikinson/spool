@@ -311,9 +311,9 @@ func TestQueryValidation(t *testing.T) {
 }
 
 func TestRealHTTPMutation(t *testing.T) {
-	address, dsn := os.Getenv("SPOOL_TEST_REDIS"), os.Getenv("SPOOL_TEST_DATABASE")
-	if address == "" || dsn == "" {
-		t.Skip("set isolated Redis and PostgreSQL test URLs")
+	address := os.Getenv("SPOOL_TEST_REDIS")
+	if address == "" {
+		t.Skip("set an isolated Redis test URL")
 	}
 	opt, e := asynq.ParseRedisURI(address)
 	if e != nil {
@@ -321,7 +321,7 @@ func TestRealHTTPMutation(t *testing.T) {
 	}
 	source := asynqadapter.New(opt)
 	defer source.Close()
-	db, e := store.Open(context.Background(), dsn)
+	db, e := store.Open(context.Background(), filepath.Join(t.TempDir(), "spool.db"))
 	if e != nil {
 		t.Fatal(e)
 	}
@@ -470,7 +470,7 @@ func TestDeploymentDiagnostics(t *testing.T) {
 		t.Fatalf("diagnostics: %d %s", w.Code, w.Body.String())
 	}
 	a.Source = &disconnectedSource{}
-	a.Config.DatabaseURL = "postgres://secret:private-password@secret-host/spool"
+	a.Config.DatabasePath = "/secret-host/private-password/spool.db"
 	w = call(h, "GET", "/api/v1/status", "", nil)
 	if json.Unmarshal(w.Body.Bytes(), &status) != nil || status.Redis.Available || !status.Database.Configured || status.Database.Available {
 		t.Fatal("failed connections reported healthy")

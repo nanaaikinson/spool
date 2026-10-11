@@ -1,8 +1,10 @@
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { defineConfig } from "@playwright/test";
 const redis = process.env.SPOOL_TEST_REDIS ?? "redis://127.0.0.1:6388/15";
+// Both servers share one SQLite file.
 const database =
-  process.env.SPOOL_TEST_DATABASE ??
-  "postgres://spool:spool-local@127.0.0.1:5448/spool?sslmode=disable";
+  process.env.SPOOL_TEST_DATABASE ?? join(tmpdir(), "spool-e2e.db");
 export default defineConfig({
   testDir: "./e2e",
   workers: 1,
@@ -20,7 +22,8 @@ export default defineConfig({
       env: {
         ...process.env,
         REDIS_URL: redis,
-        DATABASE_URL: database,
+        DATABASE_URL: "",
+        DATABASE_PATH: database,
         SPOOL_ADDR: "127.0.0.1:8189",
         PROMETHEUS_URL: "",
         SPOOL_ADMIN_USER: "admin",
@@ -40,7 +43,8 @@ export default defineConfig({
         ...process.env,
         SPOOL_TEST_REDIS: redis,
         REDIS_URL: redis,
-        DATABASE_URL: database,
+        DATABASE_URL: "",
+        DATABASE_PATH: database,
         SPOOL_ADDR: "127.0.0.1:8188",
         PROMETHEUS_URL: "",
         SPOOL_ADMIN_USER: "",

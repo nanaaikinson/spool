@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -43,10 +44,10 @@ func run(log *slog.Logger) error {
 	defer source.Close()
 	checkRedis(ctx, log, c, source)
 	startup, cancel := context.WithTimeout(ctx, 10*time.Second)
-	db, e := store.Open(startup, c.DatabaseURL)
+	db, e := store.Open(startup, c.DatabasePath)
 	cancel()
 	if e != nil {
-		return errors.New("could not connect to PostgreSQL or apply migrations; check DATABASE_URL")
+		return fmt.Errorf("could not open the database or apply migrations; check that DATABASE_PATH is in a writable directory: %w", e)
 	}
 	if db != nil {
 		defer db.DB.Close()
@@ -132,6 +133,6 @@ func checkRedis(ctx context.Context, log *slog.Logger, c config.Config, source *
 		log.Info("connected to Redis", "redis", c.RedisTarget(), "queues", len(queues))
 	}
 	if c.ReadOnlyReason == "no_database" {
-		log.Warn("DATABASE_URL is not set; running read-only without the audit log, saved views or schedule links")
+		log.Warn("DATABASE_PATH is not set; running read-only without the audit log, saved views or schedule links")
 	}
 }

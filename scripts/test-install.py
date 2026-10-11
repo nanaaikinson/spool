@@ -34,7 +34,7 @@ class InstallationTest(unittest.TestCase):
     def model(self):
         environment = {key: value for key, value in os.environ.items()
                        if not key.startswith(("SPOOL_", "COMPOSE_"))
-                       and key not in {"REDIS_URL", "DATABASE_URL", "PROMETHEUS_URL", "POSTGRES_PASSWORD"}}
+                       and key not in {"REDIS_URL", "PROMETHEUS_URL"}}
         result = subprocess.run([DOCKER, "compose", "--env-file", str(self.config),
                                  "config", "--format", "json"], env=environment,
                                 text=True, capture_output=True, check=True)
@@ -69,12 +69,12 @@ class InstallationTest(unittest.TestCase):
     def test_bundled_services_literal_credentials_and_rerun(self):
         marker = self.directory / "should-not-exist"
         redis = f"rediss://spool:$SECRET$(touch {marker})`id`#pass@redis.example:6380/2"
-        output = self.install(redis + "\n" * 6)
+        output = self.install(redis + "\n" * 5)
         self.assertNotIn(redis, output)
         self.assertFalse(marker.exists())
         self.assertEqual(self.config.stat().st_mode & 0o777, 0o600)
         services = self.model()["services"]
-        self.assertEqual(set(services), {"app", "postgres", "prometheus"})
+        self.assertEqual(set(services), {"app", "prometheus"})
         settings = services["app"]["environment"]
         self.assertEqual(settings["REDIS_URL"], redis)
         self.assertEqual(settings["PROMETHEUS_URL"], "http://prometheus:9090")
@@ -83,10 +83,9 @@ class InstallationTest(unittest.TestCase):
         self.assertTrue(all(len(settings[key]) >= 32 for key in
                             ("SPOOL_ADMIN_PASSWORD", "SPOOL_SESSION_KEY")))
         self.assertNotEqual(settings["SPOOL_ADMIN_PASSWORD"], settings["SPOOL_SESSION_KEY"])
-        self.assertIn("://spool:" + services["postgres"]["environment"]["POSTGRES_PASSWORD"] + "@",
-                      settings["DATABASE_URL"])
+        self.assertEqual(settings["DATABASE_PATH"], "/data/spool.db")
+        self.assertEqual(services["app"]["volumes"][0]["target"], "/data")
         self.assertEqual(services["app"]["ports"][0]["host_ip"], "127.0.0.1")
-        self.assertNotIn("ports", services["postgres"])
         self.assertNotIn("ports", services["prometheus"])
         original = self.config.read_bytes()
         self.install()
@@ -98,14 +97,12 @@ class InstallationTest(unittest.TestCase):
         self.assertIn("exec -T prometheus", trace)
 
     def test_external_services_https_and_failure_preserves_secrets(self):
-        postgres = "postgres://spool:pa$ss@postgres.example:5432/spool?sslmode=verify-full"
         metrics = "https://metrics.example"
-        self.install("\n".join(["redis://redis.example:6379/3", "external", postgres,
+        self.install("\n".join(["redis://redis.example:6379/3",
                                 "external", metrics, "owner", "8090", "https://spool.example", ""]))
         services = self.model()["services"]
         self.assertEqual(set(services), {"app"})
         settings = services["app"]["environment"]
-        self.assertEqual(settings["DATABASE_URL"], postgres)
         self.assertEqual(settings["PROMETHEUS_URL"], metrics)
         self.assertEqual(settings["SPOOL_SECURE_COOKIE"], "true")
         self.assertEqual(services["app"]["ports"][0]["published"], "8090")
@@ -120,15 +117,20 @@ class InstallationTest(unittest.TestCase):
         self.assertIn("external Prometheus is unreachable", self.install(configure=False, success=False))
         self.assertEqual(self.config.read_bytes(), original)
 
-    def test_mixed_services(self):
-        self.install("redis://redis.example:6379/0\nexternal\npostgres://spool:secret@db.example/spool\n" + "\n" * 4)
-        self.assertEqual(set(self.model()["services"]), {"app", "prometheus"})
-        self.config.unlink()
-        self.install("redis://redis.example:6379/0\n\nexternal\nhttp://metrics.example:9090\n" + "\n" * 3)
-        self.assertEqual(set(self.model()["services"]), {"app", "postgres"})
+    def test_postgresql_installation_is_upgraded(self):
+        self.install("redis://redis.example:6379/0\nexternal\nhttp://metrics.example:9090\n" + "\n" * 3)
+        current = self.config.read_text()
+        # Recreate a configuration saved for external PostgreSQL.
+        self.config.write_text(current.replace("compose.production.redis.yaml", "compose.production.external.yaml")
+                               + "DATABASE_URL='postgres://spool:secret@db.example/spool'\n"
+                               + "POSTGRES_PASSWORD='old'\n")
+        self.assertIn("now keeps its data in SQLite", self.install())
+        self.assertEqual(self.config.read_text(), current)
+        self.assertEqual(self.config.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(set(self.model()["services"]), {"app"})
 
     def test_remote_http_and_incomplete_input_do_not_save(self):
-        self.install("redis://redis.example:6379/0\n\n\n\n\nhttp://spool.example\n", success=False)
+        self.install("redis://redis.example:6379/0\n\n\n\nhttp://spool.example\n", success=False)
         self.assertFalse(self.config.exists())
         self.install("redis://redis.example:6379/0\n", success=False)
         self.assertFalse(self.config.exists())

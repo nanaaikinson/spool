@@ -25,7 +25,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -trimpath -ldflags="$LDFLAGS" -o /out/spool-demo ./cmd/demo
 
 FROM alpine:3.24
-RUN apk add --no-cache ca-certificates && addgroup -S spool && adduser -S spool -G spool
+# /data is owned by spool so a named volume mounted there starts writable.
+RUN apk add --no-cache ca-certificates && addgroup -S spool && adduser -S spool -G spool && \
+    install -d -o spool -g spool /data
 WORKDIR /app
 COPY --from=backend /out/ /app/
 COPY --from=web /src/apps/web/dist /app/web
