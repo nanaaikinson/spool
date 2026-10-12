@@ -18,6 +18,31 @@ What Spool shows:
 - **Logs**: Spool's own log lines for the administrator, with search, a level histogram you can click to jump to a time, live tail, table and JSON views, a virtualized list that loads older lines as you scroll (and newer ones on request), keyboard navigation (`/` to search, `j`/`k` to move, Esc to close), and a detail panel with lines around, same-message filtering and copy actions.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
+## Screenshots
+
+These screenshots use Spool's demo worker with sample tasks and show both dark and light themes.
+
+**Dashboard** — spot queue health issues, busy workers and recurring errors at a glance.
+
+![Spool dashboard in dark mode showing queue health, worker activity, top errors and processing charts](docs/assets/screenshots/dashboard-dark.png)
+
+<details>
+<summary>Explore queues, task inspection and scheduled tasks</summary>
+
+**Queues** — compare backlog, processing state, retries, latency and failures across queues.
+
+![Spool queues in dark mode showing critical, default and reports queues with task counts and failure rates](docs/assets/screenshots/queues-dark.png)
+
+**Task inspection** — inspect the payload, last error and retry timing, then run, archive, delete or clone a task.
+
+![Spool task inspection in light mode showing an invoice task's JSON payload, billing error, retry state and available actions](docs/assets/screenshots/task-light.png)
+
+**Scheduled tasks** — see upcoming jobs, retry workload and the periodic schedules that enqueue them.
+
+![Spool scheduled tasks in light mode showing upcoming reports, retry totals and a periodic schedule](docs/assets/screenshots/scheduled-light.png)
+
+</details>
+
 ## Install on your own Docker host
 
 Have the Redis connection URL used by your Asynq workers ready, including its database index. With Docker, a Compose plugin supporting `up --wait`, Bash and OpenSSL installed:
