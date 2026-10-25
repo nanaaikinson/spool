@@ -4,7 +4,7 @@ Spool is an incident console for Asynq operators. Neutral surfaces, inset cards,
 
 ## Layout
 
-A left sidebar groups pages under **Monitor** (Dashboard, Live activity, Metrics, and Logs for the administrator only), **Tasks** (Queues, All tasks, Scheduled, Failed) and **Infrastructure** (Servers, Periodic schedules). The footer holds Settings, an account menu for the signed-in account (Settings & audit, Sign out) and a subtle environment and version line. Alt+1 to Alt+9 open the pages in sidebar order. The sidebar collapses to icons with ⌘B or Ctrl+B and becomes a sheet on phones.
+A left sidebar groups pages under **Monitor** (Dashboard, Live activity, Metrics, and Logs for the administrator only), **Tasks** (Queues, All tasks, Scheduled, Failed) and **Infrastructure** (Servers, Periodic schedules, Redis). The footer holds Settings, an account menu for the signed-in account (Settings & audit, Sign out) and a subtle environment and version line. Alt+1 to Alt+9 open the pages in sidebar order. The sidebar collapses to icons with ⌘B or Ctrl+B and becomes a sheet on phones.
 
 A sticky topbar holds the sidebar toggle, a breadcrumb for the current page, search (the command palette, ⌘K or Ctrl+K), the live connection status and the theme toggle. On phones the breadcrumb shows only the current page and the controls become icons.
 

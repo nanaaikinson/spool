@@ -9,6 +9,7 @@ import {
   Server,
   CalendarClock,
   ScrollText,
+  Database,
 } from "lucide-react";
 // Order matters: positions 1–9 map to the Alt+n shortcuts. Items marked
 // serverLogs show only to accounts that may read server logs.
@@ -32,6 +33,7 @@ export const nav = [
     icon: CalendarClock,
     group: "Infrastructure",
   },
+  { to: "/redis", label: "Redis", icon: Database, group: "Infrastructure" },
   {
     to: "/logs",
     label: "Logs",

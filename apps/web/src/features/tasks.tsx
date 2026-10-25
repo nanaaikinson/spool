@@ -72,6 +72,7 @@ import {
   listQueuesOptions,
   listSchedulersOptions,
   bulkActionMutation,
+  bulkActionAllMutation,
   retryTaskMutation,
   archiveTaskMutation,
   deleteTaskMutation,
@@ -122,6 +123,16 @@ import { Time } from "../components/time";
 const filterLabel = "text-xs text-muted-foreground";
 const formError = "text-xs text-red";
 /* Grey callout inside dialogs and payload panels. */
+/** Actions Spool can apply to every task in a state at once; active tasks have none. */
+const wholeState: Record<string, readonly ("retry" | "archive" | "delete")[]> =
+  {
+    pending: ["archive", "delete"],
+    scheduled: ["retry", "archive", "delete"],
+    retry: ["retry", "archive", "delete"],
+    archived: ["retry", "delete"],
+    completed: ["delete"],
+    aggregating: ["retry", "archive", "delete"],
+  };
 const notice =
   "mt-3 block rounded-md border-0 bg-hover p-3 text-xs text-muted-foreground";
 const noticeText = "text-xs";
@@ -197,6 +208,15 @@ export function TasksPage({
   const filtersID = useId();
   const [selection, setSelection] = useState<Record<string, boolean>>({});
   const [bulk, setBulk] = useState<"retry" | "archive" | "delete" | null>(null);
+  // Kept after the dialog closes so its text doesn't change during the exit animation.
+  const [bulkAll, setBulkAll] = useState<{
+    action: "retry" | "archive" | "delete";
+    count?: number;
+    state?: string;
+    group?: string;
+  } | null>(null);
+  const [bulkAllOpen, setBulkAllOpen] = useState(false);
+  const [typed, setTyped] = useState("");
   const [save, setSave] = useState(false);
   const viewForm = useForm<{ name: string }>({
     resolver: zodResolver(
@@ -277,6 +297,17 @@ export function TasksPage({
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
+  const bulkAllMutation = useMutation({
+    ...bulkActionAllMutation(),
+    onSuccess: (result) => {
+      invalidateOperational();
+      setBulkAllOpen(false);
+      setTyped("");
+      setSelection({});
+      toast.success(`${plural(result.affected, "task")} updated.`);
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
   const saveMutation = useMutation({
     ...saveViewMutation(),
     onSuccess: () => {
@@ -295,6 +326,17 @@ export function TasksPage({
   );
   const stateCount = (state: (typeof states)[number]) =>
     scopedQueues.reduce((sum, q) => sum + q[state], 0);
+  const wholeActions = wholeState[state ?? ""] ?? [];
+  // Aggregating tasks are counted per group, which the queue totals don't give.
+  const wholeCount =
+    state === "aggregating"
+      ? undefined
+      : stateCount(state as (typeof states)[number]);
+  const canActOnAll =
+    !!queue &&
+    wholeActions.length > 0 &&
+    session.data?.role === "admin" &&
+    (state === "aggregating" ? !!search.group : !!wholeCount);
   const nextTask = query.data?.data
     .filter((t) => t.next_process_at)
     .sort((a, b) => a.next_process_at!.localeCompare(b.next_process_at!))[0];
@@ -792,6 +834,33 @@ export function TasksPage({
             ))}
           </FilterBar>
         )}
+        {canActOnAll && (
+          <FilterBar>
+            <span className="text-xs">
+              {state === "aggregating"
+                ? `Every task in group ${search.group}`
+                : `All ${plural(wholeCount ?? 0, `${state} task`)} in ${queue}`}
+            </span>
+            {wholeActions.map((a) => (
+              <Button
+                key={a}
+                size="sm"
+                variant={a === "delete" ? "destructive" : "secondary"}
+                onClick={() => {
+                  setBulkAll({
+                    action: a,
+                    count: wholeCount,
+                    state,
+                    group: search.group,
+                  });
+                  setBulkAllOpen(true);
+                }}
+              >
+                {capitalize(a)} all
+              </Button>
+            ))}
+          </FilterBar>
+        )}
         {query.isPending ? (
           <Phantom loading label="Loading tasks">
             <Table>
@@ -1182,6 +1251,81 @@ export function TasksPage({
             }}
           >
             {bulkMutation.isPending ? "Applying…" : `Confirm ${bulk}`}
+          </Button>
+        </DialogFooter>
+      </OperationDialog>
+      <OperationDialog
+        open={bulkAllOpen}
+        onOpenChange={(open) => {
+          if (!open && !bulkAllMutation.isPending) {
+            setBulkAllOpen(false);
+            setTyped("");
+          }
+        }}
+        title={`${capitalize(bulkAll?.action ?? "update")} ${
+          bulkAll?.count === undefined
+            ? `every task in group ${bulkAll?.group}`
+            : `all ${plural(bulkAll.count, `${bulkAll.state} task`)}`
+        } in ${queue}?`}
+        description="This acts on every task in this state of the queue, not only the ones on this page. It is recorded in the audit log as one action; tasks added meanwhile are included."
+      >
+        <Alert role="note" className={notice}>
+          <AlertDescription className={noticeText}>
+            {bulkAll?.action === "delete"
+              ? "This permanently removes these tasks and their data. Active tasks are never touched."
+              : "Active tasks are never touched."}
+          </AlertDescription>
+        </Alert>
+        {bulkAll?.action === "delete" && (
+          <Field className="mt-3">
+            <FieldLabel htmlFor={`${filtersID}-confirm-queue`}>
+              Type {queue} to confirm
+            </FieldLabel>
+            <Input
+              id={`${filtersID}-confirm-queue`}
+              autoComplete="off"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+            />
+          </Field>
+        )}
+        <DialogFooter className={dialogActions}>
+          <AlertDialogCancel
+            variant="secondary"
+            disabled={bulkAllMutation.isPending}
+            onClick={() => {
+              setBulkAllOpen(false);
+              setTyped("");
+            }}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <Button
+            variant={bulkAll?.action === "delete" ? "destructive" : "default"}
+            disabled={
+              bulkAllMutation.isPending ||
+              (bulkAll?.action === "delete" && typed !== queue)
+            }
+            onClick={() => {
+              if (bulkAll?.state)
+                bulkAllMutation.mutate({
+                  path: { queue },
+                  body: {
+                    confirm: true,
+                    action: bulkAll.action,
+                    state: bulkAll.state,
+                    group:
+                      bulkAll.state === "aggregating"
+                        ? (bulkAll.group ?? "")
+                        : "",
+                  },
+                  headers: { "X-Spool-Action": "confirmed" },
+                });
+            }}
+          >
+            {bulkAllMutation.isPending
+              ? "Applying…"
+              : `Confirm ${bulkAll?.action}`}
           </Button>
         </DialogFooter>
       </OperationDialog>

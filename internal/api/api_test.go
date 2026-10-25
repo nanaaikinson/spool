@@ -616,3 +616,179 @@ func TestDiagnosticsCancellationDoesNotWaitForInspector(t *testing.T) {
 		t.Fatal("cancelled check must remain unavailable")
 	}
 }
+
+type redisSource struct {
+	fakeSource
+	err error
+}
+
+func (s *redisSource) Redis(context.Context) (domain.RedisInfo, error) {
+	return domain.RedisInfo{Version: "7.4.1", UsedMemoryBytes: 1 << 20}, s.err
+}
+
+func TestRedisInfo(t *testing.T) {
+	s := &redisSource{}
+	a := testAPI(s)
+	h := a.Handler(http.NotFoundHandler())
+	var info domain.RedisInfo
+	w := call(h, "GET", "/api/v1/redis", "", nil)
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &info) != nil || info.Version != "7.4.1" || info.UsedMemoryBytes != 1<<20 {
+		t.Fatalf("redis info: %d %s", w.Code, w.Body.String())
+	}
+	s.err = fmt.Errorf("redis://user:private-password@secret-host/0")
+	w = call(h, "GET", "/api/v1/redis", "", nil)
+	if w.Code != 503 || strings.Contains(w.Body.String(), "private-password") || strings.Contains(w.Body.String(), "secret-host") {
+		t.Fatalf("failure must be fixed text: %d %s", w.Code, w.Body.String())
+	}
+}
+
+type actionSource struct {
+	fakeSource
+	queueActions []string
+	bulk         []string
+	queueErr     error
+	events       string
+	eventLimit   int
+}
+
+func (s *actionSource) QueueAction(_ context.Context, q, action string) error {
+	s.queueActions = append(s.queueActions, action+" "+q)
+	return s.queueErr
+}
+
+func (s *actionSource) TaskActionAll(_ context.Context, q, state, group, action string) (int, error) {
+	s.bulk = append(s.bulk, strings.Join([]string{q, state, group, action}, "|"))
+	return 7, nil
+}
+
+func (s *actionSource) SchedulerEvents(_ context.Context, id string, limit int) ([]domain.SchedulerEvent, error) {
+	s.events, s.eventLimit = id, limit
+	return []domain.SchedulerEvent{{TaskID: "t1", EnqueuedAt: time.Now()}}, nil
+}
+
+func (s *actionSource) RedisCluster(context.Context) (domain.RedisCluster, error) {
+	return domain.RedisCluster{Enabled: true, Queues: []domain.RedisClusterQueue{{Queue: "default", KeySlot: 42}}}, nil
+}
+
+func (s *actionSource) RedisRaw(context.Context) (domain.RedisRawInfo, error) {
+	return domain.RedisRawInfo{Sections: []domain.RedisInfoSection{{Name: "Server"}}}, nil
+}
+
+func actionAPI(t *testing.T, s asynqadapter.Source) (*API, http.Handler) {
+	db, e := store.Open(context.Background(), filepath.Join(t.TempDir(), "spool.db"))
+	if e != nil {
+		t.Fatal(e)
+	}
+	t.Cleanup(func() { db.DB.Close() })
+	a := testAPI(s)
+	a.Store = db
+	return a, a.Handler(http.NotFoundHandler())
+}
+
+var confirmedHeader = map[string]string{"X-Spool-Action": "confirmed"}
+
+func TestDeleteQueue(t *testing.T) {
+	s := &actionSource{}
+	_, h := actionAPI(t, s)
+	if w := call(h, "DELETE", "/api/v1/queues/old", `{"confirm":false}`, confirmedHeader); w.Code != 422 || len(s.queueActions) != 0 {
+		t.Fatalf("unconfirmed delete: %d", w.Code)
+	}
+	if w := call(h, "DELETE", "/api/v1/queues/old", `{"confirm":true}`, confirmedHeader); w.Code != 200 || len(s.queueActions) != 1 || s.queueActions[0] != "delete old" {
+		t.Fatalf("delete: %d %s %v", w.Code, w.Body.String(), s.queueActions)
+	}
+	s.queueErr = asynqadapter.ErrQueueNotEmpty
+	w := call(h, "DELETE", "/api/v1/queues/busy", `{"confirm":true}`, confirmedHeader)
+	var e domain.Error
+	if w.Code != 409 || json.Unmarshal(w.Body.Bytes(), &e) != nil || e.Code != "QUEUE_NOT_EMPTY" {
+		t.Fatalf("non-empty queue: %d %s", w.Code, w.Body.String())
+	}
+}
+
+func TestBulkActionAll(t *testing.T) {
+	s := &actionSource{}
+	a, h := actionAPI(t, s)
+	path := "/api/v1/queues/default/tasks/bulk"
+	for _, body := range []string{
+		`{"state":"retry","action":"delete","group":"","confirm":false}`,
+		`{"state":"active","action":"delete","group":"","confirm":true}`,
+		`{"state":"completed","action":"retry","group":"","confirm":true}`,
+		`{"state":"archived","action":"archive","group":"","confirm":true}`,
+		`{"state":"nonsense","action":"delete","group":"","confirm":true}`,
+		`{"state":"aggregating","action":"delete","group":"","confirm":true}`,
+		`{"state":"retry","action":"delete","group":"g","confirm":true}`,
+		`{"state":"retry","action":"delete","group":"","confirm":true,"extra":1}`,
+	} {
+		if w := call(h, "POST", path, body, confirmedHeader); w.Code != 422 && w.Code != 400 {
+			t.Fatalf("%s: %d %s", body, w.Code, w.Body.String())
+		}
+	}
+	if len(s.bulk) != 0 {
+		t.Fatalf("invalid requests reached the source: %v", s.bulk)
+	}
+	if w := call(h, "POST", path, `{"state":"retry","action":"delete","group":"","confirm":true}`, nil); w.Code != 403 {
+		t.Fatalf("missing header: %d", w.Code)
+	}
+	w := call(h, "POST", path, `{"state":"retry","action":"delete","group":"","confirm":true}`, confirmedHeader)
+	var out domain.BulkAllResult
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &out) != nil || out.Affected != 7 || len(s.bulk) != 1 || s.bulk[0] != "default|retry||delete" {
+		t.Fatalf("bulk: %d %s %v", w.Code, w.Body.String(), s.bulk)
+	}
+	if w = call(h, "POST", path, `{"state":"aggregating","action":"archive","group":"g1","confirm":true}`, confirmedHeader); w.Code != 200 || s.bulk[1] != "default|aggregating|g1|archive" {
+		t.Fatalf("aggregating: %d %s", w.Code, w.Body.String())
+	}
+	audits, e := a.Store.Audits(context.Background(), 1, 10)
+	if e != nil {
+		t.Fatal(e)
+	}
+	actions := map[string]bool{}
+	for _, entry := range audits.Data {
+		actions[entry.Action+"/"+entry.Status] = true
+	}
+	if !actions["delete_all_retry/succeeded"] || !actions["archive_all_aggregating/succeeded"] {
+		t.Fatalf("audit entries: %v", actions)
+	}
+}
+
+func TestSchedulerEvents(t *testing.T) {
+	s := &actionSource{}
+	_, h := actionAPI(t, s)
+	var list domain.SchedulerEventList
+	w := call(h, "GET", "/api/v1/schedulers/entry-1/events", "", nil)
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &list) != nil || len(list.Data) != 1 || s.events != "entry-1" || s.eventLimit != 30 {
+		t.Fatalf("events: %d %s id=%q limit=%d", w.Code, w.Body.String(), s.events, s.eventLimit)
+	}
+	if w = call(h, "GET", "/api/v1/schedulers/entry-1/events?limit=200", "", nil); w.Code != 200 || s.eventLimit != 200 {
+		t.Fatalf("limit: %d %d", w.Code, s.eventLimit)
+	}
+	if w = call(h, "GET", "/api/v1/schedulers/entry-1/events?limit=201", "", nil); w.Code != 422 {
+		t.Fatalf("limit above cap: %d", w.Code)
+	}
+}
+
+func TestRedisDetailsAreAdminOnly(t *testing.T) {
+	_, h := actionAPI(t, &actionSource{})
+	// Without sign-in configured the local account is the administrator.
+	if w := call(h, "GET", "/api/v1/redis/cluster", "", nil); w.Code != 200 {
+		t.Fatalf("cluster: %d %s", w.Code, w.Body.String())
+	}
+	a := testAPI(&actionSource{})
+	a.Config.AdminUser, a.Config.AdminPassword = "admin", "admin-test"
+	a.Config.ViewerUser, a.Config.ViewerPassword = "viewer", "viewer-test"
+	h = a.Handler(http.NotFoundHandler())
+	get := func(user, password, path string) int {
+		w := call(h, "POST", "/api/v1/session", `{"username":"`+user+`","password":"`+password+`"}`, nil)
+		r := httptest.NewRequest("GET", path, nil)
+		r.AddCookie(w.Result().Cookies()[0])
+		result := httptest.NewRecorder()
+		h.ServeHTTP(result, r)
+		return result.Code
+	}
+	for _, path := range []string{"/api/v1/redis/cluster", "/api/v1/redis/raw"} {
+		if code := get("viewer", "viewer-test", path); code != 403 {
+			t.Fatalf("viewer %s: %d", path, code)
+		}
+		if code := get("admin", "admin-test", path); code != 200 {
+			t.Fatalf("admin %s: %d", path, code)
+		}
+	}
+}

@@ -186,6 +186,92 @@ type DeploymentStatus struct {
 	CheckedAt  time.Time        `json:"checked_at"`
 }
 
+// RedisInfo is a fixed selection of fields from the Redis INFO command. It
+// leaves out configuration, hostnames, ports and file paths on purpose.
+type RedisInfo struct {
+	Version                  string    `json:"version"`
+	Mode                     string    `json:"mode"`
+	Role                     string    `json:"role"`
+	UptimeSeconds            int64     `json:"uptime_seconds"`
+	ConnectedClients         int       `json:"connected_clients"`
+	BlockedClients           int       `json:"blocked_clients"`
+	ConnectedReplicas        int       `json:"connected_replicas"`
+	UsedMemoryBytes          int64     `json:"used_memory_bytes"`
+	UsedMemoryRSSBytes       int64     `json:"used_memory_rss_bytes"`
+	UsedMemoryPeakBytes      int64     `json:"used_memory_peak_bytes"`
+	MaxMemoryBytes           int64     `json:"max_memory_bytes"`
+	MemoryFragmentationRatio float64   `json:"memory_fragmentation_ratio"`
+	EvictionPolicy           string    `json:"eviction_policy"`
+	Keys                     int64     `json:"keys"`
+	OpsPerSecond             int64     `json:"ops_per_second"`
+	TotalCommands            int64     `json:"total_commands"`
+	TotalConnections         int64     `json:"total_connections"`
+	KeyspaceHits             int64     `json:"keyspace_hits"`
+	KeyspaceMisses           int64     `json:"keyspace_misses"`
+	ExpiredKeys              int64     `json:"expired_keys"`
+	EvictedKeys              int64     `json:"evicted_keys"`
+	RejectedConnections      int64     `json:"rejected_connections"`
+	AOFEnabled               bool      `json:"aof_enabled"`
+	LastSaveOK               bool      `json:"last_save_ok"`
+	CheckedAt                time.Time `json:"checked_at"`
+}
+
+type SchedulerEvent struct {
+	TaskID     string    `json:"task_id"`
+	EnqueuedAt time.Time `json:"enqueued_at"`
+}
+
+type SchedulerEventList struct {
+	Data []SchedulerEvent `json:"data"`
+}
+
+// BulkAllRequest acts on every task in one state of the queue in the path.
+// Group is required for the aggregating state and ignored otherwise.
+type BulkAllRequest struct {
+	State   string `json:"state"`
+	Group   string `json:"group"`
+	Action  string `json:"action"`
+	Confirm bool   `json:"confirm"`
+}
+
+type BulkAllResult struct {
+	Affected int `json:"affected"`
+}
+
+type RedisClusterNode struct {
+	ID      string `json:"id"`
+	Address string `json:"address"`
+}
+
+type RedisClusterQueue struct {
+	Queue   string             `json:"queue"`
+	KeySlot int64              `json:"key_slot"`
+	Nodes   []RedisClusterNode `json:"nodes"`
+}
+
+// RedisCluster says where each queue lives when Redis runs as a cluster.
+type RedisCluster struct {
+	Enabled bool                `json:"enabled"`
+	Queues  []RedisClusterQueue `json:"queues"`
+}
+
+type RedisInfoField struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type RedisInfoSection struct {
+	Name   string           `json:"name"`
+	Fields []RedisInfoField `json:"fields"`
+}
+
+// RedisRawInfo is the full INFO output; it includes paths, ports and run IDs,
+// so only the administrator account may read it.
+type RedisRawInfo struct {
+	Sections  []RedisInfoSection `json:"sections"`
+	CheckedAt time.Time          `json:"checked_at"`
+}
+
 type FieldError struct {
 	Field   string   `json:"field"`
 	Reasons []string `json:"reasons"`
