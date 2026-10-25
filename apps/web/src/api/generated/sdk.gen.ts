@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetRedisInfoData, GetRedisInfoErrors, GetRedisInfoResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServerLogsData, ListServerLogsErrors, ListServerLogsResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LogHistogramData, LogHistogramErrors, LogHistogramResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
+import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionAllData, BulkActionAllErrors, BulkActionAllResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteQueueData, DeleteQueueErrors, DeleteQueueResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetRedisClusterData, GetRedisClusterErrors, GetRedisClusterResponses, GetRedisInfoData, GetRedisInfoErrors, GetRedisInfoResponses, GetRedisRawInfoData, GetRedisRawInfoErrors, GetRedisRawInfoResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulerEventsData, ListSchedulerEventsErrors, ListSchedulerEventsResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServerLogsData, ListServerLogsErrors, ListServerLogsResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LogHistogramData, LogHistogramErrors, LogHistogramResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -149,6 +149,23 @@ export const listQueues = <ThrowOnError extends boolean = false>(options?: Optio
 });
 
 /**
+ * Delete an empty queue
+ */
+export const deleteQueue = <ThrowOnError extends boolean = false>(options: Options<DeleteQueueData, ThrowOnError>): RequestResult<DeleteQueueResponses, DeleteQueueErrors, ThrowOnError> => (options.client ?? client).delete<DeleteQueueResponses, DeleteQueueErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/queues/{queue}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Inspect a queue
  */
 export const getQueue = <ThrowOnError extends boolean = false>(options: Options<GetQueueData, ThrowOnError>): RequestResult<GetQueueResponses, GetQueueErrors, ThrowOnError> => (options.client ?? client).get<GetQueueResponses, GetQueueErrors, ThrowOnError>({
@@ -196,6 +213,23 @@ export const resumeQueue = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
+ * Retry, archive or delete every task in one state of a queue
+ */
+export const bulkActionAll = <ThrowOnError extends boolean = false>(options: Options<BulkActionAllData, ThrowOnError>): RequestResult<BulkActionAllResponses, BulkActionAllErrors, ThrowOnError> => (options.client ?? client).post<BulkActionAllResponses, BulkActionAllErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/queues/{queue}/tasks/bulk',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Redis server information
  */
 export const getRedisInfo = <ThrowOnError extends boolean = false>(options?: Options<GetRedisInfoData, ThrowOnError>): RequestResult<GetRedisInfoResponses, GetRedisInfoErrors, ThrowOnError> => (options?.client ?? client).get<GetRedisInfoResponses, GetRedisInfoErrors, ThrowOnError>({
@@ -209,6 +243,32 @@ export const getRedisInfo = <ThrowOnError extends boolean = false>(options?: Opt
 });
 
 /**
+ * Which Redis cluster nodes hold each queue; administrator only
+ */
+export const getRedisCluster = <ThrowOnError extends boolean = false>(options?: Options<GetRedisClusterData, ThrowOnError>): RequestResult<GetRedisClusterResponses, GetRedisClusterErrors, ThrowOnError> => (options?.client ?? client).get<GetRedisClusterResponses, GetRedisClusterErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/redis/cluster',
+    ...options
+});
+
+/**
+ * Full Redis INFO output; administrator only
+ */
+export const getRedisRawInfo = <ThrowOnError extends boolean = false>(options?: Options<GetRedisRawInfoData, ThrowOnError>): RequestResult<GetRedisRawInfoResponses, GetRedisRawInfoErrors, ThrowOnError> => (options?.client ?? client).get<GetRedisRawInfoResponses, GetRedisRawInfoErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/redis/raw',
+    ...options
+});
+
+/**
  * Live periodic schedule entries
  */
 export const listSchedulers = <ThrowOnError extends boolean = false>(options?: Options<ListSchedulersData, ThrowOnError>): RequestResult<ListSchedulersResponses, ListSchedulersErrors, ThrowOnError> => (options?.client ?? client).get<ListSchedulersResponses, ListSchedulersErrors, ThrowOnError>({
@@ -218,6 +278,19 @@ export const listSchedulers = <ThrowOnError extends boolean = false>(options?: O
             type: 'apiKey'
         }],
     url: '/api/v1/schedulers',
+    ...options
+});
+
+/**
+ * Newest tasks a periodic entry enqueued, from Asynq's enqueue history
+ */
+export const listSchedulerEvents = <ThrowOnError extends boolean = false>(options: Options<ListSchedulerEventsData, ThrowOnError>): RequestResult<ListSchedulerEventsResponses, ListSchedulerEventsErrors, ThrowOnError> => (options.client ?? client).get<ListSchedulerEventsResponses, ListSchedulerEventsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/schedulers/{id}/events',
     ...options
 });
 

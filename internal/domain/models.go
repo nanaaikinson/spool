@@ -216,6 +216,62 @@ type RedisInfo struct {
 	CheckedAt                time.Time `json:"checked_at"`
 }
 
+type SchedulerEvent struct {
+	TaskID     string    `json:"task_id"`
+	EnqueuedAt time.Time `json:"enqueued_at"`
+}
+
+type SchedulerEventList struct {
+	Data []SchedulerEvent `json:"data"`
+}
+
+// BulkAllRequest acts on every task in one state of the queue in the path.
+// Group is required for the aggregating state and ignored otherwise.
+type BulkAllRequest struct {
+	State   string `json:"state"`
+	Group   string `json:"group"`
+	Action  string `json:"action"`
+	Confirm bool   `json:"confirm"`
+}
+
+type BulkAllResult struct {
+	Affected int `json:"affected"`
+}
+
+type RedisClusterNode struct {
+	ID      string `json:"id"`
+	Address string `json:"address"`
+}
+
+type RedisClusterQueue struct {
+	Queue   string             `json:"queue"`
+	KeySlot int64              `json:"key_slot"`
+	Nodes   []RedisClusterNode `json:"nodes"`
+}
+
+// RedisCluster says where each queue lives when Redis runs as a cluster.
+type RedisCluster struct {
+	Enabled bool                `json:"enabled"`
+	Queues  []RedisClusterQueue `json:"queues"`
+}
+
+type RedisInfoField struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
+type RedisInfoSection struct {
+	Name   string           `json:"name"`
+	Fields []RedisInfoField `json:"fields"`
+}
+
+// RedisRawInfo is the full INFO output; it includes paths, ports and run IDs,
+// so only the administrator account may read it.
+type RedisRawInfo struct {
+	Sections  []RedisInfoSection `json:"sections"`
+	CheckedAt time.Time          `json:"checked_at"`
+}
+
 type FieldError struct {
 	Field   string   `json:"field"`
 	Reasons []string `json:"reasons"`

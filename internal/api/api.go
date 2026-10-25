@@ -203,6 +203,15 @@ func (a *API) failure(w http.ResponseWriter, r *http.Request, e error) {
 			"The task has changed state or does not support this action. Refresh and try again.",
 			nil,
 		)
+	case errors.Is(e, asynqadapter.ErrQueueNotEmpty):
+		a.reply(
+			w,
+			r,
+			409,
+			"QUEUE_NOT_EMPTY",
+			"Only an empty queue can be deleted. Process or delete its tasks first.",
+			nil,
+		)
 	case errors.Is(e, asynqadapter.ErrCursor):
 		a.reply(
 			w,

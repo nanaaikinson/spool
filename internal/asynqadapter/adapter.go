@@ -24,6 +24,8 @@ var ErrConflict = errors.New("action conflicts with current task state")
 
 var ErrCursor = errors.New("invalid cursor")
 
+var ErrQueueNotEmpty = errors.New("queue is not empty")
+
 type Source interface {
 	Queues(context.Context) ([]domain.Queue, error)
 	Queue(context.Context, string) (domain.Queue, error)
@@ -31,6 +33,10 @@ type Source interface {
 	Task(context.Context, string, string) (domain.Task, error)
 	Servers(context.Context) ([]domain.Server, error)
 	Redis(context.Context) (domain.RedisInfo, error)
+	RedisCluster(context.Context) (domain.RedisCluster, error)
+	RedisRaw(context.Context) (domain.RedisRawInfo, error)
+	SchedulerEvents(context.Context, string, int) ([]domain.SchedulerEvent, error)
+	TaskActionAll(ctx context.Context, queue, state, group, action string) (int, error)
 	ErrorGroups(context.Context, string, int) (domain.ErrorGroupList, error)
 	Schedulers(context.Context) ([]domain.Scheduler, error)
 	QueueAction(context.Context, string, string) error
@@ -64,6 +70,9 @@ func (a *Adapter) Close() error {
 func mapError(err error) error {
 	if errors.Is(err, asynq.ErrTaskNotFound) || errors.Is(err, asynq.ErrQueueNotFound) {
 		return ErrNotFound
+	}
+	if errors.Is(err, asynq.ErrQueueNotEmpty) {
+		return ErrQueueNotEmpty
 	}
 	return err
 }
@@ -434,6 +443,10 @@ func (a *Adapter) QueueAction(ctx context.Context, q, action string) error {
 	if action == "resume" {
 		return mapError(a.inspector.UnpauseQueue(q))
 	}
+	if action == "delete" {
+		// Never force: Asynq would also drop pending and retained tasks.
+		return mapError(a.inspector.DeleteQueue(q, false))
+	}
 	return ErrConflict
 }
 
@@ -493,4 +506,82 @@ func (a *Adapter) Clone(ctx context.Context, q, id string, r domain.CloneRequest
 		return domain.Task{}, e
 	}
 	return task(info), nil
+}
+
+// AllowedAll reports whether action applies to every task in state at once.
+func AllowedAll(state, action string) bool {
+	switch action {
+	case "retry":
+		return state == "scheduled" || state == "retry" || state == "archived" || state == "aggregating"
+	case "archive":
+		return state == "pending" || state == "scheduled" || state == "retry" || state == "aggregating"
+	case "delete":
+		return state != "active" && slices.Contains(domain.States, state)
+	}
+	return false
+}
+
+// TaskActionAll applies action to every task in one state of a queue and
+// returns how many tasks changed. Active tasks are never included.
+func (a *Adapter) TaskActionAll(ctx context.Context, q, state, group, action string) (int, error) {
+	if !AllowedAll(state, action) || (state == "aggregating") != (group != "") {
+		return 0, ErrConflict
+	}
+	if _, e := a.Queue(ctx, q); e != nil {
+		return 0, e
+	}
+	i := a.inspector
+	var (
+		n int
+		e error
+	)
+	switch action + "/" + state {
+	case "retry/scheduled":
+		n, e = i.RunAllScheduledTasks(q)
+	case "retry/retry":
+		n, e = i.RunAllRetryTasks(q)
+	case "retry/archived":
+		n, e = i.RunAllArchivedTasks(q)
+	case "retry/aggregating":
+		n, e = i.RunAllAggregatingTasks(q, group)
+	case "archive/pending":
+		n, e = i.ArchiveAllPendingTasks(q)
+	case "archive/scheduled":
+		n, e = i.ArchiveAllScheduledTasks(q)
+	case "archive/retry":
+		n, e = i.ArchiveAllRetryTasks(q)
+	case "archive/aggregating":
+		n, e = i.ArchiveAllAggregatingTasks(q, group)
+	case "delete/pending":
+		n, e = i.DeleteAllPendingTasks(q)
+	case "delete/scheduled":
+		n, e = i.DeleteAllScheduledTasks(q)
+	case "delete/retry":
+		n, e = i.DeleteAllRetryTasks(q)
+	case "delete/archived":
+		n, e = i.DeleteAllArchivedTasks(q)
+	case "delete/completed":
+		n, e = i.DeleteAllCompletedTasks(q)
+	case "delete/aggregating":
+		n, e = i.DeleteAllAggregatingTasks(q, group)
+	default:
+		return 0, ErrConflict
+	}
+	return n, mapError(e)
+}
+
+// SchedulerEvents lists the newest enqueues of one live periodic entry, newest first.
+func (a *Adapter) SchedulerEvents(ctx context.Context, entryID string, limit int) ([]domain.SchedulerEvent, error) {
+	if e := ctx.Err(); e != nil {
+		return nil, e
+	}
+	events, e := a.inspector.ListSchedulerEnqueueEvents(entryID, asynq.PageSize(limit))
+	if e != nil {
+		return nil, e
+	}
+	out := make([]domain.SchedulerEvent, 0, len(events))
+	for _, ev := range events {
+		out = append(out, domain.SchedulerEvent{TaskID: ev.TaskID, EnqueuedAt: ev.EnqueuedAt})
+	}
+	return out, nil
 }

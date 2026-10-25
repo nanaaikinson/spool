@@ -52,6 +52,10 @@ func (a *API) resumeQueue(w http.ResponseWriter, r *http.Request, p params) {
 	a.queueAction(w, r, p.queue, "resume")
 }
 
+func (a *API) deleteQueue(w http.ResponseWriter, r *http.Request, p params) {
+	a.queueAction(w, r, p.queue, "delete")
+}
+
 func (a *API) queueAction(w http.ResponseWriter, r *http.Request, q, action string) {
 	if !a.confirmed(w, r) {
 		return
@@ -96,4 +100,13 @@ func (a *API) listSchedulers(w http.ResponseWriter, r *http.Request, _ params) {
 		return
 	}
 	a.json(w, domain.SchedulerList{Data: v})
+}
+
+func (a *API) listSchedulerEvents(w http.ResponseWriter, r *http.Request, p params) {
+	v, e := a.Source.SchedulerEvents(r.Context(), p.id, p.int("limit", 30))
+	if e != nil {
+		a.failure(w, r, e)
+		return
+	}
+	a.json(w, domain.SchedulerEventList{Data: v})
 }

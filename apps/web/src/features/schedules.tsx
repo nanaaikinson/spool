@@ -6,7 +6,21 @@ import {
   TableBody,
   TableCell,
 } from "@/components/ui/table";
-import { Repeat } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { History, Repeat } from "lucide-react";
+import { listSchedulerEventsOptions } from "../api/generated/@tanstack/react-query.gen";
+import { Button } from "../components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { DataError, Empty, Loading } from "../components/data-state";
+import { Time } from "../components/time";
 import type {
   Scheduler,
   ScheduleRef,
@@ -73,6 +87,74 @@ export function CronChip({ schedule }: { schedule: ScheduleRef }) {
   );
 }
 /** Periodic entries with their cron spec, a plain-English reading and live countdowns. */
+/** Asynq keeps the last enqueues of a live entry and drops them when its scheduler stops cleanly. */
+function ScheduleHistory({ entry }: { entry: Scheduler }) {
+  const [open, setOpen] = useState(false);
+  const events = useQuery({
+    ...listSchedulerEventsOptions({
+      path: { id: entry.id },
+      query: { limit: 50 },
+    }),
+    enabled: open,
+  });
+  return (
+    <>
+      <Button
+        size="sm"
+        variant="ghost"
+        aria-label={`Enqueue history for ${entry.type}`}
+        onClick={() => setOpen(true)}
+      >
+        <History size={14} /> History
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Enqueue history <span className="font-mono">{entry.type}</span>
+            </DialogTitle>
+            <DialogDescription>
+              The newest tasks this entry enqueued, from the scheduler&apos;s
+              own record. It clears when the scheduler shuts down.
+            </DialogDescription>
+          </DialogHeader>
+          {events.isPending ? (
+            <Loading rows={4} />
+          ) : events.error ? (
+            <DataError error={events.error} retry={() => events.refetch()} />
+          ) : !events.data.data.length ? (
+            <Empty title="No enqueues recorded">
+              This entry has not run yet, or its scheduler stopped and cleared
+              the record.
+            </Empty>
+          ) : (
+            <ul className="max-h-80 divide-y overflow-y-auto text-sm">
+              {events.data.data.map((ev) => (
+                <li
+                  key={ev.task_id + ev.enqueued_at}
+                  className="flex items-center justify-between gap-3 py-2"
+                >
+                  <Link
+                    to="/tasks"
+                    search={{ id: ev.task_id }}
+                    className="min-w-0 truncate font-mono text-xs underline underline-offset-4"
+                    onClick={() => setOpen(false)}
+                  >
+                    {ev.task_id}
+                  </Link>
+                  <span className="flex-none text-xs text-muted-foreground">
+                    <Time value={ev.enqueued_at} />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export function PeriodicTable({ data }: { data: Scheduler[] }) {
   const now = useNow(false);
   return (
@@ -84,6 +166,9 @@ export function PeriodicTable({ data }: { data: Scheduler[] }) {
           <TableHead>Next run</TableHead>
           <TableHead>Last run</TableHead>
           <TableHead>Entry ID</TableHead>
+          <TableHead>
+            <span className="sr-only">History</span>
+          </TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -117,6 +202,9 @@ export function PeriodicTable({ data }: { data: Scheduler[] }) {
               </TableCell>
               <TableCell className="max-w-40 truncate font-mono text-xs text-muted-foreground">
                 {s.id}
+              </TableCell>
+              <TableCell className="text-right">
+                <ScheduleHistory entry={s} />
               </TableCell>
             </TableRow>
           ))}

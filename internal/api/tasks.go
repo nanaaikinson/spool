@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	z "github.com/Oudwins/zog"
@@ -185,4 +186,39 @@ func (a *API) bulkAction(w http.ResponseWriter, r *http.Request, _ params) {
 		out.Data = append(out.Data, result)
 	}
 	a.json(w, out)
+}
+
+// bulkActionAll acts on every task in one state of a queue, which can far
+// exceed the 50 tasks bulkAction accepts. It is one audit entry, recorded
+// before it runs, and the log line records how many tasks it changed.
+func (a *API) bulkActionAll(w http.ResponseWriter, r *http.Request, p params) {
+	var in domain.BulkAllRequest
+	if !a.decode(w, r, &in) {
+		return
+	}
+	if !in.Confirm || !asynqadapter.AllowedAll(in.State, in.Action) {
+		a.fail(w, r, 422, "VALIDATION_ERROR", "Choose a state, choose retry, archive, or delete for it, and confirm. Active tasks cannot be changed this way.", nil)
+		return
+	}
+	if (in.State == "aggregating") != (in.Group != "") || len(in.Group) > 200 || !a.groupOK(in.Group) {
+		a.fail(w, r, 422, "GROUP_REQUIRED", "Aggregating tasks need a group of 200 characters or fewer, and other states take none.", nil)
+		return
+	}
+	var out domain.BulkAllResult
+	e := a.audited(r, in.Action+"_all_"+in.State, p.queue, in.Group, func() error {
+		var e error
+		out.Affected, e = a.Source.TaskActionAll(r.Context(), p.queue, in.State, in.Group, in.Action)
+		return e
+	})
+	if e != nil {
+		a.failure(w, r, e)
+		return
+	}
+	a.Log.Info("bulk action finished", "actor", actor(r), "action", in.Action, "state", in.State, "queue", p.queue, "affected", out.Affected)
+	a.json(w, out)
+}
+
+// groupOK rejects control characters; aggregating group names are otherwise free text.
+func (*API) groupOK(group string) bool {
+	return !strings.ContainsFunc(group, func(r rune) bool { return r < 0x20 || r == 0x7f })
 }

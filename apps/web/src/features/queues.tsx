@@ -49,6 +49,7 @@ import {
   CircleX,
   Cpu,
   Search,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Queue, PauseQueueData } from "../api/generated/types.gen";
@@ -57,6 +58,7 @@ import {
   getQueueOptions,
   listQueuesOptions,
   listServersOptions,
+  deleteQueueMutation,
   pauseQueueMutation,
   resumeQueueMutation,
 } from "../api/generated/@tanstack/react-query.gen";
@@ -676,8 +678,23 @@ export function QueuePage() {
     },
     onError: (e) => toast.error(errorMessage(e)),
   });
+  const navigate = useNavigate();
+  const [removing, setRemoving] = useState(false);
+  const remove = useMutation({
+    ...deleteQueueMutation(),
+    onSuccess: () => {
+      setRemoving(false);
+      toast.success(`Queue ${queue} deleted.`);
+      // Leave first: refetching the deleted queue would flash an error.
+      void navigate({ to: "/queues" }).then(() => invalidateOperational());
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
   const pending = pause.isPending || resume.isPending;
   const paused = query.data?.paused;
+  // Asynq deletes only empty queues, and Spool never forces it.
+  const empty =
+    !!query.data && states.every((state) => query.data![state] === 0);
   return (
     <>
       {/* Not PageHeader: the badge sits beside the title, outside the h1. */}
@@ -708,6 +725,27 @@ export function QueuePage() {
             {paused ? <Play size={14} /> : <Pause size={14} />}{" "}
             {paused ? "Resume" : "Pause"} queue
           </Button>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <span tabIndex={empty ? -1 : 0} className="inline-flex" />
+              }
+            >
+              <Button
+                variant="secondary"
+                onClick={() => setRemoving(true)}
+                disabled={!empty || session.data?.role !== "admin"}
+              >
+                <Trash2 size={14} /> Delete queue
+              </Button>
+            </TooltipTrigger>
+            {!empty && (
+              <TooltipContent>
+                Only an empty queue can be deleted. Process or delete its tasks
+                first.
+              </TooltipContent>
+            )}
+          </Tooltip>
         </div>
       </div>
       {query.isPending ? (
@@ -809,6 +847,45 @@ export function QueuePage() {
             }}
           >
             {pending ? "Applying…" : paused ? "Resume queue" : "Pause queue"}
+          </Button>
+        </DialogFooter>
+      </OperationDialog>
+      <OperationDialog
+        open={removing}
+        onOpenChange={(open) => {
+          if (!remove.isPending) setRemoving(open);
+        }}
+        title={`Delete ${queue}?`}
+        description="The queue is empty. Deleting it removes its statistics and history from Redis. A worker that still serves it will recreate it."
+      >
+        <Alert
+          role="note"
+          className="mt-3 block rounded-md border-0 bg-hover p-3 text-xs text-muted-foreground"
+        >
+          <AlertDescription className="text-xs">
+            This action is recorded in the audit log.
+          </AlertDescription>
+        </Alert>
+        <DialogFooter className="mt-6">
+          <AlertDialogCancel
+            variant="secondary"
+            disabled={remove.isPending}
+            onClick={() => setRemoving(false)}
+          >
+            Cancel
+          </AlertDialogCancel>
+          <Button
+            variant="destructive"
+            disabled={remove.isPending}
+            onClick={() =>
+              remove.mutate({
+                path: { queue },
+                body: { confirm: true },
+                headers: { "X-Spool-Action": "confirmed" as const },
+              })
+            }
+          >
+            {remove.isPending ? "Deleting…" : "Delete queue"}
           </Button>
         </DialogFooter>
       </OperationDialog>

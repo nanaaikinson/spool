@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getRedisInfo, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServerLogs, listServers, listTasks, listViews, logHistogram, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
-import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetRedisInfoData, GetRedisInfoError, GetRedisInfoResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServerLogsData, ListServerLogsError, ListServerLogsResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LogHistogramData, LogHistogramError, LogHistogramResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
+import { archiveTask, bulkAction, bulkActionAll, cancelTask, cloneTask, deleteQueue, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getRedisCluster, getRedisInfo, getRedisRawInfo, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulerEvents, listSchedulers, listServerLogs, listServers, listTasks, listViews, logHistogram, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
+import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionAllData, BulkActionAllError, BulkActionAllResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteQueueData, DeleteQueueError, DeleteQueueResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetRedisClusterData, GetRedisClusterError, GetRedisClusterResponse, GetRedisInfoData, GetRedisInfoError, GetRedisInfoResponse, GetRedisRawInfoData, GetRedisRawInfoError, GetRedisRawInfoResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulerEventsData, ListSchedulerEventsError, ListSchedulerEventsResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServerLogsData, ListServerLogsError, ListServerLogsResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LogHistogramData, LogHistogramError, LogHistogramResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -350,6 +350,23 @@ export const listQueuesOptions = (options?: Options<ListQueuesData>) => queryOpt
     queryKey: listQueuesQueryKey(options)
 });
 
+/**
+ * Delete an empty queue
+ */
+export const deleteQueueMutation = (options?: Partial<Options<DeleteQueueData>>): UseMutationOptions<DeleteQueueResponse, DeleteQueueError, Options<DeleteQueueData>> => {
+    const mutationOptions: UseMutationOptions<DeleteQueueResponse, DeleteQueueError, Options<DeleteQueueData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await deleteQueue({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const getQueueQueryKey = (options: Options<GetQueueData>) => createQueryKey('getQueue', options);
 
 /**
@@ -402,6 +419,23 @@ export const resumeQueueMutation = (options?: Partial<Options<ResumeQueueData>>)
     return mutationOptions;
 };
 
+/**
+ * Retry, archive or delete every task in one state of a queue
+ */
+export const bulkActionAllMutation = (options?: Partial<Options<BulkActionAllData>>): UseMutationOptions<BulkActionAllResponse, BulkActionAllError, Options<BulkActionAllData>> => {
+    const mutationOptions: UseMutationOptions<BulkActionAllResponse, BulkActionAllError, Options<BulkActionAllData>> = {
+        mutationFn: async (fnOptions) => {
+            const { data } = await bulkActionAll({
+                ...options,
+                ...fnOptions,
+                throwOnError: true
+            });
+            return data;
+        }
+    };
+    return mutationOptions;
+};
+
 export const getRedisInfoQueryKey = (options?: Options<GetRedisInfoData>) => createQueryKey('getRedisInfo', options);
 
 /**
@@ -420,6 +454,42 @@ export const getRedisInfoOptions = (options?: Options<GetRedisInfoData>) => quer
     queryKey: getRedisInfoQueryKey(options)
 });
 
+export const getRedisClusterQueryKey = (options?: Options<GetRedisClusterData>) => createQueryKey('getRedisCluster', options);
+
+/**
+ * Which Redis cluster nodes hold each queue; administrator only
+ */
+export const getRedisClusterOptions = (options?: Options<GetRedisClusterData>) => queryOptions<GetRedisClusterResponse, GetRedisClusterError, GetRedisClusterResponse, ReturnType<typeof getRedisClusterQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getRedisCluster({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getRedisClusterQueryKey(options)
+});
+
+export const getRedisRawInfoQueryKey = (options?: Options<GetRedisRawInfoData>) => createQueryKey('getRedisRawInfo', options);
+
+/**
+ * Full Redis INFO output; administrator only
+ */
+export const getRedisRawInfoOptions = (options?: Options<GetRedisRawInfoData>) => queryOptions<GetRedisRawInfoResponse, GetRedisRawInfoError, GetRedisRawInfoResponse, ReturnType<typeof getRedisRawInfoQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getRedisRawInfo({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getRedisRawInfoQueryKey(options)
+});
+
 export const listSchedulersQueryKey = (options?: Options<ListSchedulersData>) => createQueryKey('listSchedulers', options);
 
 /**
@@ -436,6 +506,24 @@ export const listSchedulersOptions = (options?: Options<ListSchedulersData>) => 
         return data;
     },
     queryKey: listSchedulersQueryKey(options)
+});
+
+export const listSchedulerEventsQueryKey = (options: Options<ListSchedulerEventsData>) => createQueryKey('listSchedulerEvents', options);
+
+/**
+ * Newest tasks a periodic entry enqueued, from Asynq's enqueue history
+ */
+export const listSchedulerEventsOptions = (options: Options<ListSchedulerEventsData>) => queryOptions<ListSchedulerEventsResponse, ListSchedulerEventsError, ListSchedulerEventsResponse, ReturnType<typeof listSchedulerEventsQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await listSchedulerEvents({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: listSchedulerEventsQueryKey(options)
 });
 
 export const listServersQueryKey = (options?: Options<ListServersData>) => createQueryKey('listServers', options);

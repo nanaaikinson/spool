@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -72,4 +73,80 @@ func parseRedisInfo(raw string) domain.RedisInfo {
 		LastSaveOK:               fields["rdb_last_bgsave_status"] == "ok",
 		CheckedAt:                time.Now().UTC(),
 	}
+}
+
+// RedisCluster lists, for each queue, the hash slot and nodes that hold it. A
+// standalone or sentinel deployment reports Enabled false and no queues.
+func (a *Adapter) RedisCluster(ctx context.Context) (domain.RedisCluster, error) {
+	out := domain.RedisCluster{Queues: []domain.RedisClusterQueue{}}
+	if a.redis == nil {
+		return out, errors.New("redis client unavailable")
+	}
+	server, e := a.redis.Info(ctx, "server").Result()
+	if e != nil {
+		return out, e
+	}
+	if parseRedisInfo(server).Mode != "cluster" {
+		return out, nil
+	}
+	out.Enabled = true
+	names, e := a.inspector.Queues()
+	if e != nil {
+		return out, e
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		if e := ctx.Err(); e != nil {
+			return out, e
+		}
+		slot, e := a.inspector.ClusterKeySlot(name)
+		if e != nil {
+			return out, e
+		}
+		nodes, e := a.inspector.ClusterNodes(name)
+		if e != nil {
+			return out, e
+		}
+		q := domain.RedisClusterQueue{Queue: name, KeySlot: slot, Nodes: []domain.RedisClusterNode{}}
+		for _, n := range nodes {
+			q.Nodes = append(q.Nodes, domain.RedisClusterNode{ID: n.ID, Address: n.Addr})
+		}
+		out.Queues = append(out.Queues, q)
+	}
+	return out, nil
+}
+
+// RedisRaw returns the INFO output as sections of name and value pairs.
+func (a *Adapter) RedisRaw(ctx context.Context) (domain.RedisRawInfo, error) {
+	if a.redis == nil {
+		return domain.RedisRawInfo{}, errors.New("redis client unavailable")
+	}
+	raw, e := a.redis.Info(ctx).Result()
+	if e != nil {
+		return domain.RedisRawInfo{}, e
+	}
+	out := domain.RedisRawInfo{Sections: []domain.RedisInfoSection{}, CheckedAt: time.Now().UTC()}
+	sc := bufio.NewScanner(strings.NewReader(raw))
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		switch {
+		case line == "":
+		case strings.HasPrefix(line, "#"):
+			out.Sections = append(out.Sections, domain.RedisInfoSection{
+				Name:   strings.TrimSpace(strings.TrimPrefix(line, "#")),
+				Fields: []domain.RedisInfoField{},
+			})
+		default:
+			key, value, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
+			if len(out.Sections) == 0 {
+				out.Sections = append(out.Sections, domain.RedisInfoSection{Name: "General", Fields: []domain.RedisInfoField{}})
+			}
+			last := &out.Sections[len(out.Sections)-1]
+			last.Fields = append(last.Fields, domain.RedisInfoField{Key: key, Value: value})
+		}
+	}
+	return out, nil
 }

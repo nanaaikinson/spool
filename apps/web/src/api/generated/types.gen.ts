@@ -33,6 +33,17 @@ export type AuditList = {
     total: number;
 };
 
+export type BulkAllRequest = {
+    action: string;
+    confirm: boolean;
+    group: string;
+    state: string;
+};
+
+export type BulkAllResult = {
+    affected: number;
+};
+
 export type BulkRequest = {
     action: 'retry' | 'archive' | 'delete';
     confirm: true;
@@ -195,6 +206,22 @@ export type QueueList = {
     data: Array<Queue>;
 };
 
+export type RedisCluster = {
+    enabled: boolean;
+    queues: Array<RedisClusterQueue>;
+};
+
+export type RedisClusterNode = {
+    address: string;
+    id: string;
+};
+
+export type RedisClusterQueue = {
+    key_slot: number;
+    nodes: Array<RedisClusterNode>;
+    queue: string;
+};
+
 export type RedisInfo = {
     aof_enabled: boolean;
     blocked_clients: number;
@@ -223,6 +250,21 @@ export type RedisInfo = {
     version: string;
 };
 
+export type RedisInfoField = {
+    key: string;
+    value: string;
+};
+
+export type RedisInfoSection = {
+    fields: Array<RedisInfoField>;
+    name: string;
+};
+
+export type RedisRawInfo = {
+    checked_at: string;
+    sections: Array<RedisInfoSection>;
+};
+
 export type SavedView = {
     actor: string;
     created_at: string;
@@ -242,6 +284,15 @@ export type Scheduler = {
     previous: string | null;
     spec: string;
     type: string;
+};
+
+export type SchedulerEvent = {
+    enqueued_at: string;
+    task_id: string;
+};
+
+export type SchedulerEventList = {
+    data: Array<SchedulerEvent>;
 };
 
 export type SchedulerList = {
@@ -1026,6 +1077,71 @@ export type ListQueuesResponses = {
 
 export type ListQueuesResponse = ListQueuesResponses[keyof ListQueuesResponses];
 
+export type DeleteQueueData = {
+    body: ActionRequest;
+    headers: {
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        queue: string;
+    };
+    query?: never;
+    url: '/api/v1/queues/{queue}';
+};
+
+export type DeleteQueueErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type DeleteQueueError = DeleteQueueErrors[keyof DeleteQueueErrors];
+
+export type DeleteQueueResponses = {
+    /**
+     * Successful response
+     */
+    200: Ok;
+};
+
+export type DeleteQueueResponse = DeleteQueueResponses[keyof DeleteQueueResponses];
+
 export type GetQueueData = {
     body?: never;
     path: {
@@ -1218,6 +1334,71 @@ export type ResumeQueueResponses = {
 
 export type ResumeQueueResponse = ResumeQueueResponses[keyof ResumeQueueResponses];
 
+export type BulkActionAllData = {
+    body: BulkAllRequest;
+    headers: {
+        'X-Spool-Action': 'confirmed';
+    };
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        queue: string;
+    };
+    query?: never;
+    url: '/api/v1/queues/{queue}/tasks/bulk';
+};
+
+export type BulkActionAllErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type BulkActionAllError = BulkActionAllErrors[keyof BulkActionAllErrors];
+
+export type BulkActionAllResponses = {
+    /**
+     * Successful response
+     */
+    200: BulkAllResult;
+};
+
+export type BulkActionAllResponse = BulkActionAllResponses[keyof BulkActionAllResponses];
+
 export type GetRedisInfoData = {
     body?: never;
     path?: never;
@@ -1275,6 +1456,120 @@ export type GetRedisInfoResponses = {
 
 export type GetRedisInfoResponse = GetRedisInfoResponses[keyof GetRedisInfoResponses];
 
+export type GetRedisClusterData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/redis/cluster';
+};
+
+export type GetRedisClusterErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type GetRedisClusterError = GetRedisClusterErrors[keyof GetRedisClusterErrors];
+
+export type GetRedisClusterResponses = {
+    /**
+     * Successful response
+     */
+    200: RedisCluster;
+};
+
+export type GetRedisClusterResponse = GetRedisClusterResponses[keyof GetRedisClusterResponses];
+
+export type GetRedisRawInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/redis/raw';
+};
+
+export type GetRedisRawInfoErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type GetRedisRawInfoError = GetRedisRawInfoErrors[keyof GetRedisRawInfoErrors];
+
+export type GetRedisRawInfoResponses = {
+    /**
+     * Successful response
+     */
+    200: RedisRawInfo;
+};
+
+export type GetRedisRawInfoResponse = GetRedisRawInfoResponses[keyof GetRedisRawInfoResponses];
+
 export type ListSchedulersData = {
     body?: never;
     path?: never;
@@ -1331,6 +1626,73 @@ export type ListSchedulersResponses = {
 };
 
 export type ListSchedulersResponse = ListSchedulersResponses[keyof ListSchedulersResponses];
+
+export type ListSchedulerEventsData = {
+    body?: never;
+    path: {
+        /**
+         * Validated resource identifier
+         */
+        id: string;
+    };
+    query?: {
+        /**
+         * Events to return, newest first
+         */
+        limit?: number;
+    };
+    url: '/api/v1/schedulers/{id}/events';
+};
+
+export type ListSchedulerEventsErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type ListSchedulerEventsError = ListSchedulerEventsErrors[keyof ListSchedulerEventsErrors];
+
+export type ListSchedulerEventsResponses = {
+    /**
+     * Successful response
+     */
+    200: SchedulerEventList;
+};
+
+export type ListSchedulerEventsResponse = ListSchedulerEventsResponses[keyof ListSchedulerEventsResponses];
 
 export type ListServersData = {
     body?: never;

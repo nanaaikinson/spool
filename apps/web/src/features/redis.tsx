@@ -1,6 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import type { ReactNode } from "react";
-import { getRedisInfoOptions } from "../api/generated/@tanstack/react-query.gen";
+import { useState, type ReactNode } from "react";
+import {
+  getRedisClusterOptions,
+  getRedisInfoOptions,
+  getRedisRawInfoOptions,
+} from "../api/generated/@tanstack/react-query.gen";
 import type { RedisInfo } from "../api/generated/types.gen";
 import { DataError, Loading, Stale } from "../components/data-state";
 import { InfoTip, RefreshButton } from "../components/info-tip";
@@ -16,6 +20,17 @@ import {
   statGrid,
 } from "../components/page";
 import { Time } from "../components/time";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "../components/ui/table";
+import { useSession } from "./session";
 import { bytes, number } from "../lib/utils";
 import { clock } from "../lib/time";
 
@@ -63,7 +78,134 @@ function hitRate(info: RedisInfo) {
   return lookups ? info.keyspace_hits / lookups : undefined;
 }
 
+/** Where each queue lives when Redis runs as a cluster. Shown to the administrator only. */
+function ClusterQueues() {
+  const cluster = useQuery(getRedisClusterOptions());
+  if (!cluster.data?.enabled) return null;
+  return (
+    <Section>
+      <SectionHeader
+        title="Cluster placement"
+        description="Each queue hashes to one slot, which one node serves."
+      />
+      {!cluster.data.queues.length ? (
+        <SectionBody className="text-sm text-muted-foreground">
+          No Asynq queues yet.
+        </SectionBody>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Queue</TableHead>
+              <TableHead>Key slot</TableHead>
+              <TableHead>Nodes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {cluster.data.queues.map((q) => (
+              <TableRow key={q.queue}>
+                <TableCell className="font-mono">{q.queue}</TableCell>
+                <TableCell className="tabular-nums">{q.key_slot}</TableCell>
+                <TableCell className="font-mono text-xs">
+                  {q.nodes.map((n) => (
+                    <div key={n.id} title={n.id}>
+                      {n.address}
+                      <span className="ml-2 text-muted-foreground">
+                        {n.id.slice(0, 8)}
+                      </span>
+                    </div>
+                  ))}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      )}
+    </Section>
+  );
+}
+
+/** The full INFO output, including ports and paths. Shown to the administrator only. */
+function RawInfo() {
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState("");
+  const raw = useQuery({ ...getRedisRawInfoOptions(), enabled: open });
+  const needle = filter.trim().toLowerCase();
+  const sections = (raw.data?.sections ?? [])
+    .map((section) => ({
+      ...section,
+      fields: section.fields.filter(
+        (f) =>
+          !needle ||
+          f.key.toLowerCase().includes(needle) ||
+          f.value.toLowerCase().includes(needle),
+      ),
+    }))
+    .filter((section) => section.fields.length);
+  return (
+    <Section>
+      <SectionHeader
+        title="Raw INFO"
+        description="Everything Redis reports, including ports and file paths."
+        action={
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-expanded={open}
+            onClick={() => setOpen((o) => !o)}
+          >
+            {open ? "Hide" : "Show"}
+          </Button>
+        }
+      />
+      {open && (
+        <SectionBody>
+          {raw.isPending ? (
+            <Loading rows={4} />
+          ) : raw.error ? (
+            <DataError error={raw.error} retry={() => raw.refetch()} />
+          ) : (
+            <>
+              <Input
+                aria-label="Filter INFO fields"
+                placeholder="Filter by name or value"
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                className="mb-4 max-w-sm"
+              />
+              {!sections.length ? (
+                <p className="text-sm text-muted-foreground">
+                  No fields match.
+                </p>
+              ) : (
+                sections.map((section) => (
+                  <div key={section.name} className="mb-4 last:mb-0">
+                    <h3 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {section.name}
+                    </h3>
+                    <Rows
+                      rows={section.fields.map((f) => [
+                        f.key,
+                        <span key={f.key} className="font-mono text-xs">
+                          {f.value}
+                        </span>,
+                      ])}
+                    />
+                  </div>
+                ))
+              )}
+            </>
+          )}
+        </SectionBody>
+      )}
+    </Section>
+  );
+}
+
 export function RedisPage() {
+  const session = useSession();
+  // The administrator is the account that may also read server logs.
+  const admin = !!session.data?.server_logs;
   const query = useQuery({ ...getRedisInfoOptions(), refetchInterval: 10_000 });
   const info = query.data;
   const limited = !!info && info.max_memory_bytes > 0;
@@ -196,6 +338,12 @@ export function RedisPage() {
                 ]}
               />
             </div>
+            {admin && (
+              <>
+                <ClusterQueues />
+                <RawInfo />
+              </>
+            )}
             <p className="mt-3 text-xs text-muted-foreground">
               Checked <Time value={info.checked_at} />
             </p>
