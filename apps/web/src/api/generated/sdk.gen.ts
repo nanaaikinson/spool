@@ -2,7 +2,7 @@
 
 import type { Client, ClientMeta, Options as Options2, RequestResult, ServerSentEventsResult, TDataShape } from './client';
 import { client } from './client.gen';
-import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServerLogsData, ListServerLogsErrors, ListServerLogsResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LogHistogramData, LogHistogramErrors, LogHistogramResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
+import type { ArchiveTaskData, ArchiveTaskErrors, ArchiveTaskResponses, BulkActionData, BulkActionErrors, BulkActionResponses, CancelTaskData, CancelTaskErrors, CancelTaskResponses, CloneTaskData, CloneTaskErrors, CloneTaskResponses, DeleteTaskData, DeleteTaskErrors, DeleteTaskResponses, DeleteViewData, DeleteViewErrors, DeleteViewResponses, EventsData, EventsErrors, EventsResponse, EventsResponses, GetDeploymentStatusData, GetDeploymentStatusErrors, GetDeploymentStatusResponses, GetOverviewData, GetOverviewErrors, GetOverviewResponses, GetQueueData, GetQueueErrors, GetQueueResponses, GetRedisInfoData, GetRedisInfoErrors, GetRedisInfoResponses, GetSessionData, GetSessionErrors, GetSessionResponses, GetTaskData, GetTaskErrors, GetTaskResponses, ListAuditData, ListAuditErrors, ListAuditResponses, ListErrorGroupsData, ListErrorGroupsErrors, ListErrorGroupsResponses, ListQueuesData, ListQueuesErrors, ListQueuesResponses, ListSchedulersData, ListSchedulersErrors, ListSchedulersResponses, ListServerLogsData, ListServerLogsErrors, ListServerLogsResponses, ListServersData, ListServersErrors, ListServersResponses, ListTasksData, ListTasksErrors, ListTasksResponses, ListViewsData, ListViewsErrors, ListViewsResponses, LogHistogramData, LogHistogramErrors, LogHistogramResponses, LoginData, LoginErrors, LoginResponses, LogoutData, LogoutErrors, LogoutResponses, MetricsHealthData, MetricsHealthErrors, MetricsHealthResponses, PauseQueueData, PauseQueueErrors, PauseQueueResponses, QueryMetricData, QueryMetricErrors, QueryMetricRangeData, QueryMetricRangeErrors, QueryMetricRangeResponses, QueryMetricResponses, ResumeQueueData, ResumeQueueErrors, ResumeQueueResponses, RetryTaskData, RetryTaskErrors, RetryTaskResponses, SaveViewData, SaveViewErrors, SaveViewResponses } from './types.gen';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -193,6 +193,19 @@ export const resumeQueue = <ThrowOnError extends boolean = false>(options: Optio
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Redis server information
+ */
+export const getRedisInfo = <ThrowOnError extends boolean = false>(options?: Options<GetRedisInfoData, ThrowOnError>): RequestResult<GetRedisInfoResponses, GetRedisInfoErrors, ThrowOnError> => (options?.client ?? client).get<GetRedisInfoResponses, GetRedisInfoErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'spool_session',
+            type: 'apiKey'
+        }],
+    url: '/api/v1/redis',
+    ...options
 });
 
 /**

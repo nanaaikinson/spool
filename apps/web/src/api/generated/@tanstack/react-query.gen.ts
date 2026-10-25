@@ -3,8 +3,8 @@
 import { type InfiniteData, infiniteQueryOptions, queryOptions, type UseMutationOptions } from '@tanstack/react-query';
 
 import { client } from '../client.gen';
-import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServerLogs, listServers, listTasks, listViews, logHistogram, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
-import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServerLogsData, ListServerLogsError, ListServerLogsResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LogHistogramData, LogHistogramError, LogHistogramResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
+import { archiveTask, bulkAction, cancelTask, cloneTask, deleteTask, deleteView, getDeploymentStatus, getOverview, getQueue, getRedisInfo, getSession, getTask, listAudit, listErrorGroups, listQueues, listSchedulers, listServerLogs, listServers, listTasks, listViews, logHistogram, login, logout, metricsHealth, type Options, pauseQueue, queryMetric, queryMetricRange, resumeQueue, retryTask, saveView } from '../sdk.gen';
+import type { ArchiveTaskData, ArchiveTaskError, ArchiveTaskResponse, BulkActionData, BulkActionError, BulkActionResponse, CancelTaskData, CancelTaskError, CancelTaskResponse, CloneTaskData, CloneTaskError, CloneTaskResponse, DeleteTaskData, DeleteTaskError, DeleteTaskResponse, DeleteViewData, DeleteViewError, DeleteViewResponse, GetDeploymentStatusData, GetDeploymentStatusError, GetDeploymentStatusResponse, GetOverviewData, GetOverviewError, GetOverviewResponse, GetQueueData, GetQueueError, GetQueueResponse, GetRedisInfoData, GetRedisInfoError, GetRedisInfoResponse, GetSessionData, GetSessionError, GetSessionResponse, GetTaskData, GetTaskError, GetTaskResponse, ListAuditData, ListAuditError, ListAuditResponse, ListErrorGroupsData, ListErrorGroupsError, ListErrorGroupsResponse, ListQueuesData, ListQueuesError, ListQueuesResponse, ListSchedulersData, ListSchedulersError, ListSchedulersResponse, ListServerLogsData, ListServerLogsError, ListServerLogsResponse, ListServersData, ListServersError, ListServersResponse, ListTasksData, ListTasksError, ListTasksResponse, ListViewsData, ListViewsError, ListViewsResponse, LogHistogramData, LogHistogramError, LogHistogramResponse, LoginData, LoginError, LoginResponse, LogoutData, LogoutError, LogoutResponse, MetricsHealthData, MetricsHealthError, MetricsHealthResponse, PauseQueueData, PauseQueueError, PauseQueueResponse, QueryMetricData, QueryMetricError, QueryMetricRangeData, QueryMetricRangeError, QueryMetricRangeResponse, QueryMetricResponse, ResumeQueueData, ResumeQueueError, ResumeQueueResponse, RetryTaskData, RetryTaskError, RetryTaskResponse, SaveViewData, SaveViewError, SaveViewResponse } from '../types.gen';
 
 export type QueryKey<TOptions extends Options> = [
     Pick<TOptions, 'baseUrl' | 'body' | 'headers' | 'path' | 'query'> & {
@@ -401,6 +401,24 @@ export const resumeQueueMutation = (options?: Partial<Options<ResumeQueueData>>)
     };
     return mutationOptions;
 };
+
+export const getRedisInfoQueryKey = (options?: Options<GetRedisInfoData>) => createQueryKey('getRedisInfo', options);
+
+/**
+ * Redis server information
+ */
+export const getRedisInfoOptions = (options?: Options<GetRedisInfoData>) => queryOptions<GetRedisInfoResponse, GetRedisInfoError, GetRedisInfoResponse, ReturnType<typeof getRedisInfoQueryKey>>({
+    queryFn: async ({ queryKey, signal }) => {
+        const { data } = await getRedisInfo({
+            ...options,
+            ...queryKey[0],
+            signal,
+            throwOnError: true
+        });
+        return data;
+    },
+    queryKey: getRedisInfoQueryKey(options)
+});
 
 export const listSchedulersQueryKey = (options?: Options<ListSchedulersData>) => createQueryKey('listSchedulers', options);
 

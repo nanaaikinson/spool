@@ -616,3 +616,28 @@ func TestDiagnosticsCancellationDoesNotWaitForInspector(t *testing.T) {
 		t.Fatal("cancelled check must remain unavailable")
 	}
 }
+
+type redisSource struct {
+	fakeSource
+	err error
+}
+
+func (s *redisSource) Redis(context.Context) (domain.RedisInfo, error) {
+	return domain.RedisInfo{Version: "7.4.1", UsedMemoryBytes: 1 << 20}, s.err
+}
+
+func TestRedisInfo(t *testing.T) {
+	s := &redisSource{}
+	a := testAPI(s)
+	h := a.Handler(http.NotFoundHandler())
+	var info domain.RedisInfo
+	w := call(h, "GET", "/api/v1/redis", "", nil)
+	if w.Code != 200 || json.Unmarshal(w.Body.Bytes(), &info) != nil || info.Version != "7.4.1" || info.UsedMemoryBytes != 1<<20 {
+		t.Fatalf("redis info: %d %s", w.Code, w.Body.String())
+	}
+	s.err = fmt.Errorf("redis://user:private-password@secret-host/0")
+	w = call(h, "GET", "/api/v1/redis", "", nil)
+	if w.Code != 503 || strings.Contains(w.Body.String(), "private-password") || strings.Contains(w.Body.String(), "secret-host") {
+		t.Fatalf("failure must be fixed text: %d %s", w.Code, w.Body.String())
+	}
+}

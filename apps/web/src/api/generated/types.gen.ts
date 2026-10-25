@@ -195,6 +195,34 @@ export type QueueList = {
     data: Array<Queue>;
 };
 
+export type RedisInfo = {
+    aof_enabled: boolean;
+    blocked_clients: number;
+    checked_at: string;
+    connected_clients: number;
+    connected_replicas: number;
+    evicted_keys: number;
+    eviction_policy: string;
+    expired_keys: number;
+    keys: number;
+    keyspace_hits: number;
+    keyspace_misses: number;
+    last_save_ok: boolean;
+    max_memory_bytes: number;
+    memory_fragmentation_ratio: number;
+    mode: string;
+    ops_per_second: number;
+    rejected_connections: number;
+    role: string;
+    total_commands: number;
+    total_connections: number;
+    uptime_seconds: number;
+    used_memory_bytes: number;
+    used_memory_peak_bytes: number;
+    used_memory_rss_bytes: number;
+    version: string;
+};
+
 export type SavedView = {
     actor: string;
     created_at: string;
@@ -1189,6 +1217,63 @@ export type ResumeQueueResponses = {
 };
 
 export type ResumeQueueResponse = ResumeQueueResponses[keyof ResumeQueueResponses];
+
+export type GetRedisInfoData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/v1/redis';
+};
+
+export type GetRedisInfoErrors = {
+    /**
+     * Malformed request
+     */
+    400: Error;
+    /**
+     * Authentication required
+     */
+    401: Error;
+    /**
+     * Insufficient permission
+     */
+    403: Error;
+    /**
+     * Resource not found
+     */
+    404: Error;
+    /**
+     * State conflict
+     */
+    409: Error;
+    /**
+     * Validation failed
+     */
+    422: Error;
+    /**
+     * Request limit reached
+     */
+    429: Error;
+    /**
+     * Internal failure
+     */
+    500: Error;
+    /**
+     * Dependency unavailable
+     */
+    503: Error;
+};
+
+export type GetRedisInfoError = GetRedisInfoErrors[keyof GetRedisInfoErrors];
+
+export type GetRedisInfoResponses = {
+    /**
+     * Successful response
+     */
+    200: RedisInfo;
+};
+
+export type GetRedisInfoResponse = GetRedisInfoResponses[keyof GetRedisInfoResponses];
 
 export type ListSchedulersData = {
     body?: never;

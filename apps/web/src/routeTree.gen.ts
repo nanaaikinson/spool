@@ -14,6 +14,7 @@ import { Route as FailuresRouteImport } from './routes/failures'
 import { Route as LiveRouteImport } from './routes/live'
 import { Route as LogsRouteImport } from './routes/logs'
 import { Route as MetricsRouteImport } from './routes/metrics'
+import { Route as RedisRouteImport } from './routes/redis'
 import { Route as ScheduledRouteImport } from './routes/scheduled'
 import { Route as SchedulersRouteImport } from './routes/schedulers'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -46,6 +47,11 @@ const LogsRoute = LogsRouteImport.update({
 const MetricsRoute = MetricsRouteImport.update({
   id: '/metrics',
   path: '/metrics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RedisRoute = RedisRouteImport.update({
+  id: '/redis',
+  path: '/redis',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ScheduledRoute = ScheduledRouteImport.update({
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/live': typeof LiveRoute
   '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
+  '/redis': typeof RedisRoute
   '/scheduled': typeof ScheduledRoute
   '/schedulers': typeof SchedulersRoute
   '/settings': typeof SettingsRoute
@@ -110,6 +117,7 @@ export interface FileRoutesByTo {
   '/live': typeof LiveRoute
   '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
+  '/redis': typeof RedisRoute
   '/scheduled': typeof ScheduledRoute
   '/schedulers': typeof SchedulersRoute
   '/settings': typeof SettingsRoute
@@ -126,6 +134,7 @@ export interface FileRoutesById {
   '/live': typeof LiveRoute
   '/logs': typeof LogsRoute
   '/metrics': typeof MetricsRoute
+  '/redis': typeof RedisRoute
   '/scheduled': typeof ScheduledRoute
   '/schedulers': typeof SchedulersRoute
   '/settings': typeof SettingsRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/logs'
     | '/metrics'
+    | '/redis'
     | '/scheduled'
     | '/schedulers'
     | '/settings'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/logs'
     | '/metrics'
+    | '/redis'
     | '/scheduled'
     | '/schedulers'
     | '/settings'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/live'
     | '/logs'
     | '/metrics'
+    | '/redis'
     | '/scheduled'
     | '/schedulers'
     | '/settings'
@@ -189,6 +201,7 @@ export interface RootRouteChildren {
   LiveRoute: typeof LiveRoute
   LogsRoute: typeof LogsRoute
   MetricsRoute: typeof MetricsRoute
+  RedisRoute: typeof RedisRoute
   ScheduledRoute: typeof ScheduledRoute
   SchedulersRoute: typeof SchedulersRoute
   SettingsRoute: typeof SettingsRoute
@@ -234,6 +247,13 @@ declare module '@tanstack/react-router' {
       path: '/metrics'
       fullPath: '/metrics'
       preLoaderRoute: typeof MetricsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/redis': {
+      id: '/redis'
+      path: '/redis'
+      fullPath: '/redis'
+      preLoaderRoute: typeof RedisRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/scheduled': {
@@ -301,6 +321,7 @@ const rootRouteChildren: RootRouteChildren = {
   LiveRoute: LiveRoute,
   LogsRoute: LogsRoute,
   MetricsRoute: MetricsRoute,
+  RedisRoute: RedisRoute,
   ScheduledRoute: ScheduledRoute,
   SchedulersRoute: SchedulersRoute,
   SettingsRoute: SettingsRoute,

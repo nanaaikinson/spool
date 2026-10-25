@@ -298,6 +298,7 @@ func Endpoints() []Endpoint {
 			false,
 			(*API).metricsHealth,
 		},
+		{"GET", "/redis", "getRedisInfo", "Redis server information", domain.RedisInfo{}, nil, nil, false, (*API).redisInfo},
 		{"GET", "/status", "getDeploymentStatus", "Deployment connection diagnostics", domain.DeploymentStatus{}, nil, nil, false, (*API).deploymentStatus},
 		{
 			"GET",

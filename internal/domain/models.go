@@ -186,6 +186,36 @@ type DeploymentStatus struct {
 	CheckedAt  time.Time        `json:"checked_at"`
 }
 
+// RedisInfo is a fixed selection of fields from the Redis INFO command. It
+// leaves out configuration, hostnames, ports and file paths on purpose.
+type RedisInfo struct {
+	Version                  string    `json:"version"`
+	Mode                     string    `json:"mode"`
+	Role                     string    `json:"role"`
+	UptimeSeconds            int64     `json:"uptime_seconds"`
+	ConnectedClients         int       `json:"connected_clients"`
+	BlockedClients           int       `json:"blocked_clients"`
+	ConnectedReplicas        int       `json:"connected_replicas"`
+	UsedMemoryBytes          int64     `json:"used_memory_bytes"`
+	UsedMemoryRSSBytes       int64     `json:"used_memory_rss_bytes"`
+	UsedMemoryPeakBytes      int64     `json:"used_memory_peak_bytes"`
+	MaxMemoryBytes           int64     `json:"max_memory_bytes"`
+	MemoryFragmentationRatio float64   `json:"memory_fragmentation_ratio"`
+	EvictionPolicy           string    `json:"eviction_policy"`
+	Keys                     int64     `json:"keys"`
+	OpsPerSecond             int64     `json:"ops_per_second"`
+	TotalCommands            int64     `json:"total_commands"`
+	TotalConnections         int64     `json:"total_connections"`
+	KeyspaceHits             int64     `json:"keyspace_hits"`
+	KeyspaceMisses           int64     `json:"keyspace_misses"`
+	ExpiredKeys              int64     `json:"expired_keys"`
+	EvictedKeys              int64     `json:"evicted_keys"`
+	RejectedConnections      int64     `json:"rejected_connections"`
+	AOFEnabled               bool      `json:"aof_enabled"`
+	LastSaveOK               bool      `json:"last_save_ok"`
+	CheckedAt                time.Time `json:"checked_at"`
+}
+
 type FieldError struct {
 	Field   string   `json:"field"`
 	Reasons []string `json:"reasons"`

@@ -15,6 +15,7 @@ import (
 
 	"github.com/hibiken/asynq"
 	"github.com/nanaaikinson/spool/internal/domain"
+	"github.com/redis/go-redis/v9"
 )
 
 var ErrNotFound = errors.New("not found")
@@ -29,6 +30,7 @@ type Source interface {
 	Tasks(context.Context, domain.TaskFilter) (domain.TaskList, error)
 	Task(context.Context, string, string) (domain.Task, error)
 	Servers(context.Context) ([]domain.Server, error)
+	Redis(context.Context) (domain.RedisInfo, error)
 	ErrorGroups(context.Context, string, int) (domain.ErrorGroupList, error)
 	Schedulers(context.Context) ([]domain.Scheduler, error)
 	QueueAction(context.Context, string, string) error
@@ -40,17 +42,23 @@ type Source interface {
 type Adapter struct {
 	inspector *asynq.Inspector
 	client    *asynq.Client
+	redis     redis.UniversalClient
 	schedules scheduleCache
 	// Entries, when set, persists periodic entries; see ScheduleStore.
 	Entries ScheduleStore
 }
 
 func New(opt asynq.RedisConnOpt) *Adapter {
-	return &Adapter{inspector: asynq.NewInspector(opt), client: asynq.NewClient(opt)}
+	rc, _ := opt.MakeRedisClient().(redis.UniversalClient)
+	return &Adapter{inspector: asynq.NewInspector(opt), client: asynq.NewClient(opt), redis: rc}
 }
 
 func (a *Adapter) Close() error {
-	return errors.Join(a.inspector.Close(), a.client.Close())
+	err := errors.Join(a.inspector.Close(), a.client.Close())
+	if a.redis != nil {
+		err = errors.Join(err, a.redis.Close())
+	}
+	return err
 }
 
 func mapError(err error) error {

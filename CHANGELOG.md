@@ -6,6 +6,7 @@ All notable changes are recorded here. Spool follows [Semantic Versioning](https
 
 ### Added
 
+- Redis page under Infrastructure: version, mode and role, uptime, memory use against any limit, clients, keys, command rate, traffic counters, keyspace hit rate, and snapshot, append-only file and replica status, refreshed every 10 seconds. It shows a fixed selection of the Redis `INFO` output, never configuration, hostnames or paths. Served by `GET /api/v1/redis`.
 - Logs page for the administrator account: Spool's own log lines (startup, sign-ins, queue and task actions, warnings and errors; not per-request lines) with search (`level:error -healthcheck code:DEPENDENCY_*`), 15m/1h/24h/7d and custom ranges, a stacked level histogram (click a bar to jump the list to that time, Shift-click to zoom), live tail, table and JSON views, a virtualized list that loads older lines while scrolling (up to 5,000) and newer lines on request, keyboard shortcuts (`/` search, `j`/`k` move, Esc close), and a detail panel with lines around, same message, copy JSON, copy for AI and copy link. Served by `GET /api/v1/logs` and `GET /api/v1/logs/histogram`.
 - `SPOOL_LOG_RETENTION` (default `3d`) sets how long log lines are kept; an hourly job removes older ones.
 - Log lines include a `caller` with the file and line, and `/metrics` adds `spool_log_events_total` by level.
