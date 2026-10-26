@@ -12,9 +12,10 @@ What Spool shows:
 - **Dashboard**: needs-attention checks (no running servers, queues no server processes, paused queues, long waits, high failure rates, archived growth, servers at capacity, overdue schedules) and the top error groups.
 - **Live activity**: tasks processing right now, what runs next, and a running tail of started and finished tasks.
 - **Metrics**: historical Prometheus charts with a live mode.
-- **Queues**, **All tasks**, **Scheduled** and **Failed** views, with payload and error inspection, retry/archive/delete/cancel/clone actions where the task state allows them, confirmed bulk actions, and saved views.
+- **Queues**, **All tasks**, **Scheduled** and **Failed** views, with payload and error inspection, retry/archive/delete/cancel/clone actions where the task state allows them, confirmed bulk actions, and saved views. Bulk actions can cover every task in one state of a queue (never active ones), and an empty queue can be deleted from its page.
 - **Servers**: each Asynq server process, its queues and its busy worker slots.
-- **Periodic schedules**: cron specs with plain-English descriptions. Tasks link back to the schedule entry that enqueued them, and those links are kept in SQLite after Asynq drops its enqueue history.
+- **Periodic schedules**: cron specs with plain-English descriptions and a History view of the newest tasks each entry enqueued. Tasks link back to the schedule entry that enqueued them, and those links are kept in SQLite after Asynq drops its enqueue history.
+- **Redis**: version, mode, uptime, memory, clients, keys, command rate, hit rate and persistence and replica status, refreshed every 10 seconds. The administrator account also gets the full `INFO` output and, on Redis Cluster, which nodes hold each queue.
 - **Logs**: Spool's own log lines for the administrator, with search, a level histogram you can click to jump to a time, live tail, table and JSON views, a virtualized list that loads older lines as you scroll (and newer ones on request), keyboard navigation (`/` to search, `j`/`k` to move, Esc to close), and a detail panel with lines around, same-message filtering and copy actions.
 - **Settings & audit log**, a command palette, dark and light themes, and admin/viewer accounts.
 
@@ -67,21 +68,17 @@ Settings shows Redis, database and metrics collection checks. Set `SPOOL_INSTANC
 
 ## Try the published image
 
-Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. The quickest way to try it is the published image with a Redis URL and an account (Spool always requires sign-in when it listens beyond localhost, as it does in a container):
+Spool connects to the Redis your Asynq workers already use. It doesn't replace your workers or need their code. Only `REDIS_URL` is required:
 
 ```sh
 docker run --rm -p 127.0.0.1:8003:8003 \
   -e REDIS_URL='redis://:PASSWORD@redis.internal:6379/0' \
-  -e SPOOL_ADMIN_USER=admin -e SPOOL_ADMIN_PASSWORD='choose-a-long-password' \
-  -e SPOOL_SESSION_KEY="$(openssl rand -hex 32)" \
   ghcr.io/nanaaikinson/spool:latest
 ```
 
-Only `REDIS_URL` is required. If you omit `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD`, sign in as `admin` / `admin` (a startup warning says so). If you omit `SPOOL_SESSION_KEY`, Spool generates one per start, so sessions end on restart. Set all three for anything beyond local evaluation.
+Open http://127.0.0.1:8003 and sign in as `admin` / `admin`. Spool logs a warning because those are the defaults when no account is configured. If `SPOOL_SESSION_KEY` is unset it generates one per start, so sessions end on restart. Set `SPOOL_ADMIN_USER`, `SPOOL_ADMIN_PASSWORD` and `SPOOL_SESSION_KEY` (`openssl rand -hex 32`) for anything beyond local evaluation.
 
-For charts and the Metrics page, use the `-bundled` tag (for example `ghcr.io/nanaaikinson/spool:latest-bundled`). It is the same app plus a private Prometheus inside the container, scraping Spool itself and keeping 15 days of history under `/data/prometheus` (mount a volume at `/data` to keep it). Set `PROMETHEUS_URL` to use your own server instead; the bundled one then doesn't start. `SPOOL_PROMETHEUS_RETENTION` changes the retention. Build it locally with `make image-bundled`.
-
-Open http://127.0.0.1:8003 and sign in. Without a database Spool runs **read-only**: everything is visible, but pausing queues and acting on tasks are off. Mount a volume and set `DATABASE_PATH` to a SQLite file on it to turn on actions, the audit log, saved views and schedule links:
+Without a database Spool runs **read-only**: everything is visible, but pausing queues and acting on tasks are off. Mount a volume and set `DATABASE_PATH` to a SQLite file on it to turn on actions, the audit log, saved views and schedule links:
 
 ```sh
 docker run -d --name spool -p 127.0.0.1:8003:8003 \
@@ -93,7 +90,11 @@ docker run -d --name spool -p 127.0.0.1:8003:8003 \
 docker logs spool   # reports whether it reached Redis and found your queues
 ```
 
-Images are published for linux/amd64 and linux/arm64. Pin a version tag such as `0.1.0` in production. The [deployment guide](docs/deployment.md) covers Compose, HTTPS and Prometheus.
+### Charts without a Prometheus server
+
+The Metrics page and dashboard charts read Prometheus. The `-bundled` image tag (for example `ghcr.io/nanaaikinson/spool:latest-bundled`) is the same app plus a private Prometheus inside the container. It scrapes Spool itself and keeps 15 days of history under `/data/prometheus`, so mount a volume at `/data` to keep it. Set `PROMETHEUS_URL` to use your own server instead; the bundled one then doesn't start. `SPOOL_PROMETHEUS_RETENTION` changes the retention. Without either, Spool works and the charts are empty. Build the variant locally with `make image-bundled`.
+
+Both images are published for linux/amd64 and linux/arm64. Pin a version tag such as `0.10.0` (or `0.10.0-bundled`) in production. The [deployment guide](docs/deployment.md) covers Compose, HTTPS and Prometheus.
 
 ### Connecting to Redis
 
@@ -172,17 +173,18 @@ The defaults below are for the standalone Go server. The installer provisions th
 | `SPOOL_ENV` | Environment label | `development` |
 | `SPOOL_STATIC_DIR` | Compiled frontend directory | `apps/web/dist` |
 | `SPOOL_READ_ONLY` | Disable all changes, even for the admin account | `false` |
-| `SPOOL_ADMIN_USER`, `SPOOL_ADMIN_PASSWORD` | Operations account | unset |
+| `SPOOL_ADMIN_USER`, `SPOOL_ADMIN_PASSWORD` | Operations account | `admin` / `admin` when `SPOOL_ADDR` is not loopback and no account is set; otherwise unset |
 | `SPOOL_VIEWER_USER`, `SPOOL_VIEWER_PASSWORD` | Read-only account | unset |
-| `SPOOL_SESSION_KEY` | Session signing secret; at least 32 characters when accounts are set | unset |
+| `SPOOL_SESSION_KEY` | Session signing secret; at least 32 characters when accounts are set | generated per start when sign-in is on |
 | `SPOOL_SECURE_COOKIE` | HTTPS-only session cookie | `false` |
 | `SPOOL_LOG_RETENTION` | How long the Logs page keeps Spool's own log lines, such as `3d` or `36h` (1h to 365d) | `3d` |
 | `SPOOL_INSTANCE_NAME` | Public instance name shown before sign-in, at most 80 characters | `SPOOL_ENV` |
 | `SPOOL_SUPPORT_URL` | Public HTTPS or mailto support link shown before sign-in | unset |
 | `SPOOL_METRICS_JOB` | Prometheus scrape job checked by Settings diagnostics | `spool` |
 | `SPOOL_METRICS_TOKEN` | Bearer token required on `/metrics`; at least 32 characters, no whitespace | unset |
+| `SPOOL_PROMETHEUS_RETENTION` | Bundled image only: history the private Prometheus keeps | `15d` |
 
-Accounts are required when `SPOOL_ADDR` is not a loopback address. Use long random account passwords and a random signing secret. For remote access, use TLS termination and `SPOOL_SECURE_COOKIE=true`; the installer's localhost HTTP option uses `false`. Protect Redis with its own network and credentials, and the database file with filesystem permissions. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
+Accounts are required when `SPOOL_ADDR` is not a loopback address; with none configured Spool falls back to `admin` / `admin` and a generated session key, and logs a warning for each. Use long random account passwords and a random signing secret. For remote access, use TLS termination and `SPOOL_SECURE_COOKIE=true`; the installer's localhost HTTP option uses `false`. Protect Redis with its own network and credentials, and the database file with filesystem permissions. Expose `/metrics` only to the monitoring network; exclude it from public ingress. Stateless signed sessions expire after 12 hours. Changing the signing key revokes all sessions; logout deletes the browser cookie. Spool supports a configured admin and viewer account, not a multi-user identity-management system.
 
 Without a database, Spool runs read-only and says so in a banner: every change is refused before it reaches Redis, saved views and the audit log are unavailable, and task-to-schedule links last only as long as Asynq keeps its enqueue history. Migrations run at startup. Run one Spool instance per database file, on local storage rather than a network filesystem. Each change is written to the audit log as pending before the Redis action and marked succeeded or failed afterward, so a record left pending (for example after a crash) means the outcome is unknown. Payloads are never stored in the audit log. Back up the database file and retain audit records as your deployment requires; see [backups](docs/deployment.md#backups).
 
@@ -209,6 +211,7 @@ make lint          # go vet, ESLint, TypeScript
 make test          # Backend and frontend unit tests
 make build         # Build the web UI and the Go server and demo binaries
 make image         # Build the Docker image locally, tagged spool:VERSION
+make image-bundled # Build the image with a private Prometheus, tagged spool:VERSION-bundled
 make e2e           # Build the web UI and run the Playwright browser tests
 make test-install  # Installer and Compose checks; Python 3 + Docker Compose, no running containers
 (cd apps/web && pnpm exec prettier --write src e2e '*.ts')
