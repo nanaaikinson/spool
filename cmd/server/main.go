@@ -44,6 +44,12 @@ func run(log, access *slog.Logger, recorder *serverlog.Recorder) error {
 	if e != nil {
 		return e
 	}
+	if c.DefaultCredentials {
+		log.Warn("no SPOOL_ADMIN_USER/SPOOL_ADMIN_PASSWORD set; signing in with admin/admin. Set real credentials before exposing Spool")
+	}
+	if c.GeneratedSessionKey {
+		log.Warn("SPOOL_SESSION_KEY is not set; generated a random key, so sessions end when Spool restarts")
+	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	source := asynqadapter.New(c.Redis())

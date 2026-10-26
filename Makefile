@@ -1,4 +1,4 @@
-.PHONY: help install self-host test-install dev web run-dev demo infra down build image test e2e lint openapi api-client api-check
+.PHONY: help install self-host test-install dev web run-dev demo infra down build image image-bundled test e2e lint openapi api-client api-check
 .DEFAULT_GOAL := help
 GO ?= go
 PNPM ?= pnpm
@@ -40,6 +40,8 @@ build: ## Build the web UI and the server and demo binaries
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o bin/spool-demo ./cmd/demo
 image: ## Build the Docker image locally, tagged spool:$(VERSION)
 	docker build --build-arg VERSION=$(VERSION) -t spool:$(VERSION) .
+image-bundled: ## Build the image with a private Prometheus, tagged spool:VERSION-bundled
+	docker build --target bundled --build-arg VERSION=$(VERSION) -t spool:$(VERSION)-bundled .
 test: ## Run backend and frontend unit tests
 	$(GO) test ./...
 	cd apps/web && $(PNPM) test

@@ -242,3 +242,38 @@ func TestDeploymentMetadata(t *testing.T) {
 		}
 	}
 }
+
+func TestDefaultCredentialsAndSessionKey(t *testing.T) {
+	t.Setenv("REDIS_URL", "redis://127.0.0.1:6379/0")
+	t.Setenv("DATABASE_URL", "")
+	for _, k := range []string{"SPOOL_ADMIN_USER", "SPOOL_ADMIN_PASSWORD", "SPOOL_VIEWER_USER", "SPOOL_VIEWER_PASSWORD", "SPOOL_SESSION_KEY"} {
+		t.Setenv(k, "")
+	}
+	// Loopback keeps sign-in off.
+	t.Setenv("SPOOL_ADDR", "127.0.0.1:8088")
+	if c, e := Load(); e != nil || c.AdminUser != "" || c.DefaultCredentials || c.GeneratedSessionKey {
+		t.Fatalf("loopback: %v %+v", e, c)
+	}
+	// Beyond loopback, defaults apply and a session key is generated.
+	t.Setenv("SPOOL_ADDR", "0.0.0.0:8003")
+	c, e := Load()
+	if e != nil || c.AdminUser != "admin" || c.AdminPassword != "admin" || !c.DefaultCredentials || !c.GeneratedSessionKey || len(c.SessionKey) < 32 {
+		t.Fatalf("defaults: %v %+v", e, c)
+	}
+	// Explicit values win.
+	t.Setenv("SPOOL_ADMIN_USER", "root")
+	t.Setenv("SPOOL_ADMIN_PASSWORD", "pw")
+	t.Setenv("SPOOL_SESSION_KEY", strings.Repeat("k", 32))
+	c, e = Load()
+	if e != nil || c.AdminUser != "root" || c.DefaultCredentials || c.GeneratedSessionKey || c.SessionKey != strings.Repeat("k", 32) {
+		t.Fatalf("explicit: %v %+v", e, c)
+	}
+	// A viewer alone must not gain a default admin backdoor.
+	t.Setenv("SPOOL_ADMIN_USER", "")
+	t.Setenv("SPOOL_ADMIN_PASSWORD", "")
+	t.Setenv("SPOOL_VIEWER_USER", "v")
+	t.Setenv("SPOOL_VIEWER_PASSWORD", "pw")
+	if c, e = Load(); e != nil || c.AdminUser != "" || c.DefaultCredentials {
+		t.Fatalf("viewer only: %v %+v", e, c)
+	}
+}

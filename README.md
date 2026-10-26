@@ -77,6 +77,10 @@ docker run --rm -p 127.0.0.1:8003:8003 \
   ghcr.io/nanaaikinson/spool:latest
 ```
 
+Only `REDIS_URL` is required. If you omit `SPOOL_ADMIN_USER` and `SPOOL_ADMIN_PASSWORD`, sign in as `admin` / `admin` (a startup warning says so). If you omit `SPOOL_SESSION_KEY`, Spool generates one per start, so sessions end on restart. Set all three for anything beyond local evaluation.
+
+For charts and the Metrics page, use the `-bundled` tag (for example `ghcr.io/nanaaikinson/spool:latest-bundled`). It is the same app plus a private Prometheus inside the container, scraping Spool itself and keeping 15 days of history under `/data/prometheus` (mount a volume at `/data` to keep it). Set `PROMETHEUS_URL` to use your own server instead; the bundled one then doesn't start. `SPOOL_PROMETHEUS_RETENTION` changes the retention. Build it locally with `make image-bundled`.
+
 Open http://127.0.0.1:8003 and sign in. Without a database Spool runs **read-only**: everything is visible, but pausing queues and acting on tasks are off. Mount a volume and set `DATABASE_PATH` to a SQLite file on it to turn on actions, the audit log, saved views and schedule links:
 
 ```sh

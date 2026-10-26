@@ -78,6 +78,41 @@ jobs:
           subject-name: ghcr.io/${{ github.repository }}
           subject-digest: ${{ steps.build.outputs.digest }}
           push-to-registry: true
+      # Same image plus a private Prometheus; tags carry a -bundled suffix
+      # (1.2.3-bundled, latest-bundled).
+      - id: meta-bundled
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.TAG }}
+            type=semver,pattern={{major}},value=${{ env.TAG }},enable=${{ !startsWith(env.TAG, 'v0.') }}
+          flavor: |
+            latest=${{ !contains(env.TAG, '-') }}
+            suffix=-bundled,onlatest=true
+          labels: |
+            org.opencontainers.image.title=Spool (bundled Prometheus)
+            org.opencontainers.image.description=Observability console for Asynq task queues, with a private Prometheus for charts
+      - id: build-bundled
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          target: bundled
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta-bundled.outputs.tags }}
+          labels: ${{ steps.meta-bundled.outputs.labels }}
+          build-args: VERSION=${{ steps.meta.outputs.version }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha,scope=bundled
+          cache-to: type=gha,mode=max,scope=bundled
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: ghcr.io/${{ github.repository }}
+          subject-digest: ${{ steps.build-bundled.outputs.digest }}
+          push-to-registry: true
 
   release:
     needs: image
@@ -106,6 +141,8 @@ jobs:
           }
           {
             echo "Container image: \`$IMAGE\` (linux/amd64, linux/arm64)"
+            echo
+            echo "With a private Prometheus for charts: \`$IMAGE-bundled\`"
             echo
             echo "See the [deployment guide](https://github.com/$GITHUB_REPOSITORY/blob/$TAG/docs/deployment.md) to run it against your Asynq Redis."
             echo

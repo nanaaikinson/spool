@@ -1,8 +1,10 @@
 package config
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/hex"
 	"fmt"
 	"net/url"
 	"os"
@@ -39,6 +41,12 @@ type Config struct {
 	// audit entries. Empty when changes are allowed.
 	ReadOnlyReason string
 	SecureCookie   bool
+	// DefaultCredentials is set when no account was configured and the admin
+	// account fell back to admin/admin.
+	DefaultCredentials bool
+	// GeneratedSessionKey is set when SPOOL_SESSION_KEY was empty and a random
+	// key was made for this process, so sessions end on restart.
+	GeneratedSessionKey bool
 	// RedisTLS adds a private CA or client certificate to rediss:// and
 	// redis-sentinel:// connections. Nil uses the system trust store.
 	RedisTLS *tls.Config
@@ -106,6 +114,13 @@ func Load() (Config, error) {
 			return c, fmt.Errorf("SPOOL_SUPPORT_URL must be an HTTPS or mailto link without embedded credentials")
 		}
 	}
+	// Listening beyond loopback requires sign-in. With no account configured,
+	// fall back to admin/admin so the image runs with only REDIS_URL; the
+	// server warns at startup.
+	if c.AdminUser == "" && c.AdminPassword == "" && c.ViewerUser == "" && c.ViewerPassword == "" &&
+		!strings.HasPrefix(c.Addr, "127.0.0.1:") && !strings.HasPrefix(c.Addr, "localhost:") {
+		c.AdminUser, c.AdminPassword, c.DefaultCredentials = "admin", "admin", true
+	}
 	if (c.AdminUser == "") != (c.AdminPassword == "") || (c.ViewerUser == "") != (c.ViewerPassword == "") {
 		return c, fmt.Errorf("set both the username and password for each account (SPOOL_ADMIN_USER/SPOOL_ADMIN_PASSWORD, SPOOL_VIEWER_USER/SPOOL_VIEWER_PASSWORD)")
 	}
@@ -116,6 +131,13 @@ func Load() (Config, error) {
 		return c, fmt.Errorf("SPOOL_ADDR is not a loopback address; set SPOOL_ADMIN_USER or SPOOL_VIEWER_USER to require sign-in")
 	}
 	if c.AdminUser != "" || c.ViewerUser != "" {
+		if c.SessionKey == "" {
+			b := make([]byte, 32)
+			if _, err := rand.Read(b); err != nil {
+				return c, fmt.Errorf("could not generate SPOOL_SESSION_KEY")
+			}
+			c.SessionKey, c.GeneratedSessionKey = hex.EncodeToString(b), true
+		}
 		if len(c.SessionKey) < 32 {
 			return c, fmt.Errorf("SPOOL_SESSION_KEY must be at least 32 characters when sign-in is enabled")
 		}

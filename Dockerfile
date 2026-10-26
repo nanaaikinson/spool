@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go build -trimpath -ldflags="$LDFLAGS" -o /out/spool ./cmd/server && \
     go build -trimpath -ldflags="$LDFLAGS" -o /out/spool-demo ./cmd/demo
 
-FROM alpine:3.24
+FROM alpine:3.24 AS base
 # /data is owned by spool so a named volume mounted there starts writable.
 RUN apk add --no-cache ca-certificates && addgroup -S spool && adduser -S spool -G spool && \
     install -d -o spool -g spool /data
@@ -37,3 +37,15 @@ EXPOSE 8003
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD wget -q -O /dev/null http://127.0.0.1:8003/ready || exit 1
 ENTRYPOINT ["/app/spool"]
+
+# Opt-in variant that also runs a private Prometheus, so charts work with only
+# REDIS_URL. Build with: docker build --target bundled .
+FROM prom/prometheus:v3.5.0 AS prometheus
+
+FROM base AS bundled
+COPY --from=prometheus /bin/prometheus /app/prometheus
+COPY deploy/entrypoint-bundled.sh /app/entrypoint-bundled.sh
+ENTRYPOINT ["/app/entrypoint-bundled.sh"]
+
+# Last stage, so a plain `docker build .` produces the single-process image.
+FROM base
