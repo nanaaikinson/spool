@@ -40,7 +40,7 @@ ENTRYPOINT ["/app/spool"]
 
 # Opt-in variant that also runs a private Prometheus, so charts work with only
 # REDIS_URL. Build with: docker build --target bundled .
-FROM prom/prometheus:v3.5.0 AS prometheus
+FROM prom/prometheus:v3.15.1 AS prometheus
 
 FROM base AS bundled
 COPY --from=prometheus /bin/prometheus /app/prometheus
