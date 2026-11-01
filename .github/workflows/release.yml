@@ -47,7 +47,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           # The tag is passed explicitly: when called from auto-release.yml the
@@ -81,7 +81,7 @@ jobs:
       # Same image plus a private Prometheus; tags carry a -bundled suffix
       # (1.2.3-bundled, latest-bundled).
       - id: meta-bundled
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
