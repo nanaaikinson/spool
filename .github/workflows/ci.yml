@@ -19,7 +19,7 @@ jobs:
         with: {go-version-file: go.mod}
       # Installs the pnpm version pinned in apps/web/package.json. Corepack run
       # from the repository root would fetch the latest pnpm instead.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with: {package_json_file: apps/web/package.json}
       - uses: actions/setup-node@v4
         with:
