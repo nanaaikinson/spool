@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/Oudwins/zog v0.23.0
 	github.com/getkin/kin-openapi v0.149.0
-	github.com/go-chi/chi/v5 v5.3.2
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/hibiken/asynq v0.26.0
 	github.com/hibiken/asynq/x v0.0.0-20260612090333-d135f1439bee
 	github.com/nanaaikinson/chandlery v0.5.1
